@@ -14,7 +14,6 @@ const signatures = new Map();
 const paidIPs = new Set();
 
 app.use(cors());
-app.use(express.json({ limit: "50mb" }));
 
 // Tarkistetaan IP-osoitteen käsittely
 function getClientIp(req) {
@@ -416,10 +415,10 @@ app.post("/api/restore-signatures", (req, res) => {
   res.json({ success: true });
 });
 
-// Poista tämä webhook-määritys
-app.use("/api/webhook", express.raw({ type: "application/json" }));
+// Siirrä webhook-käsittelijä ENNEN express.json() middlewarea
+app.use(cors());
 
-// Ja muuta tämä webhook-reitti näin (lisää express.raw middleware suoraan reittiin)
+// Webhook reitti TÄHÄN, ennen json parseria
 app.post(
   "/api/webhook",
   express.raw({ type: "application/json" }),
@@ -496,5 +495,8 @@ app.post(
     }
   }
 );
+
+// JSON parser vasta webhookin jälkeen
+app.use(express.json({ limit: "50mb" }));
 
 export default app;
