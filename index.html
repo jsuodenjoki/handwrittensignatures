@@ -764,6 +764,9 @@
         // Tyhjennä allekirjoituskontti
         signaturesContainer.innerHTML = "";
 
+        // Tyhjennä nimikenttä
+        nameInput.value = "";
+
         if (getQueryParam("success") === "true") {
           console.log("✅ Maksu onnistui, tarkistetaan tila...");
           checkStatus(true);
@@ -861,7 +864,15 @@
             throw new Error("Ei allekirjoituksia");
           })
           .then((data) => {
-            if (data.images && data.images.length > 0) {
+            // Tarkista, että data on oikeassa muodossa ja sisältää kuvia
+            if (
+              data &&
+              data.images &&
+              Array.isArray(data.images) &&
+              data.images.length > 0
+            ) {
+              console.log("Löydettiin aiemmat allekirjoitukset:", data);
+
               // Näytä tallennetut allekirjoitukset
               signaturesContainer.innerHTML = "";
               data.images.forEach((imageData) => {
@@ -888,12 +899,27 @@
 
               // Näytä ostonappi
               buyButton.style.display = "inline-block";
-
-              console.log("Ladattu aiemmat allekirjoitukset:", data);
+            } else {
+              console.log(
+                "Ei aiempia allekirjoituksia tai data on virheellinen:",
+                data
+              );
+              // Tyhjennä allekirjoituskontti
+              signaturesContainer.innerHTML = "";
+              // Piilota ostonappi
+              buyButton.style.display = "none";
+              // Tyhjennä statusviesti
+              statusMessage.textContent = "";
             }
           })
           .catch((error) => {
             console.log("Ei aiempia allekirjoituksia:", error);
+            // Tyhjennä allekirjoituskontti
+            signaturesContainer.innerHTML = "";
+            // Piilota ostonappi
+            buyButton.style.display = "none";
+            // Tyhjennä statusviesti
+            statusMessage.textContent = "";
           });
       }
     </script>
