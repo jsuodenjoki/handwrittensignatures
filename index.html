@@ -654,7 +654,7 @@
         });
       }
 
-      // Luo allekirjoitukset
+      // Muokataan allekirjoitusten tallennusta localStorageen
       async function createSignatures() {
         const name = nameInput.value.trim();
         const color = document.querySelector(
@@ -681,6 +681,17 @@
             throw new Error("Virheellinen vastaus palvelimelta");
           }
 
+          // Tallenna allekirjoitukset localStorageen aikaleiman kanssa
+          localStorage.setItem(
+            "signatures",
+            JSON.stringify({
+              name: name,
+              images: data.images,
+              timestamp: data.timestamp,
+              createdAt: new Date().toISOString(),
+            })
+          );
+
           // Päivitä allekirjoitukset käyttöliittymässä
           signaturesContainer.innerHTML = "";
           data.images.forEach((src, index) => {
@@ -693,7 +704,6 @@
             signaturesContainer.appendChild(div);
           });
 
-          // Päivitä tila
           statusMessage.textContent = "Allekirjoitukset luotu!";
           statusMessage.style.color = "#6e8efb";
           buyButton.style.display = "inline-block";
@@ -704,104 +714,59 @@
         }
       }
 
-      // Tarkista onko käyttäjällä jo allekirjoituksia
+      // Muokataan olemassa olevien allekirjoitusten tarkistusta
       async function checkExistingSignatures() {
         try {
-          // Tarkista ensin paikallisesta tallennustilasta
-          const localSignatures = localStorage.getItem("signatures");
-
-          if (localSignatures) {
-            try {
-              const data = JSON.parse(localSignatures);
-              if (
-                data &&
-                data.images &&
-                Array.isArray(data.images) &&
-                data.images.length > 0
-              ) {
-                // Näytä tallennetut allekirjoitukset
-                signaturesContainer.innerHTML = "";
-                data.images.forEach((imageData) => {
-                  const signatureItem = document.createElement("div");
-                  signatureItem.className = "signature-item";
-                  const img = document.createElement("img");
-                  img.src = imageData;
-                  img.alt = `${data.name} allekirjoitus`;
-                  signatureItem.appendChild(img);
-                  signaturesContainer.appendChild(signatureItem);
-                });
-
-                // Aseta nimi kenttään
-                if (nameInput.value.trim() === "" && data.name) {
-                  nameInput.value = data.name;
-                }
-
-                // Näytä viesti ja ostonappi
-                statusMessage.textContent = `Aiemmin luodut allekirjoitukset (${data.name}) ladattu.`;
-                statusMessage.style.color = "#4CAF50";
-                buyButton.style.display = "inline-block";
-
-                // Lähetä allekirjoitukset takaisin palvelimelle
-                await sendSignaturesToServer(data);
-                return;
-              }
-            } catch (error) {
-              console.error(
-                "Virhe paikallisten allekirjoitusten lataamisessa:",
-                error
-              );
-            }
-          }
-
-          // Jos paikallisesta tallennustilasta ei löydy, tarkista palvelimelta
+          // Hae allekirjoitukset palvelimelta
           const response = await fetch(`${API_URL}/api/get-signatures`);
-          const data = await response.json();
+          const serverData = await response.json();
 
-          // Tarkista että data on oikeassa muodossa
-          if (
-            data &&
-            data.images &&
-            Array.isArray(data.images) &&
-            data.images.length > 0
-          ) {
-            // Tallenna allekirjoitukset paikalliseen tallennustilaan
-            localStorage.setItem("signatures", JSON.stringify(data));
+          // Hae allekirjoitukset localStoragesta
+          const localData = localStorage.getItem("signatures");
+          const localSignatures = localData ? JSON.parse(localData) : null;
 
-            // Näytä allekirjoitukset
-            signaturesContainer.innerHTML = "";
-            data.images.forEach((imageData) => {
-              const signatureItem = document.createElement("div");
-              signatureItem.className = "signature-item";
-              const img = document.createElement("img");
-              img.src = imageData;
-              img.alt = `${data.name} allekirjoitus`;
-              signatureItem.appendChild(img);
-              signaturesContainer.appendChild(signatureItem);
-            });
-
-            // Aseta nimi kenttään
-            if (nameInput.value.trim() === "" && data.name) {
-              nameInput.value = data.name;
+          // Vertaa aikaleimoja ja käytä uusimpia allekirjoituksia
+          if (localSignatures && serverData.timestamp) {
+            if (localSignatures.timestamp > serverData.timestamp) {
+              // Käytä localStoragen allekirjoituksia ja lähetä ne palvelimelle
+              await sendSignaturesToServer(localSignatures);
+              displaySignatures(localSignatures);
+            } else {
+              // Käytä palvelimen allekirjoituksia ja päivitä localStorage
+              localStorage.setItem("signatures", JSON.stringify(serverData));
+              displaySignatures(serverData);
             }
-
-            // Näytä viesti ja ostonappi
-            statusMessage.textContent = `Aiemmin luodut allekirjoitukset (${data.name}) ladattu.`;
-            statusMessage.style.color = "#4CAF50";
-            buyButton.style.display = "inline-block";
-          } else {
-            console.log(
-              "Ei aiempia allekirjoituksia tai data on virheellinen:",
-              data
-            );
-            signaturesContainer.innerHTML = "";
-            buyButton.style.display = "none";
-            statusMessage.textContent = "";
+          } else if (serverData.images && serverData.images.length > 0) {
+            // Käytä palvelimen allekirjoituksia
+            localStorage.setItem("signatures", JSON.stringify(serverData));
+            displaySignatures(serverData);
           }
         } catch (error) {
-          console.error("Virhe allekirjoitusten hakemisessa:", error);
+          console.error("Virhe allekirjoitusten tarkistuksessa:", error);
+        }
+      }
+
+      // Apufunktio allekirjoitusten näyttämiseen
+      function displaySignatures(data) {
+        if (data.images && data.images.length > 0) {
           signaturesContainer.innerHTML = "";
-          buyButton.style.display = "none";
-          statusMessage.textContent = "";
+          data.images.forEach((src, index) => {
+            const div = document.createElement("div");
+            div.className = "signature-item";
+            const img = document.createElement("img");
+            img.src = src;
+            img.alt = `${data.name} allekirjoitus ${index + 1}`;
+            div.appendChild(img);
+            signaturesContainer.appendChild(div);
+          });
+
+          if (nameInput.value.trim() === "" && data.name) {
+            nameInput.value = data.name;
+          }
+
+          statusMessage.textContent = `Aiemmin luodut allekirjoitukset (${data.name}) ladattu.`;
+          statusMessage.style.color = "#4CAF50";
+          buyButton.style.display = "inline-block";
         }
       }
 

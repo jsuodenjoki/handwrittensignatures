@@ -196,17 +196,25 @@ app.post("/api/create-signatures", (req, res) => {
     downloadImages.push(downloadImage);
   }
 
-  signatures.set(clientIp, {
+  // Tallennetaan allekirjoitukset sekä palvelimen muistiin että localStorage:en
+  const signatureData = {
     name,
     previewImages,
     downloadImages,
     createdAt: new Date().toISOString(),
-  });
+    timestamp: Date.now(), // Lisätään aikaleima
+  };
 
-  res.json({ images: previewImages });
+  signatures.set(clientIp, signatureData);
+
+  res.json({
+    images: previewImages,
+    name,
+    timestamp: signatureData.timestamp,
+  });
 });
 
-// Hae tallennetut allekirjoitukset
+// Muokataan allekirjoitusten hakua
 app.get("/api/get-signatures", (req, res) => {
   const clientIp = getClientIpFormatted(req);
   console.log(`Haetaan allekirjoitukset IP:lle ${clientIp}`);
@@ -214,20 +222,21 @@ app.get("/api/get-signatures", (req, res) => {
   if (signatures.has(clientIp)) {
     const data = signatures.get(clientIp);
     console.log(
-      `Löydettiin allekirjoitukset: Nimi: ${data.name}, Kuvia: ${data.previewImages.length}`
+      `Löydettiin allekirjoitukset: Nimi: ${data.name}, Kuvia: ${data.previewImages.length}, Luotu: ${data.createdAt}`
     );
     res.json({
       name: data.name,
       images: data.previewImages,
       createdAt: data.createdAt,
+      timestamp: data.timestamp,
     });
   } else {
     console.log(`Ei löydetty allekirjoituksia IP:lle ${clientIp}`);
-    // Palautetaan tyhjä tulos 404:n sijaan
     res.json({
       name: "",
       images: [],
       createdAt: null,
+      timestamp: null,
     });
   }
 });
@@ -286,7 +295,7 @@ app.post("/api/create-payment", async (req, res) => {
             product_data: {
               name: "Allekirjoitusten luonti",
             },
-            unit_amount: 500, // 5 EUR
+            unit_amount: 100, // 5 EUR
           },
           quantity: 1,
         },
