@@ -129,6 +129,27 @@ function createSignature(name, fontStyle, color = "black") {
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // LISÄTÄÄN WATERMARK-TEKSTIT ENNEN SIGNATUREA
+  ctx.font = "bold 16px Arial"; // Pienempi fontti
+  ctx.fillStyle = "rgba(0, 0, 0, 0.08)"; // Hyvin vaalea watermark
+  ctx.textAlign = "center";
+
+  const watermarkPositions = [
+    { x: canvas.width * 0.2, y: canvas.height * 0.3, angle: -15 },
+    { x: canvas.width * 0.5, y: canvas.height * 0.5, angle: 10 },
+    { x: canvas.width * 0.8, y: canvas.height * 0.3, angle: -20 },
+    { x: canvas.width * 0.3, y: canvas.height * 0.7, angle: 15 },
+    { x: canvas.width * 0.7, y: canvas.height * 0.8, angle: -10 },
+  ];
+
+  watermarkPositions.forEach((pos) => {
+    ctx.save();
+    ctx.translate(pos.x, pos.y);
+    ctx.rotate((pos.angle * Math.PI) / 180);
+    ctx.fillText("WATERMARK", 0, 0);
+    ctx.restore();
+  });
+
   // Aseta fontti allekirjoitukselle
   ctx.font = fontStyle.font;
   ctx.fillStyle = color;
@@ -146,25 +167,8 @@ function createSignature(name, fontStyle, color = "black") {
       textMetrics.actualBoundingBoxDescent) /
       2;
 
-  // Piirrä allekirjoitus
+  // Piirrä allekirjoitus VESILEIMAN PÄÄLLE
   ctx.fillText(name, canvas.width / 2, centerY);
-
-  // Lisää vesileimat ("WATERMARK") eri kohtiin
-  ctx.font = "bold 24px Arial"; // Pienempi, mutta selkeä vesileima
-  ctx.fillStyle = "rgba(0, 0, 0, 0.15)"; // Läpinäkyvä harmaa
-  ctx.textAlign = "center";
-
-  const watermarkPositions = [
-    { x: canvas.width / 4, y: canvas.height / 4 },
-    { x: (canvas.width / 4) * 3, y: canvas.height / 4 },
-    { x: canvas.width / 2, y: canvas.height / 2 },
-    { x: canvas.width / 4, y: (canvas.height / 4) * 3 },
-    { x: (canvas.width / 4) * 3, y: (canvas.height / 4) * 3 },
-  ];
-
-  watermarkPositions.forEach((pos) => {
-    ctx.fillText("WATERMARK", pos.x, pos.y);
-  });
 
   return canvas.toDataURL("image/png");
 }
