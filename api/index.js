@@ -86,11 +86,7 @@ try {
         // Lisää fontti listaan
         signatureFonts.push({
           name: fontName.toLowerCase(),
-          font:
-            fontName.toLowerCase() === "omafontti1" ||
-            fontName.toLowerCase() === "omafontti3"
-              ? `100px '${fontFamily}'`
-              : `40px '${fontFamily}'`,
+          font: `40px '${fontFamily}'`,
         });
       }
     });
@@ -120,8 +116,8 @@ try {
   );
 }
 
-// Rekisteröi Poppins-fontti
-registerFont(path.join(__dirname, "../public/fonts/poppins.ttf"), {
+// Rekisteröi Poppins-fontti vesileimoja varten
+registerFont(path.join(__dirname, "../fonts2/poppins.ttf"), {
   family: "Poppins",
 });
 
@@ -135,8 +131,8 @@ async function createSignature(name, fontStyle, color = "black") {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // LISÄTÄÄN WATERMARK-TEKSTIT ENNEN SIGNATUREA
-  ctx.font = "bold 16px 'Poppins'"; // Pienempi fontti
-  ctx.fillStyle = "rgba(0, 0, 0, 0.08)"; // Hyvin vaalea watermark
+  ctx.font = "bold 16px 'Poppins'";
+  ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
   ctx.textAlign = "center";
 
   const watermarkPositions = [
