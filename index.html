@@ -918,8 +918,16 @@
       }
 
       // Lataa allekirjoitukset
-      function downloadSignatures() {
-        window.location.href = `${API_URL}/api/download-signatures`;
+      async function downloadSignatures() {
+        const response = await fetch("/api/download-signatures");
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "signatures.zip";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
       }
 
       // Osta-painikkeen toiminnallisuus

@@ -122,7 +122,12 @@ try {
 }
 
 // Luo allekirjoitus
-function createSignature(name, fontStyle, color = "black") {
+function createSignature(
+  name,
+  fontStyle,
+  color = "black",
+  withWatermark = true
+) {
   const canvas = createCanvas(600, 200);
   const ctx = canvas.getContext("2d");
 
@@ -130,26 +135,28 @@ function createSignature(name, fontStyle, color = "black") {
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // LISÄTÄÄN WATERMARK-TEKSTIT ENNEN SIGNATUREA
-  ctx.font = "bold 16px 'Poppins'";
-  ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
-  ctx.textAlign = "center";
+  if (withWatermark) {
+    // LISÄTÄÄN WATERMARK-TEKSTIT
+    ctx.font = "bold 16px 'Poppins'";
+    ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
+    ctx.textAlign = "center";
 
-  const watermarkPositions = [
-    { x: canvas.width * 0.2, y: canvas.height * 0.3, angle: -15 },
-    { x: canvas.width * 0.5, y: canvas.height * 0.5, angle: 10 },
-    { x: canvas.width * 0.8, y: canvas.height * 0.3, angle: -20 },
-    { x: canvas.width * 0.3, y: canvas.height * 0.7, angle: 15 },
-    { x: canvas.width * 0.7, y: canvas.height * 0.8, angle: -10 },
-  ];
+    const watermarkPositions = [
+      { x: canvas.width * 0.2, y: canvas.height * 0.3, angle: -15 },
+      { x: canvas.width * 0.5, y: canvas.height * 0.5, angle: 10 },
+      { x: canvas.width * 0.8, y: canvas.height * 0.3, angle: -20 },
+      { x: canvas.width * 0.3, y: canvas.height * 0.7, angle: 15 },
+      { x: canvas.width * 0.7, y: canvas.height * 0.8, angle: -10 },
+    ];
 
-  watermarkPositions.forEach((pos) => {
-    ctx.save();
-    ctx.translate(pos.x, pos.y);
-    ctx.rotate((pos.angle * Math.PI) / 180);
-    ctx.fillText("WATERMARK", 0, 0);
-    ctx.restore();
-  });
+    watermarkPositions.forEach((pos) => {
+      ctx.save();
+      ctx.translate(pos.x, pos.y);
+      ctx.rotate((pos.angle * Math.PI) / 180);
+      ctx.fillText("WATERMARK", 0, 0);
+      ctx.restore();
+    });
+  }
 
   // Aseta fontti allekirjoitukselle
   ctx.font = fontStyle.font;
@@ -158,17 +165,13 @@ function createSignature(name, fontStyle, color = "black") {
 
   // Mittaa tekstin korkeus
   const textMetrics = ctx.measureText(name);
-  const actualHeight =
-    textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
-
-  // Siirrä y-keskitystä riippuen fontin korkeudesta
   const centerY =
     canvas.height / 2 +
     (textMetrics.actualBoundingBoxAscent -
       textMetrics.actualBoundingBoxDescent) /
       2;
 
-  // Piirrä allekirjoitus VESILEIMAN PÄÄLLE
+  // Piirrä allekirjoitus
   ctx.fillText(name, canvas.width / 2, centerY);
 
   return canvas.toDataURL("image/png");
@@ -177,40 +180,30 @@ function createSignature(name, fontStyle, color = "black") {
 // API-reitti allekirjoitusten luomiseen
 app.post("/api/create-signatures", (req, res) => {
   const { name, color } = req.body;
+  const clientIp = getClientIpFormatted(req);
 
   if (!name) {
     return res.status(400).json({ error: "Nimi puuttuu" });
   }
 
-  const signatureImages = [];
+  const previewImages = [];
+  const downloadImages = [];
 
-  // Luo allekirjoitus jokaisella fontilla
   for (const fontStyle of signatureFonts) {
-    const signatureImage = createSignature(name, fontStyle, color);
-    signatureImages.push(signatureImage);
+    const previewImage = createSignature(name, fontStyle, color, true);
+    const downloadImage = createSignature(name, fontStyle, color, false);
+    previewImages.push(previewImage);
+    downloadImages.push(downloadImage);
   }
-
-  // Tallenna allekirjoitukset käyttäjälle
-  const clientIp = getClientIpFormatted(req);
-  console.log(
-    `Tallennetaan allekirjoitukset IP:lle ${clientIp}, nimi: ${name}`
-  );
 
   signatures.set(clientIp, {
     name,
-    images: signatureImages,
+    previewImages,
+    downloadImages,
     createdAt: new Date().toISOString(),
   });
 
-  // Loki kaikista tallennetuista allekirjoituksista
-  console.log("Kaikki tallennetut allekirjoitukset:");
-  signatures.forEach((value, key) => {
-    console.log(
-      `IP: ${key}, Nimi: ${value.name}, Kuvia: ${value.images.length}`
-    );
-  });
-
-  res.json({ images: signatureImages });
+  res.json({ previewImages });
 });
 
 // Hae tallennetut allekirjoitukset
