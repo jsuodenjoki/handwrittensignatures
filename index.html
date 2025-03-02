@@ -1008,12 +1008,42 @@
         // Tyhjennä nimikenttä
         nameInput.value = "";
 
-        if (getQueryParam("success") === "true") {
+        // Jos URL sisältää success=true parametrin
+        if (
+          new URLSearchParams(window.location.search).get("success") === "true"
+        ) {
           console.log("✅ Maksu onnistui, tarkistetaan tila...");
-          checkStatus(true);
-        } else if (getQueryParam("canceled") === "true") {
+
+          // Lisätään pieni viive varmistaaksemme että backend on ehtinyt käsitellä maksun
+          setTimeout(() => {
+            fetch(`${API_URL}/api/check-signatures`)
+              .then((response) => response.json())
+              .then((data) => {
+                if (data.hasSignatures && data.hasPaid) {
+                  console.log(
+                    "Maksu vahvistettu, ladataan allekirjoitukset..."
+                  );
+                  statusMessage.textContent =
+                    "Maksu onnistui! Allekirjoitukset ladataan...";
+                  statusMessage.style.color = "#4CAF50";
+
+                  // Käynnistä lataus
+                  downloadSignatures();
+
+                  // Näytä sähköpostilomake
+                  emailContainer.style.display = "block";
+                }
+              })
+              .catch((error) => {
+                console.error("Virhe tilan tarkistuksessa:", error);
+              });
+          }, 2000); // 2 sekunnin viive
+        } else if (
+          new URLSearchParams(window.location.search).get("canceled") === "true"
+        ) {
           console.log("❌ Maksu peruutettu.");
           statusMessage.textContent = "Maksu peruutettiin.";
+          statusMessage.style.color = "#f44336";
         }
 
         // Alusta karuselli

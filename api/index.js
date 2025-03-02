@@ -121,6 +121,34 @@ try {
   );
 }
 
+// Luo allekirjoitus ilman vesileimaa
+function createSignatureWithoutWatermark(name, fontStyle, color = "black") {
+  const canvas = createCanvas(600, 200);
+  const ctx = canvas.getContext("2d");
+
+  // Aseta valkoinen tausta
+  ctx.fillStyle = "white";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Aseta fontti allekirjoitukselle
+  ctx.font = fontStyle.font;
+  ctx.fillStyle = color;
+  ctx.textAlign = "center";
+
+  // Mittaa tekstin korkeus
+  const textMetrics = ctx.measureText(name);
+  const centerY =
+    canvas.height / 2 +
+    (textMetrics.actualBoundingBoxAscent -
+      textMetrics.actualBoundingBoxDescent) /
+      2;
+
+  // Piirrä allekirjoitus
+  ctx.fillText(name, canvas.width / 2, centerY);
+
+  return canvas.toDataURL("image/png");
+}
+
 // Luo allekirjoitus
 function createSignature(name, fontStyle, color = "black") {
   const canvas = createCanvas(600, 200);
@@ -249,16 +277,18 @@ app.get("/api/download-signatures", (req, res) => {
     `attachment; filename=signatures-${Date.now()}.zip`
   );
 
-  const archive = archiver("zip", {
-    zlib: { level: 9 },
-  });
-
+  const archive = archiver("zip", { zlib: { level: 9 } });
   archive.pipe(res);
 
-  // Lisää kuvat ZIP-tiedostoon
-  userSignatures.images.forEach((imgData, index) => {
+  // Luo uudet kuvat ilman vesileimaa
+  signatureFonts.forEach((fontStyle, index) => {
+    const signatureImage = createSignatureWithoutWatermark(
+      userSignatures.name,
+      fontStyle,
+      "black"
+    );
     const imgBuffer = Buffer.from(
-      imgData.replace(/^data:image\/png;base64,/, ""),
+      signatureImage.replace(/^data:image\/png;base64,/, ""),
       "base64"
     );
     archive.append(imgBuffer, { name: `signature-${index + 1}.png` });
@@ -285,14 +315,14 @@ app.post("/api/create-payment", async (req, res) => {
             product_data: {
               name: "Allekirjoitusten luonti",
             },
-            unit_amount: 500, // 5 EUR
+            unit_amount: 100, // 5 EUR
           },
           quantity: 1,
         },
       ],
       mode: "payment",
-      success_url: `${process.env.FRONTEND_URL}/index.html?success=true`,
-      cancel_url: `${process.env.FRONTEND_URL}/index.html?canceled=true`,
+      success_url: `${process.env.FRONTEND_URL}?success=true`,
+      cancel_url: `${process.env.FRONTEND_URL}?canceled=true`,
       metadata: {
         clientIp,
       },
