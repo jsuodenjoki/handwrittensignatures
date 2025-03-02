@@ -341,16 +341,28 @@ app.post(
   express.raw({ type: "application/json" }),
   async (req, res) => {
     const sig = req.headers["stripe-signature"];
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
     try {
+      if (!webhookSecret) {
+        console.error("STRIPE_WEBHOOK_SECRET puuttuu!");
+        return res.status(400).send("Webhook secret puuttuu");
+      }
+
+      if (!sig) {
+        console.error("Stripe-signature header puuttuu!");
+        return res.status(400).send("Signature puuttuu");
+      }
+
       const event = stripe.webhooks.constructEvent(
         req.body,
         sig,
-        process.env.STRIPE_WEBHOOK_SECRET
+        webhookSecret
       );
 
       console.log("Webhook-tapahtuma vastaanotettu:", event.type);
 
+      // Käsittele useampia maksutapahtumia
       if (
         [
           "checkout.session.completed",
@@ -361,14 +373,50 @@ app.post(
         const session = event.data.object;
         const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
 
+        console.log(
+          "Kaikki nykyiset allekirjoitukset:",
+          Array.from(signatures.keys())
+        );
+        console.log("Etsitään client IP:", clientIp);
+
+        // Tarkista ensin suora IP-osoite
         if (signatures.has(clientIp)) {
           paidIPs.add(clientIp);
           console.log("✅ Maksu merkitty onnistuneeksi IP:lle:", clientIp);
         } else {
-          console.log(
-            "⚠️ Varoitus: Allekirjoituksia ei löytynyt IP:lle:",
-            clientIp
-          );
+          // Etsi vastaavia IP-osoitteita
+          let found = false;
+          for (const ip of signatures.keys()) {
+            // Tarkista onko IP-osoitteissa yhteisiä osia
+            if (
+              ip.includes(clientIp) ||
+              clientIp.includes(ip) ||
+              ip.split(".").slice(0, 3).join(".") ===
+                clientIp.split(".").slice(0, 3).join(".")
+            ) {
+              paidIPs.add(ip);
+              console.log(
+                "✅ Maksu merkitty onnistuneeksi samankaltaiselle IP:lle:",
+                ip,
+                "(alkuperäinen:",
+                clientIp,
+                ")"
+              );
+              found = true;
+              break;
+            }
+          }
+
+          if (!found) {
+            console.log(
+              "⚠️ Varoitus: Allekirjoituksia ei löytynyt IP:lle:",
+              clientIp
+            );
+            console.log(
+              "Saatavilla olevat IP:t:",
+              Array.from(signatures.keys())
+            );
+          }
         }
       }
 

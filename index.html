@@ -1014,12 +1014,16 @@
         ) {
           console.log("✅ Maksu onnistui, tarkistetaan tila...");
 
-          // Lisätään pieni viive varmistaaksemme että backend on ehtinyt käsitellä maksun
-          setTimeout(() => {
+          // Tarkista tila 10 kertaa 2 sekunnin välein
+          let checkCount = 0;
+          const maxChecks = 10;
+
+          const checkInterval = setInterval(() => {
             fetch(`${API_URL}/api/check-signatures`)
               .then((response) => response.json())
               .then((data) => {
                 if (data.hasSignatures && data.hasPaid) {
+                  clearInterval(checkInterval);
                   console.log(
                     "Maksu vahvistettu, ladataan allekirjoitukset..."
                   );
@@ -1027,17 +1031,20 @@
                     "Maksu onnistui! Allekirjoitukset ladataan...";
                   statusMessage.style.color = "#4CAF50";
 
-                  // Käynnistä lataus
                   downloadSignatures();
-
-                  // Näytä sähköpostilomake
                   emailContainer.style.display = "block";
+                } else if (++checkCount >= maxChecks) {
+                  clearInterval(checkInterval);
+                  console.log("Maksun tilan tarkistus aikakatkaistiin");
+                  statusMessage.textContent =
+                    "Maksun tilan tarkistus epäonnistui. Yritä päivittää sivu.";
+                  statusMessage.style.color = "#f44336";
                 }
               })
               .catch((error) => {
                 console.error("Virhe tilan tarkistuksessa:", error);
               });
-          }, 2000); // 2 sekunnin viive
+          }, 2000);
         } else if (
           new URLSearchParams(window.location.search).get("canceled") === "true"
         ) {
