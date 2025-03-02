@@ -4,7 +4,7 @@ import stripePackage from "stripe";
 import fs from "fs";
 import path from "path";
 import archiver from "archiver";
-import { createCanvas } from "canvas";
+import { createCanvas, registerFont } from "canvas";
 import "dotenv/config";
 
 const stripe = stripePackage(process.env.STRIPE_SECRET_KEY);
@@ -45,31 +45,83 @@ app.get("/api/check-signatures", (req, res) => {
   });
 });
 
-// Allekirjoitusten luonti ja tallennus
-app.post("/api/generate-signatures", (req, res) => {
-  try {
-    const { name, signatureImages } = req.body;
-    const clientIp = getClientIpFormatted(req);
+// Tarkista saatavilla olevat fontit
+const fontsDir = path.join(__dirname, "../public/fonts");
+// Alusta tyhjä fonttilistaus
+const signatureFonts = [];
 
-    if (!name || !signatureImages || !Array.isArray(signatureImages)) {
-      return res.status(400).json({ error: "Virheellinen pyyntö" });
+try {
+  const fontFiles = fs.readdirSync(fontsDir);
+  console.log("Saatavilla olevat fontit:", fontFiles);
+
+  // Rekisteröi kaikki löydetyt fontit
+  fontFiles.forEach((fontFile) => {
+    if (fontFile.endsWith(".ttf")) {
+      const fontName = fontFile.replace(".ttf", "").replace(/[-_]/g, " ");
+      const fontFamily = fontName.replace(/\s+/g, "");
+      console.log(`Rekisteröidään fontti: ${fontFile} nimellä ${fontFamily}`);
+      registerFont(path.join(fontsDir, fontFile), { family: fontFamily });
+
+      // Lisää fontti listaan
+      signatureFonts.push({
+        name: fontName,
+        font: `40px '${fontFamily}'`,
+      });
     }
+  });
 
-    // Tallenna allekirjoitukset IP-osoitteen perusteella
-    signatures.set(clientIp, {
-      name,
-      images: signatureImages,
-      timestamp: new Date().toISOString(),
-    });
-
-    res.json({
-      success: true,
-      message: "Allekirjoitukset luotu onnistuneesti",
-    });
-  } catch (error) {
-    console.error("Virhe allekirjoitusten luonnissa:", error);
-    res.status(500).json({ error: "Virhe allekirjoitusten käsittelyssä" });
+  // Jos ei löytynyt fontteja, lisää virheilmoitus
+  if (signatureFonts.length === 0) {
+    console.error("Varoitus: Ei löytynyt fontteja fonts-kansiosta!");
   }
+} catch (error) {
+  console.error("Virhe fonttien lataamisessa:", error);
+}
+
+// Luo allekirjoitus
+function createSignature(name, fontStyle) {
+  const canvas = createCanvas(600, 200);
+  const ctx = canvas.getContext("2d");
+
+  // Aseta tausta
+  ctx.fillStyle = "white";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Piirrä allekirjoitus
+  ctx.fillStyle = "black";
+  ctx.font = fontStyle.font;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(name, canvas.width / 2, canvas.height / 2);
+
+  return canvas.toDataURL("image/png");
+}
+
+// API-reitti allekirjoitusten luomiseen
+app.post("/api/create-signatures", (req, res) => {
+  const { name } = req.body;
+
+  if (!name) {
+    return res.status(400).json({ error: "Nimi puuttuu" });
+  }
+
+  const signatureImages = [];
+
+  // Luo allekirjoitus jokaisella fontilla
+  for (const fontStyle of signatureFonts) {
+    const signatureImage = createSignature(name, fontStyle);
+    signatureImages.push(signatureImage);
+  }
+
+  // Tallenna allekirjoitukset käyttäjälle
+  const clientIp = getClientIpFormatted(req);
+  signatures.set(clientIp, {
+    name,
+    images: signatureImages,
+    createdAt: new Date().toISOString(),
+  });
+
+  res.json({ images: signatureImages });
 });
 
 // Hae tallennetut allekirjoitukset
