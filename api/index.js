@@ -361,8 +361,28 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
   // Käytä vain ensimmäistä fonttia
   const fontStyle = signatureFonts[0];
 
-  // Luo allekirjoitus
-  const signatureImage = createSignature(name, fontStyle);
+  // Luo allekirjoitus erikseen karusellille
+  const canvas = createCanvas(600, 200);
+  const ctx = canvas.getContext("2d");
+
+  // Aseta tausta
+  ctx.fillStyle = "white";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Aseta fontti
+  ctx.font = fontStyle.font;
+
+  // Keskitä teksti täydellisesti
+  ctx.fillStyle = "black";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle"; // Tämä keskittää tekstin y-akselilla
+
+  // Piirrä teksti täsmälleen keskelle canvasia
+  // Voit säätää y-koordinaattia tässä
+  // Esim. canvas.height / 2 - 20 siirtää tekstiä 20px ylöspäin
+  ctx.fillText(name, canvas.width / 2, canvas.height / 2 - 20); // Kokeile eri arvoja
+
+  const signatureImage = canvas.toDataURL("image/png");
 
   console.log(
     `Luotu karusellin allekirjoitus nimelle "${name}" fontilla ${fontStyle.name}`
