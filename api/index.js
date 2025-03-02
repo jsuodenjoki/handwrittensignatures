@@ -84,9 +84,13 @@ try {
         registerFont(path.join(fontsDir, fontFile), { family: fontFamily });
 
         // Lisää fontti listaan
+        // Lisää fontti listaan
         signatureFonts.push({
           name: fontName,
-          font: `40px '${fontFamily}'`,
+          font:
+            fontName === "OmaFontti1" || fontName === "OmaFontti3"
+              ? `60px '${fontFamily}'`
+              : `40px '${fontFamily}'`, // Muuta fonttikoko ehtojen mukaan
         });
       }
     });
