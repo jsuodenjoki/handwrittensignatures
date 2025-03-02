@@ -676,10 +676,19 @@
           });
 
           const data = await response.json();
-
           if (!data.images) {
             throw new Error("Virheellinen vastaus palvelimelta");
           }
+
+          // Tallenna allekirjoitukset paikalliseen tallennustilaan
+          localStorage.setItem(
+            "signatures",
+            JSON.stringify({
+              name,
+              images: data.images,
+              createdAt: new Date().toISOString(),
+            })
+          );
 
           // Päivitä allekirjoitukset käyttöliittymässä
           signaturesContainer.innerHTML = "";

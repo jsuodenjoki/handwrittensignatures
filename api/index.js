@@ -189,13 +189,15 @@ app.post("/api/create-signatures", (req, res) => {
   const previewImages = [];
   const downloadImages = [];
 
+  // Luo molemmat versiot jokaiselle fonttityylille
   for (const fontStyle of signatureFonts) {
-    const previewImage = createSignature(name, fontStyle, color, true);
-    const downloadImage = createSignature(name, fontStyle, color, false);
+    const previewImage = createSignature(name, fontStyle, color, true); // Vesileimalla
+    const downloadImage = createSignature(name, fontStyle, color, false); // Ilman vesileimaa
     previewImages.push(previewImage);
     downloadImages.push(downloadImage);
   }
 
+  // Tallenna molemmat versiot
   signatures.set(clientIp, {
     name,
     previewImages,
@@ -203,6 +205,7 @@ app.post("/api/create-signatures", (req, res) => {
     createdAt: new Date().toISOString(),
   });
 
+  // Palauta vain preview-kuvat näytettäväksi
   res.json({ images: previewImages });
 });
 
@@ -214,16 +217,17 @@ app.get("/api/get-signatures", (req, res) => {
   if (signatures.has(clientIp)) {
     const data = signatures.get(clientIp);
     console.log(
-      `Löydettiin allekirjoitukset: Nimi: ${data.name}, Kuvia: ${data.previewImages.length}`
+      `Löydettiin allekirjoitukset: Nimi: ${data.name}, Preview-kuvia: ${data.previewImages.length}, Download-kuvia: ${data.downloadImages.length}`
     );
+
+    // Palauta preview-kuvat näytettäväksi
     res.json({
       name: data.name,
-      images: data.previewImages,
+      images: data.previewImages, // Käytä previewImages-taulukkoa
       createdAt: data.createdAt,
     });
   } else {
     console.log(`Ei löydetty allekirjoituksia IP:lle ${clientIp}`);
-    // Palautetaan tyhjä tulos 404:n sijaan
     res.json({
       name: "",
       images: [],
@@ -250,10 +254,7 @@ app.get("/api/download-signatures", (req, res) => {
     `attachment; filename=signatures-${Date.now()}.zip`
   );
 
-  const archive = archiver("zip", {
-    zlib: { level: 9 },
-  });
-
+  const archive = archiver("zip", { zlib: { level: 9 } });
   archive.pipe(res);
 
   // Käytä downloadImages-taulukkoa ZIP-tiedostoon
