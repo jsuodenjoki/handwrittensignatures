@@ -64,18 +64,20 @@ app.get("/api/check-signatures", (req, res) => {
   });
 });
 
-// Tarkista saatavilla olevat fontit
+// Rekisteröi Poppins-fontti vesileimoja varten
+registerFont(path.join(__dirname, "../public/fonts2/poppins.ttf"), {
+  family: "Poppins",
+});
+
+// Rekisteröi muut fontit allekirjoituksia varten
 const fontsDir = path.join(__dirname, "../public/fonts");
-// Alusta tyhjä fonttilistaus
 const signatureFonts = [];
 
 try {
-  // Tarkista onko fonts-kansio olemassa
   if (fs.existsSync(fontsDir)) {
     const fontFiles = fs.readdirSync(fontsDir);
     console.log("Saatavilla olevat fontit:", fontFiles);
 
-    // Rekisteröi kaikki löydetyt fontit
     fontFiles.forEach((fontFile) => {
       if (fontFile.endsWith(".ttf")) {
         const fontName = fontFile.replace(".ttf", "").replace(/[-_]/g, " ");
@@ -83,7 +85,6 @@ try {
         console.log(`Rekisteröidään fontti: ${fontFile} nimellä ${fontFamily}`);
         registerFont(path.join(fontsDir, fontFile), { family: fontFamily });
 
-        // Lisää fontti listaan
         signatureFonts.push({
           name: fontName.toLowerCase(),
           font:
@@ -120,17 +121,6 @@ try {
   );
 }
 
-// Lataa Poppins-fontti ennen canvasin käyttöä
-const poppins = new FontFace(
-  "Poppins",
-  "url(/fonts2/Poppins.ttf) format('truetype')" // ✅ Hakee paikallisen fontin
-);
-
-poppins.load().then((loadedFont) => {
-  document.fonts.add(loadedFont);
-  console.log("✅ Poppins-fontti ladattu public/fonts2/Poppins.ttf!");
-});
-
 // Luo allekirjoitus
 function createSignature(name, fontStyle, color = "black") {
   const canvas = createCanvas(600, 200);
@@ -140,9 +130,9 @@ function createSignature(name, fontStyle, color = "black") {
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // ✅ Käytetään ladattua Poppins-fonttia vesileimaan
-  ctx.font = "bold 16px 'Poppins', sans-serif"; // Pienempi fontti vesileimaan
-  ctx.fillStyle = "rgba(0, 0, 0, 0.08)"; // Hyvin vaalea watermark
+  // LISÄTÄÄN WATERMARK-TEKSTIT ENNEN SIGNATUREA
+  ctx.font = "bold 16px 'Poppins'";
+  ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
   ctx.textAlign = "center";
 
   const watermarkPositions = [
