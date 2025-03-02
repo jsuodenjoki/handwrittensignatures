@@ -68,7 +68,10 @@
       }
 
       .input-group {
-        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 15px;
       }
 
       input[type="text"] {
@@ -298,8 +301,10 @@
       }
 
       .color-options {
-        display: inline-block;
-        margin: 0 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 15px;
       }
 
       .color-circle {
@@ -350,22 +355,22 @@
           placeholder="Kirjoita nimesi tähän..."
           style="width: 40%"
         />
-
-        <div class="color-options">
-          <label>
-            <input type="radio" name="color" value="black" checked />
-            <span class="color-circle black"></span>
-          </label>
-          <label>
-            <input type="radio" name="color" value="blue" />
-            <span class="color-circle blue"></span>
-          </label>
-        </div>
-
-        <button id="generateSignatures" class="button primary-button">
-          Luo allekirjoitukset
-        </button>
       </div>
+
+      <div class="color-options">
+        <label>
+          <input type="radio" name="color" value="black" checked />
+          <span class="color-circle black"></span>
+        </label>
+        <label>
+          <input type="radio" name="color" value="blue" />
+          <span class="color-circle blue"></span>
+        </label>
+      </div>
+
+      <button id="generateSignatures" class="button primary-button">
+        Luo allekirjoitukset
+      </button>
 
       <div id="statusMessage" class="status-message"></div>
 
