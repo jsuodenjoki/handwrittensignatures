@@ -127,15 +127,17 @@ function createSignature(name, fontStyle) {
 
   // Aseta fontti
   ctx.font = fontStyle.font;
-
-  // Keskitä teksti täydellisesti
   ctx.fillStyle = "black";
   ctx.textAlign = "center";
-  ctx.textBaseline = "middle"; // Tämä keskittää tekstin y-akselilla
+  ctx.textBaseline = "middle";
 
-  // Piirrä teksti täsmälleen keskelle canvasia
-  // Ei korjauskerrointa, luotetaan textBaseline: "middle" asetukseen
-  ctx.fillText(name, canvas.width / 2, canvas.height / 2);
+  // Laske tekstin todellinen korkeus
+  const textMetrics = ctx.measureText(name);
+  const textHeight =
+    textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
+
+  // Keskitä teksti todellisesti
+  ctx.fillText(name, canvas.width / 2, canvas.height / 2 + textHeight / 4);
 
   return canvas.toDataURL("image/png");
 }
