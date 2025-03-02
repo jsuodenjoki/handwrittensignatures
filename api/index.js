@@ -13,6 +13,85 @@ const app = express();
 const signatures = new Map();
 const paidIPs = new Set();
 
+// Järjestys on tärkeä! Webhook ENNEN muita middlewareja
+app.post(
+  "/api/webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+
+    try {
+      const event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+
+      console.log("Webhook-tapahtuma vastaanotettu:", event.type);
+      console.log("Webhook data:", event.data.object);
+
+      if (
+        [
+          "checkout.session.completed",
+          "payment_intent.succeeded",
+          "charge.succeeded",
+        ].includes(event.type)
+      ) {
+        const session = event.data.object;
+        const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
+
+        console.log("Webhook metadata:", session.metadata);
+        console.log(
+          "Kaikki tallennetut allekirjoitukset:",
+          Array.from(signatures.keys())
+        );
+        console.log("Etsitään IP-osoitetta:", clientIp);
+
+        if (signatures.has(clientIp)) {
+          paidIPs.add(clientIp);
+          console.log("✅ Maksu merkitty onnistuneeksi IP:lle:", clientIp);
+        } else {
+          // Yritä löytää samankaltainen IP-osoite
+          let found = false;
+          for (const ip of signatures.keys()) {
+            if (
+              ip.includes(clientIp) ||
+              clientIp.includes(ip) ||
+              ip.split(".").slice(0, 3).join(".") ===
+                clientIp.split(".").slice(0, 3).join(".")
+            ) {
+              paidIPs.add(ip);
+              console.log(
+                "✅ Maksu merkitty onnistuneeksi samankaltaiselle IP:lle:",
+                ip,
+                "(alkuperäinen:",
+                clientIp,
+                ")"
+              );
+              found = true;
+              break;
+            }
+          }
+
+          if (!found) {
+            console.log(
+              "⚠️ Varoitus: Allekirjoituksia ei löytynyt IP:lle:",
+              clientIp
+            );
+            console.log("Tallennetut IP:t:", Array.from(signatures.keys()));
+          }
+        }
+      }
+
+      res.json({ received: true });
+    } catch (err) {
+      console.error("Webhook-virhe:", err.message);
+      return res.status(400).send(`Webhook-virhe: ${err.message}`);
+    }
+  }
+);
+
+// Muut middlewaret webhookin JÄLKEEN
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 
@@ -415,86 +494,5 @@ app.post("/api/restore-signatures", (req, res) => {
   );
   res.json({ success: true });
 });
-
-// Poista tämä webhook-määritys
-app.use("/api/webhook", express.raw({ type: "application/json" }));
-
-// Ja muuta tämä webhook-reitti näin (lisää express.raw middleware suoraan reittiin)
-app.post(
-  "/api/webhook",
-  express.raw({ type: "application/json" }),
-  async (req, res) => {
-    const sig = req.headers["stripe-signature"];
-
-    try {
-      const event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-
-      console.log("Webhook-tapahtuma vastaanotettu:", event.type);
-      console.log("Webhook data:", event.data.object);
-
-      if (
-        [
-          "checkout.session.completed",
-          "payment_intent.succeeded",
-          "charge.succeeded",
-        ].includes(event.type)
-      ) {
-        const session = event.data.object;
-        const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
-
-        console.log("Webhook metadata:", session.metadata);
-        console.log(
-          "Kaikki tallennetut allekirjoitukset:",
-          Array.from(signatures.keys())
-        );
-        console.log("Etsitään IP-osoitetta:", clientIp);
-
-        if (signatures.has(clientIp)) {
-          paidIPs.add(clientIp);
-          console.log("✅ Maksu merkitty onnistuneeksi IP:lle:", clientIp);
-        } else {
-          // Yritä löytää samankaltainen IP-osoite
-          let found = false;
-          for (const ip of signatures.keys()) {
-            if (
-              ip.includes(clientIp) ||
-              clientIp.includes(ip) ||
-              ip.split(".").slice(0, 3).join(".") ===
-                clientIp.split(".").slice(0, 3).join(".")
-            ) {
-              paidIPs.add(ip);
-              console.log(
-                "✅ Maksu merkitty onnistuneeksi samankaltaiselle IP:lle:",
-                ip,
-                "(alkuperäinen:",
-                clientIp,
-                ")"
-              );
-              found = true;
-              break;
-            }
-          }
-
-          if (!found) {
-            console.log(
-              "⚠️ Varoitus: Allekirjoituksia ei löytynyt IP:lle:",
-              clientIp
-            );
-            console.log("Tallennetut IP:t:", Array.from(signatures.keys()));
-          }
-        }
-      }
-
-      res.json({ received: true });
-    } catch (err) {
-      console.error("Webhook-virhe:", err.message);
-      return res.status(400).send(`Webhook-virhe: ${err.message}`);
-    }
-  }
-);
 
 export default app;
