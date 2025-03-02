@@ -378,13 +378,6 @@
         "Pekka Heikkinen",
       ];
 
-      // Poista Google Fonts -lataus kokonaan
-      const fontStylesheet = document.createElement("link");
-      fontStylesheet.rel = "stylesheet";
-      fontStylesheet.href =
-        "https://fonts.googleapis.com/css2?family=Dancing+Script&family=Parisienne&family=Caveat&family=Great+Vibes&display=swap";
-      document.head.appendChild(fontStylesheet);
-
       // Luo allekirjoitukset karuselliin
       function createSignatureForCarousel(name, fontStyle) {
         const canvas = document.createElement("canvas");
@@ -523,19 +516,21 @@
           return;
         }
 
+        console.log("Alustetaan karuselli fonteilla:", signatureFonts);
+
         // Luo esimerkkiallekirjoitukset ja lisää ne karuselliin
         const signatures = [];
 
         // Luo ensin kaikki allekirjoitukset ja tallenna ne
         for (const name of exampleNames) {
-          // Käytä vain yhtä fonttia per nimi selkeyden vuoksi
-          const fontStyle =
-            signatureFonts[Math.floor(Math.random() * signatureFonts.length)];
+          // Käytä vain omaa fonttia
+          const fontStyle = signatureFonts[0]; // Käytä ensimmäistä (ja ainoaa) fonttia
           const signatureImage = createSignatureForCarousel(name, fontStyle);
 
           signatures.push({
             name,
             image: signatureImage,
+            font: fontStyle.name,
           });
         }
 
@@ -546,7 +541,7 @@
 
           const img = document.createElement("img");
           img.src = signature.image;
-          img.alt = `${signature.name} allekirjoitus`;
+          img.alt = `${signature.name} allekirjoitus (${signature.font})`;
 
           carouselItem.appendChild(img);
           signatureCarousel.appendChild(carouselItem);
@@ -559,7 +554,7 @@
 
           const img = document.createElement("img");
           img.src = signature.image;
-          img.alt = `${signature.name} allekirjoitus`;
+          img.alt = `${signature.name} allekirjoitus (${signature.font})`;
 
           carouselItem.appendChild(img);
           signatureCarousel.appendChild(carouselItem);
