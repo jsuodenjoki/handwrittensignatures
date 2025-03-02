@@ -697,6 +697,9 @@
           statusMessage.textContent = "Allekirjoitukset luotu!";
           statusMessage.style.color = "#6e8efb";
           buyButton.style.display = "inline-block";
+
+          // Tarkista tila heti luonnin jälkeen
+          await checkStatus();
         } catch (error) {
           console.error("Virhe allekirjoitusten luonnissa:", error);
           statusMessage.textContent = "Virhe allekirjoitusten luonnissa.";

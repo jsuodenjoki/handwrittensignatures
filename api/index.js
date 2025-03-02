@@ -239,16 +239,18 @@ app.post("/api/create-signatures", (req, res) => {
     return res.status(400).json({ error: "Nimi puuttuu" });
   }
 
+  // Luo molemmat versiot jokaiselle fonttityylille
   const previewImages = [];
   const downloadImages = [];
 
   for (const fontStyle of signatureFonts) {
-    const previewImage = createSignature(name, fontStyle, color, true);
-    const downloadImage = createSignature(name, fontStyle, color, false);
+    const previewImage = createSignature(name, fontStyle, color, true); // Vesileimalla
+    const downloadImage = createSignature(name, fontStyle, color, false); // Ilman vesileimaa
     previewImages.push(previewImage);
     downloadImages.push(downloadImage);
   }
 
+  // Tallenna molemmat versiot
   signatures.set(clientIp, {
     name,
     previewImages,
@@ -256,7 +258,17 @@ app.post("/api/create-signatures", (req, res) => {
     createdAt: new Date().toISOString(),
   });
 
-  res.json({ images: previewImages });
+  console.log(`Tallennettu allekirjoitukset IP:lle ${clientIp}, nimi: ${name}`);
+  console.log(
+    `Preview-kuvia: ${previewImages.length}, Download-kuvia: ${downloadImages.length}`
+  );
+
+  // Palauta vain preview-kuvat näytettäväksi
+  res.json({
+    images: previewImages,
+    name: name,
+    createdAt: new Date().toISOString(),
+  });
 });
 
 // Hae tallennetut allekirjoitukset
@@ -267,8 +279,9 @@ app.get("/api/get-signatures", (req, res) => {
   if (signatures.has(clientIp)) {
     const data = signatures.get(clientIp);
     console.log(
-      `Löydettiin allekirjoitukset: Nimi: ${data.name}, Kuvia: ${data.previewImages.length}`
+      `Löydettiin allekirjoitukset: Nimi: ${data.name}, Preview-kuvia: ${data.previewImages.length}, Download-kuvia: ${data.downloadImages.length}`
     );
+
     res.json({
       name: data.name,
       images: data.previewImages,
@@ -276,7 +289,6 @@ app.get("/api/get-signatures", (req, res) => {
     });
   } else {
     console.log(`Ei löydetty allekirjoituksia IP:lle ${clientIp}`);
-    // Palautetaan tyhjä tulos 404:n sijaan
     res.json({
       name: "",
       images: [],
