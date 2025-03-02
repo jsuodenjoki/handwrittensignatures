@@ -646,16 +646,21 @@
                 console.log("Maksu vahvistettu, ladataan allekirjoitukset...");
                 statusMessage.textContent =
                   "Maksu onnistui! Allekirjoitukset ladataan...";
+                statusMessage.style.color = "#4CAF50"; // Vihreä väri
                 buyButton.style.display = "none";
 
                 if (autoDownload) {
                   downloadSignatures();
                   emailContainer.style.display = "block";
                 }
-              } else {
-                // Näytä viesti vain jos käyttäjä on luonut allekirjoitukset
+              } else if (
+                statusMessage.textContent !==
+                "Aiemmin luodut allekirjoitukset ladattu."
+              ) {
+                // Näytä viesti vain jos käyttäjä on luonut allekirjoitukset ja ei ole jo "aiemmin luodut" -viestiä
                 if (signaturesContainer.innerHTML.trim() !== "") {
                   statusMessage.textContent = "Allekirjoitukset luotu!";
+                  statusMessage.style.color = "#6e8efb"; // Sininen väri
                   buyButton.style.display = "inline-block";
                 } else {
                   // Älä näytä viestiä tai osta-painiketta, jos käyttäjä ei ole luonut allekirjoituksia
@@ -810,6 +815,9 @@
 
           // Alusta karuselli
           await initializeCarousel();
+
+          // Tarkista onko käyttäjällä jo allekirjoituksia
+          checkExistingSignatures();
         } catch (error) {
           console.error("Virhe fonttien latauksessa:", error);
           initializeCarousel();
@@ -844,6 +852,50 @@
 
       // Suorita tarkistus
       checkFontAvailability();
+
+      // Tarkista onko käyttäjällä jo allekirjoituksia
+      function checkExistingSignatures() {
+        fetch(`${API_URL}/api/get-signatures`)
+          .then((response) => {
+            if (response.ok) return response.json();
+            throw new Error("Ei allekirjoituksia");
+          })
+          .then((data) => {
+            if (data.images && data.images.length > 0) {
+              // Näytä tallennetut allekirjoitukset
+              signaturesContainer.innerHTML = "";
+              data.images.forEach((imageData) => {
+                const signatureItem = document.createElement("div");
+                signatureItem.className = "signature-item";
+
+                const img = document.createElement("img");
+                img.src = imageData;
+                img.alt = "Tallennettu allekirjoitus";
+
+                signatureItem.appendChild(img);
+                signaturesContainer.appendChild(signatureItem);
+              });
+
+              // Aseta nimi kenttään, mutta vain jos kenttä on tyhjä
+              if (nameInput.value.trim() === "" && data.name) {
+                nameInput.value = data.name;
+              }
+
+              // Näytä selkeä viesti käyttäjälle
+              statusMessage.textContent =
+                "Aiemmin luodut allekirjoitukset ladattu.";
+              statusMessage.style.color = "#4CAF50"; // Vihreä väri
+
+              // Näytä ostonappi
+              buyButton.style.display = "inline-block";
+
+              console.log("Ladattu aiemmat allekirjoitukset:", data);
+            }
+          })
+          .catch((error) => {
+            console.log("Ei aiempia allekirjoituksia:", error);
+          });
+      }
     </script>
   </body>
 </html>
