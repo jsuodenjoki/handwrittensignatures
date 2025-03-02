@@ -128,14 +128,14 @@ function createSignature(name, fontStyle) {
   // Aseta fontti
   ctx.font = fontStyle.font;
 
-  // Piirrä allekirjoitus
+  // Keskitä teksti täydellisesti
   ctx.fillStyle = "black";
   ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
+  ctx.textBaseline = "middle"; // Tämä keskittää tekstin y-akselilla
 
-  // Käytä kiinteää negatiivista korjauskerrointa, joka siirtää tekstiä ylöspäin
-  // Negatiivinen arvo siirtää tekstiä ylöspäin
-  ctx.fillText(name, canvas.width / 2, canvas.height / 2 - 20);
+  // Piirrä teksti täsmälleen keskelle canvasia
+  // Ei korjauskerrointa, luotetaan textBaseline: "middle" asetukseen
+  ctx.fillText(name, canvas.width / 2, canvas.height / 2);
 
   return canvas.toDataURL("image/png");
 }
