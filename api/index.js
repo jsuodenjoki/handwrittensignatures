@@ -8,19 +8,24 @@ import { createCanvas, registerFont } from "canvas";
 import "dotenv/config";
 
 const stripe = stripePackage(process.env.STRIPE_SECRET_KEY);
-
 const app = express();
 const signatures = new Map();
 const paidIPs = new Set();
 
-// 1. Määritä cors
+// Määritä middlewaret oikeassa järjestyksessä
 app.use(cors());
-
-// 2. Määritä webhook middleware ENNEN muita middlewareja
 app.use("/api/webhook", express.raw({ type: "application/json" }));
+app.use(express.json());
 
-// 3. Määritä JSON parser webhook-polun JÄLKEEN
-app.use(express.json({ limit: "50mb" }));
+// Tarkistetaan IP-osoitteen käsittely
+function getClientIp(req) {
+  return req.headers["x-forwarded-for"] || req.connection.remoteAddress;
+}
+
+function getClientIpFormatted(req) {
+  const ip = getClientIp(req);
+  return ip.includes(",") ? ip.split(",")[0].trim() : ip.trim();
+}
 
 // Webhook käsittelijä
 app.post("/api/webhook", async (req, res) => {
@@ -93,35 +98,6 @@ app.post("/api/webhook", async (req, res) => {
     return res.status(400).send(`Webhook-virhe: ${err.message}`);
   }
 });
-
-// Tarkistetaan IP-osoitteen käsittely
-function getClientIp(req) {
-  // Tarkistetaan kaikki mahdolliset IP-osoitteen lähteet
-  const ip =
-    req.headers["x-forwarded-for"] ||
-    req.headers["x-real-ip"] ||
-    req.connection.remoteAddress ||
-    req.socket.remoteAddress ||
-    req.connection.socket?.remoteAddress;
-
-  console.log("Alkuperäinen IP:", ip);
-
-  // Normalisoidaan IP-osoite
-  const normalizedIp = ip
-    ? ip.includes(",")
-      ? ip.split(",")[0].trim()
-      : ip.trim()
-    : "unknown-ip";
-
-  console.log("Normalisoitu IP:", normalizedIp);
-
-  return normalizedIp;
-}
-
-// Korvataan getClientIpFormatted-funktio
-function getClientIpFormatted(req) {
-  return getClientIp(req);
-}
 
 // Palauttaa käyttäjän IP-osoitteen
 app.get("/api/get-client-ip", (req, res) => {
@@ -345,8 +321,11 @@ app.get("/api/download-signatures", (req, res) => {
   archive.finalize();
 
   // Poista tallennetut allekirjoitukset ja maksutila latauksen jälkeen
-  signatures.delete(clientIp);
-  paidIPs.delete(clientIp);
+  setTimeout(() => {
+    signatures.delete(clientIp);
+    paidIPs.delete(clientIp);
+    console.log(`Tyhjennetty allekirjoitukset ja maksutila IP:lle ${clientIp}`);
+  }, 180000); // 3 min
 });
 
 // Luo Stripe-maksu
@@ -363,7 +342,7 @@ app.post("/api/create-payment", async (req, res) => {
             product_data: {
               name: "Allekirjoitusten luonti",
             },
-            unit_amount: 100, // 5 EUR
+            unit_amount: 500, // 5 EUR
           },
           quantity: 1,
         },
