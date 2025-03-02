@@ -131,8 +131,9 @@ function createSignature(name, fontStyle) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  // Piirrä teksti täsmälleen keskelle canvasia
-  ctx.fillText(name, canvas.width / 2, canvas.height / 2);
+  // Piirrä teksti hieman ylemmäs keskikohdasta
+  // Kokeillaan 10 pikseliä ylöspäin keskikohdasta
+  ctx.fillText(name, canvas.width / 2, canvas.height / 2 - 10);
 
   return canvas.toDataURL("image/png");
 }
