@@ -290,8 +290,9 @@
 
       /* Lisää oma fontti @font-face-säännöllä */
       @font-face {
-        font-family: "OmaFontti";
-        src: url("/fonts/oma-fontti.ttf") format("truetype");
+        font-family: "BarokahSignature";
+        src: url("./fonts/barokah signature by alifinart studio.ttf")
+          format("truetype");
         font-weight: normal;
         font-style: normal;
       }
@@ -344,7 +345,7 @@
       const API_URL =
         window.location.hostname === "localhost"
           ? "http://localhost:3000"
-          : "https://handwrittensignatures.vercel.app/";
+          : window.location.origin;
 
       console.log("API_URL asetettu:", API_URL);
 
@@ -797,11 +798,11 @@
       // Lataa oma fontti dynaamisesti ja alusta karuselli vasta kun fontti on ladattu
       async function loadFontsAndInitialize() {
         try {
-          // Lataa fontti
+          // Lataa fontti - korjattu polku
           const fontFileName = "barokah signature by alifinart studio.ttf";
           const fontFace = new FontFace(
             "BarokahSignature",
-            `url(/fonts/${encodeURIComponent(fontFileName)})`
+            `url(./fonts/${encodeURIComponent(fontFileName)})`
           );
 
           const loadedFace = await fontFace.load();
@@ -864,6 +865,32 @@
             console.log("Ei aiempia allekirjoituksia:", error);
           });
       }
+
+      // Tarkista fonttitiedostojen saatavuus
+      async function checkFontAvailability() {
+        const fontPaths = [
+          "./fonts/barokah signature by alifinart studio.ttf",
+          "/fonts/barokah signature by alifinart studio.ttf",
+          "../public/fonts/barokah signature by alifinart studio.ttf",
+        ];
+
+        for (const path of fontPaths) {
+          try {
+            const response = await fetch(path, { method: "HEAD" });
+            console.log(
+              `Fonttitiedoston tarkistus (${path}): ${response.status}`
+            );
+          } catch (error) {
+            console.error(
+              `Virhe fonttitiedoston tarkistuksessa (${path}):`,
+              error
+            );
+          }
+        }
+      }
+
+      // Suorita tarkistus
+      checkFontAvailability();
     </script>
   </body>
 </html>
