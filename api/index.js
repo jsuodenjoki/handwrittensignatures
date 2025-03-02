@@ -177,7 +177,7 @@ function createSignature(
   return canvas.toDataURL("image/png");
 }
 
-// API-reitti allekirjoitusten luomiseen
+// Allekirjoitusten luonti
 app.post("/api/create-signatures", (req, res) => {
   const { name, color } = req.body;
   const clientIp = getClientIpFormatted(req);
@@ -196,13 +196,12 @@ app.post("/api/create-signatures", (req, res) => {
     downloadImages.push(downloadImage);
   }
 
-  // Tallennetaan allekirjoitukset sekä palvelimen muistiin että localStorage:en
   const signatureData = {
     name,
     previewImages,
     downloadImages,
     createdAt: new Date().toISOString(),
-    timestamp: Date.now(), // Lisätään aikaleima
+    timestamp: Date.now(),
   };
 
   signatures.set(clientIp, signatureData);
@@ -211,10 +210,11 @@ app.post("/api/create-signatures", (req, res) => {
     images: previewImages,
     name,
     timestamp: signatureData.timestamp,
+    createdAt: signatureData.createdAt,
   });
 });
 
-// Muokataan allekirjoitusten hakua
+// Allekirjoitusten haku
 app.get("/api/get-signatures", (req, res) => {
   const clientIp = getClientIpFormatted(req);
   console.log(`Haetaan allekirjoitukset IP:lle ${clientIp}`);
@@ -448,21 +448,21 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
   res.json({ image: signatureImage });
 });
 
-// API-reitti allekirjoitusten palauttamiseen
+// Allekirjoitusten palautus
 app.post("/api/restore-signatures", (req, res) => {
-  const { name, images } = req.body;
+  const { name, images, timestamp, createdAt } = req.body;
   const clientIp = getClientIpFormatted(req);
 
   if (!name || !images || !Array.isArray(images)) {
     return res.status(400).json({ error: "Virheellinen pyyntö" });
   }
 
-  // Tallenna vain previewImages, koska downloadImages luodaan vasta maksun jälkeen
   signatures.set(clientIp, {
     name,
     previewImages: images,
-    downloadImages: [], // Tyhjä array aluksi
-    createdAt: new Date().toISOString(),
+    downloadImages: images,
+    timestamp: timestamp || Date.now(),
+    createdAt: createdAt || new Date().toISOString(),
   });
 
   console.log(
