@@ -345,4 +345,25 @@ app.get("/api/debug", (req, res) => {
   });
 });
 
+// API-reitti karusellin allekirjoitusten luomiseen
+app.post("/api/create-signature-for-carousel", (req, res) => {
+  const { name } = req.body;
+
+  if (!name) {
+    return res.status(400).json({ error: "Nimi puuttuu" });
+  }
+
+  // Käytä vain ensimmäistä fonttia
+  const fontStyle = signatureFonts[0];
+
+  // Luo allekirjoitus
+  const signatureImage = createSignature(name, fontStyle);
+
+  console.log(
+    `Luotu karusellin allekirjoitus nimelle "${name}" fontilla ${fontStyle.name}`
+  );
+
+  res.json({ image: signatureImage });
+});
+
 export default app;
