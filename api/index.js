@@ -1,3 +1,4 @@
+//1. TUODAAN TARVITTAVAT MODUULIT
 import express from "express";
 import cors from "cors";
 import stripePackage from "stripe";
@@ -7,58 +8,320 @@ import archiver from "archiver";
 import { createCanvas, registerFont } from "canvas";
 import "dotenv/config";
 
+//2. ALUSTETAAN MUUTTUJAT
 const stripe = stripePackage(process.env.STRIPE_SECRET_KEY);
 const app = express();
 const signatures = new Map();
 const paidIPs = new Set();
 
-// Määritellään middleware funktio webhook reitille
-const rawBodyMiddleware = (req, res, next) => {
-  if (req.originalUrl === "/api/webhook") {
-    let rawBody = "";
-    req.setEncoding("utf8");
-
-    req.on("data", (chunk) => {
-      rawBody += chunk;
-    });
-
-    req.on("end", () => {
-      req.rawBody = rawBody;
-      next();
-    });
-  } else {
-    next();
-  }
-};
-
-// Käytä middlewareja oikeassa järjestyksessä
-app.use(rawBodyMiddleware);
+//3. MIDDLEWARE MÄÄRITTELYT
+app.use("/api/webhook", express.raw({ type: "application/json" }));
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 
-// Webhook reitti
-app.post("/api/webhook", async (req, res) => {
+//4. IP-OSOITTEEN KÄSITTELYFUNKTIOT
+function getClientIp(req) {
+  const ip =
+    req.headers["x-forwarded-for"] ||
+    req.headers["x-real-ip"] ||
+    req.connection.remoteAddress ||
+    req.socket.remoteAddress ||
+    req.connection.socket?.remoteAddress;
+
+  console.log("Alkuperäinen IP:", ip);
+
+  const normalizedIp = ip
+    ? ip.includes(",")
+      ? ip.split(",")[0].trim()
+      : ip.trim()
+    : "unknown-ip";
+
+  console.log("Normalisoitu IP:", normalizedIp);
+
+  return normalizedIp;
+}
+
+function getClientIpFormatted(req) {
+  return getClientIp(req);
+}
+
+//5. FONTTIEN REKISTERÖINTI JA HALLINTA
+registerFont(path.join(__dirname, "../public/fonts2/poppins.ttf"), {
+  family: "Poppins",
+});
+
+const fontsDir = path.join(__dirname, "../public/fonts");
+const signatureFonts = [];
+
+try {
+  if (fs.existsSync(fontsDir)) {
+    const fontFiles = fs.readdirSync(fontsDir);
+    console.log("Saatavilla olevat fontit:", fontFiles);
+
+    fontFiles.forEach((fontFile) => {
+      if (fontFile.endsWith(".ttf")) {
+        const fontName = fontFile.replace(".ttf", "").replace(/[-_]/g, " ");
+        const fontFamily = fontName.replace(/\s+/g, "");
+        console.log(`Rekisteröidään fontti: ${fontFile} nimellä ${fontFamily}`);
+        registerFont(path.join(fontsDir, fontFile), { family: fontFamily });
+
+        signatureFonts.push({
+          name: fontName.toLowerCase(),
+          font:
+            fontName.toLowerCase() === "omafontti1" ||
+            fontName.toLowerCase() === "omafontti3"
+              ? `100px '${fontFamily}'`
+              : `40px '${fontFamily}'`,
+        });
+      }
+    });
+  } else {
+    console.log("Fonts-kansiota ei löydy:", fontsDir);
+  }
+
+  if (signatureFonts.length === 0) {
+    console.log("Ei löytynyt fontteja, käytetään oletusfontteja");
+    signatureFonts.push(
+      { name: "Arial", font: "40px Arial, sans-serif" },
+      { name: "Times New Roman", font: "40px 'Times New Roman', serif" },
+      { name: "Courier New", font: "40px 'Courier New', monospace" }
+    );
+  }
+} catch (error) {
+  console.error("Virhe fonttien lataamisessa:", error);
+  signatureFonts.push(
+    { name: "Arial", font: "40px Arial, sans-serif" },
+    { name: "Times New Roman", font: "40px 'Times New Roman', serif" },
+    { name: "Courier New", font: "40px 'Courier New', monospace" }
+  );
+}
+
+//6. ALLEKIRJOITUSTEN LUONTIFUNKTIOT
+function createSignatureWithoutWatermark(name, fontStyle, color = "black") {
+  const canvas = createCanvas(600, 200);
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "white";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.font = fontStyle.font;
+  ctx.fillStyle = color;
+  ctx.textAlign = "center";
+
+  const textMetrics = ctx.measureText(name);
+  const centerY =
+    canvas.height / 2 +
+    (textMetrics.actualBoundingBoxAscent -
+      textMetrics.actualBoundingBoxDescent) /
+      2;
+
+  ctx.fillText(name, canvas.width / 2, centerY);
+
+  return canvas.toDataURL("image/png");
+}
+
+function createSignature(name, fontStyle, color = "black") {
+  const canvas = createCanvas(600, 200);
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "white";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.font = "bold 16px 'Poppins'";
+  ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
+  ctx.textAlign = "center";
+
+  const watermarkPositions = [
+    { x: canvas.width * 0.2, y: canvas.height * 0.3, angle: -15 },
+    { x: canvas.width * 0.5, y: canvas.height * 0.5, angle: 10 },
+    { x: canvas.width * 0.8, y: canvas.height * 0.3, angle: -20 },
+    { x: canvas.width * 0.3, y: canvas.height * 0.7, angle: 15 },
+    { x: canvas.width * 0.7, y: canvas.height * 0.8, angle: -10 },
+  ];
+
+  watermarkPositions.forEach((pos) => {
+    ctx.save();
+    ctx.translate(pos.x, pos.y);
+    ctx.rotate((pos.angle * Math.PI) / 180);
+    ctx.fillText("WATERMARK", 0, 0);
+    ctx.restore();
+  });
+
+  ctx.font = fontStyle.font;
+  ctx.fillStyle = color;
+  ctx.textAlign = "center";
+
+  const textMetrics = ctx.measureText(name);
+  const actualHeight =
+    textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
+
+  const centerY =
+    canvas.height / 2 +
+    (textMetrics.actualBoundingBoxAscent -
+      textMetrics.actualBoundingBoxDescent) /
+      2;
+
+  ctx.fillText(name, canvas.width / 2, centerY);
+
+  return canvas.toDataURL("image/png");
+}
+
+//7. API REITIT
+
+// IP-osoitteen hakureitti
+app.get("/api/get-client-ip", (req, res) => {
+  res.send(getClientIpFormatted(req));
+});
+
+// Allekirjoitusten tilan tarkistus
+app.get("/api/check-signatures", (req, res) => {
+  const clientIp = getClientIpFormatted(req);
+  const hasSignatures = signatures.has(clientIp);
+  const hasPaid = paidIPs.has(clientIp);
+
+  res.json({
+    hasSignatures,
+    hasPaid,
+    canDownload: hasSignatures && hasPaid,
+  });
+});
+
+// Allekirjoitusten luonti
+app.post("/api/create-signatures", (req, res) => {
+  const { name, color } = req.body;
+
+  if (!name) {
+    return res.status(400).json({ error: "Nimi puuttuu" });
+  }
+
+  const signatureImages = [];
+
+  for (const fontStyle of signatureFonts) {
+    const signatureImage = createSignature(name, fontStyle, color);
+    signatureImages.push(signatureImage);
+  }
+
+  const clientIp = getClientIpFormatted(req);
+  console.log(
+    `Tallennetaan allekirjoitukset IP:lle ${clientIp}, nimi: ${name}`
+  );
+
+  signatures.set(clientIp, {
+    name,
+    images: signatureImages,
+    createdAt: new Date().toISOString(),
+  });
+
+  console.log("Kaikki tallennetut allekirjoitukset:");
+  signatures.forEach((value, key) => {
+    console.log(
+      `IP: ${key}, Nimi: ${value.name}, Kuvia: ${value.images.length}`
+    );
+  });
+
+  res.json({ images: signatureImages });
+});
+
+// Allekirjoitusten haku
+app.get("/api/get-signatures", (req, res) => {
+  const clientIp = getClientIpFormatted(req);
+  console.log(`Haetaan allekirjoitukset IP:lle ${clientIp}`);
+
+  if (signatures.has(clientIp)) {
+    const data = signatures.get(clientIp);
+    console.log(
+      `Löydettiin allekirjoitukset: Nimi: ${data.name}, Kuvia: ${data.images.length}`
+    );
+    res.json(signatures.get(clientIp));
+  } else {
+    console.log(`Ei löydetty allekirjoituksia IP:lle ${clientIp}`);
+    res.status(404).json({ error: "Allekirjoituksia ei löytynyt" });
+  }
+});
+
+// Allekirjoitusten lataus
+app.get("/api/download-signatures", (req, res) => {
+  const clientIp = getClientIpFormatted(req);
+
+  if (!signatures.has(clientIp) || !paidIPs.has(clientIp)) {
+    return res
+      .status(403)
+      .json({ error: "Ei oikeutta ladata allekirjoituksia" });
+  }
+
+  const userSignatures = signatures.get(clientIp);
+
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename=signatures-${Date.now()}.zip`
+  );
+
+  const archive = archiver("zip", { zlib: { level: 9 } });
+  archive.pipe(res);
+
+  signatureFonts.forEach((fontStyle, index) => {
+    const signatureImage = createSignatureWithoutWatermark(
+      userSignatures.name,
+      fontStyle,
+      "black"
+    );
+    const imgBuffer = Buffer.from(
+      signatureImage.replace(/^data:image\/png;base64,/, ""),
+      "base64"
+    );
+    archive.append(imgBuffer, { name: `signature-${index + 1}.png` });
+  });
+
+  archive.finalize();
+
+  signatures.delete(clientIp);
+  paidIPs.delete(clientIp);
+});
+
+// Stripe-maksun luonti
+app.post("/api/create-payment", async (req, res) => {
   try {
-    const sig = req.headers["stripe-signature"];
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    const clientIp = getClientIpFormatted(req);
 
-    if (!webhookSecret) {
-      console.error("STRIPE_WEBHOOK_SECRET puuttuu!");
-      return res.status(400).send("Webhook secret puuttuu");
-    }
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price_data: {
+            currency: "eur",
+            product_data: {
+              name: "Allekirjoitusten luonti",
+            },
+            unit_amount: 100,
+          },
+          quantity: 1,
+        },
+      ],
+      mode: "payment",
+      success_url: `${process.env.FRONTEND_URL}?success=true`,
+      cancel_url: `${process.env.FRONTEND_URL}?canceled=true`,
+      metadata: {
+        clientIp,
+      },
+    });
 
-    if (!sig) {
-      console.error("Stripe-signature header puuttuu!");
-      return res.status(400).send("Signature puuttuu");
-    }
+    res.json({ url: session.url });
+  } catch (error) {
+    console.error("Virhe maksun luonnissa:", error);
+    res.status(500).json({ error: "Virhe maksun käsittelyssä" });
+  }
+});
 
-    console.log("Webhook raw body:", req.rawBody);
-    console.log("Stripe signature:", sig);
+// Stripe webhook käsittely
+app.post("/api/webhook", async (req, res) => {
+  const sig = req.headers["stripe-signature"];
 
+  try {
     const event = stripe.webhooks.constructEvent(
-      req.rawBody,
+      req.body,
       sig,
-      webhookSecret
+      process.env.STRIPE_WEBHOOK_SECRET
     );
 
     console.log("Webhook event received:", event.type);
@@ -80,7 +343,6 @@ app.post("/api/webhook", async (req, res) => {
         paidIPs.add(clientIp);
         console.log("✅ Payment marked as successful for IP:", clientIp);
       } else {
-        // Try to find a close match
         let found = false;
         for (const ip of signatures.keys()) {
           if (
@@ -116,325 +378,7 @@ app.post("/api/webhook", async (req, res) => {
   }
 });
 
-// Tarkistetaan IP-osoitteen käsittely
-function getClientIp(req) {
-  // Tarkistetaan kaikki mahdolliset IP-osoitteen lähteet
-  const ip =
-    req.headers["x-forwarded-for"] ||
-    req.headers["x-real-ip"] ||
-    req.connection.remoteAddress ||
-    req.socket.remoteAddress ||
-    req.connection.socket?.remoteAddress;
-
-  console.log("Alkuperäinen IP:", ip);
-
-  // Normalisoidaan IP-osoite
-  const normalizedIp = ip
-    ? ip.includes(",")
-      ? ip.split(",")[0].trim()
-      : ip.trim()
-    : "unknown-ip";
-
-  console.log("Normalisoitu IP:", normalizedIp);
-
-  return normalizedIp;
-}
-
-// Korvataan getClientIpFormatted-funktio
-function getClientIpFormatted(req) {
-  return getClientIp(req);
-}
-
-// Palauttaa käyttäjän IP-osoitteen
-app.get("/api/get-client-ip", (req, res) => {
-  res.send(getClientIpFormatted(req));
-});
-
-// Tarkista allekirjoituksen tila
-app.get("/api/check-signatures", (req, res) => {
-  const clientIp = getClientIpFormatted(req);
-  const hasSignatures = signatures.has(clientIp);
-  const hasPaid = paidIPs.has(clientIp);
-
-  res.json({
-    hasSignatures,
-    hasPaid,
-    canDownload: hasSignatures && hasPaid,
-  });
-});
-
-// Rekisteröi Poppins-fontti vesileimoja varten
-registerFont(path.join(__dirname, "../public/fonts2/poppins.ttf"), {
-  family: "Poppins",
-});
-
-// Rekisteröi muut fontit allekirjoituksia varten
-const fontsDir = path.join(__dirname, "../public/fonts");
-const signatureFonts = [];
-
-try {
-  if (fs.existsSync(fontsDir)) {
-    const fontFiles = fs.readdirSync(fontsDir);
-    console.log("Saatavilla olevat fontit:", fontFiles);
-
-    fontFiles.forEach((fontFile) => {
-      if (fontFile.endsWith(".ttf")) {
-        const fontName = fontFile.replace(".ttf", "").replace(/[-_]/g, " ");
-        const fontFamily = fontName.replace(/\s+/g, "");
-        console.log(`Rekisteröidään fontti: ${fontFile} nimellä ${fontFamily}`);
-        registerFont(path.join(fontsDir, fontFile), { family: fontFamily });
-
-        signatureFonts.push({
-          name: fontName.toLowerCase(),
-          font:
-            fontName.toLowerCase() === "omafontti1" ||
-            fontName.toLowerCase() === "omafontti3"
-              ? `100px '${fontFamily}'`
-              : `40px '${fontFamily}'`,
-        });
-      }
-    });
-  } else {
-    console.log("Fonts-kansiota ei löydy:", fontsDir);
-  }
-
-  // Jos ei löytynyt fontteja, käytä oletusfontteja
-  if (signatureFonts.length === 0) {
-    console.log("Ei löytynyt fontteja, käytetään oletusfontteja");
-
-    // Käytä järjestelmän oletusfontteja
-    signatureFonts.push(
-      { name: "Arial", font: "40px Arial, sans-serif" },
-      { name: "Times New Roman", font: "40px 'Times New Roman', serif" },
-      { name: "Courier New", font: "40px 'Courier New', monospace" }
-    );
-  }
-} catch (error) {
-  console.error("Virhe fonttien lataamisessa:", error);
-
-  // Virhetilanteessa käytä oletusfontteja
-  signatureFonts.push(
-    { name: "Arial", font: "40px Arial, sans-serif" },
-    { name: "Times New Roman", font: "40px 'Times New Roman', serif" },
-    { name: "Courier New", font: "40px 'Courier New', monospace" }
-  );
-}
-
-// Luo allekirjoitus ilman vesileimaa
-function createSignatureWithoutWatermark(name, fontStyle, color = "black") {
-  const canvas = createCanvas(600, 200);
-  const ctx = canvas.getContext("2d");
-
-  // Aseta valkoinen tausta
-  ctx.fillStyle = "white";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Aseta fontti allekirjoitukselle
-  ctx.font = fontStyle.font;
-  ctx.fillStyle = color;
-  ctx.textAlign = "center";
-
-  // Mittaa tekstin korkeus
-  const textMetrics = ctx.measureText(name);
-  const centerY =
-    canvas.height / 2 +
-    (textMetrics.actualBoundingBoxAscent -
-      textMetrics.actualBoundingBoxDescent) /
-      2;
-
-  // Piirrä allekirjoitus
-  ctx.fillText(name, canvas.width / 2, centerY);
-
-  return canvas.toDataURL("image/png");
-}
-
-// Luo allekirjoitus
-function createSignature(name, fontStyle, color = "black") {
-  const canvas = createCanvas(600, 200);
-  const ctx = canvas.getContext("2d");
-
-  // Aseta tausta
-  ctx.fillStyle = "white";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // LISÄTÄÄN WATERMARK-TEKSTIT ENNEN SIGNATUREA
-  ctx.font = "bold 16px 'Poppins'";
-  ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
-  ctx.textAlign = "center";
-
-  const watermarkPositions = [
-    { x: canvas.width * 0.2, y: canvas.height * 0.3, angle: -15 },
-    { x: canvas.width * 0.5, y: canvas.height * 0.5, angle: 10 },
-    { x: canvas.width * 0.8, y: canvas.height * 0.3, angle: -20 },
-    { x: canvas.width * 0.3, y: canvas.height * 0.7, angle: 15 },
-    { x: canvas.width * 0.7, y: canvas.height * 0.8, angle: -10 },
-  ];
-
-  watermarkPositions.forEach((pos) => {
-    ctx.save();
-    ctx.translate(pos.x, pos.y);
-    ctx.rotate((pos.angle * Math.PI) / 180);
-    ctx.fillText("WATERMARK", 0, 0);
-    ctx.restore();
-  });
-
-  // Aseta fontti allekirjoitukselle
-  ctx.font = fontStyle.font;
-  ctx.fillStyle = color;
-  ctx.textAlign = "center";
-
-  // Mittaa tekstin korkeus
-  const textMetrics = ctx.measureText(name);
-  const actualHeight =
-    textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
-
-  // Siirrä y-keskitystä riippuen fontin korkeudesta
-  const centerY =
-    canvas.height / 2 +
-    (textMetrics.actualBoundingBoxAscent -
-      textMetrics.actualBoundingBoxDescent) /
-      2;
-
-  // Piirrä allekirjoitus VESILEIMAN PÄÄLLE
-  ctx.fillText(name, canvas.width / 2, centerY);
-
-  return canvas.toDataURL("image/png");
-}
-
-// API-reitti allekirjoitusten luomiseen
-app.post("/api/create-signatures", (req, res) => {
-  const { name, color } = req.body;
-
-  if (!name) {
-    return res.status(400).json({ error: "Nimi puuttuu" });
-  }
-
-  const signatureImages = [];
-
-  // Luo allekirjoitus jokaisella fontilla
-  for (const fontStyle of signatureFonts) {
-    const signatureImage = createSignature(name, fontStyle, color);
-    signatureImages.push(signatureImage);
-  }
-
-  // Tallenna allekirjoitukset käyttäjälle
-  const clientIp = getClientIpFormatted(req);
-  console.log(
-    `Tallennetaan allekirjoitukset IP:lle ${clientIp}, nimi: ${name}`
-  );
-
-  signatures.set(clientIp, {
-    name,
-    images: signatureImages,
-    createdAt: new Date().toISOString(),
-  });
-
-  // Loki kaikista tallennetuista allekirjoituksista
-  console.log("Kaikki tallennetut allekirjoitukset:");
-  signatures.forEach((value, key) => {
-    console.log(
-      `IP: ${key}, Nimi: ${value.name}, Kuvia: ${value.images.length}`
-    );
-  });
-
-  res.json({ images: signatureImages });
-});
-
-// Hae tallennetut allekirjoitukset
-app.get("/api/get-signatures", (req, res) => {
-  const clientIp = getClientIpFormatted(req);
-  console.log(`Haetaan allekirjoitukset IP:lle ${clientIp}`);
-
-  if (signatures.has(clientIp)) {
-    const data = signatures.get(clientIp);
-    console.log(
-      `Löydettiin allekirjoitukset: Nimi: ${data.name}, Kuvia: ${data.images.length}`
-    );
-    res.json(signatures.get(clientIp));
-  } else {
-    console.log(`Ei löydetty allekirjoituksia IP:lle ${clientIp}`);
-    res.status(404).json({ error: "Allekirjoituksia ei löytynyt" });
-  }
-});
-
-// Lataa allekirjoitukset ZIP-tiedostona
-app.get("/api/download-signatures", (req, res) => {
-  const clientIp = getClientIpFormatted(req);
-
-  if (!signatures.has(clientIp) || !paidIPs.has(clientIp)) {
-    return res
-      .status(403)
-      .json({ error: "Ei oikeutta ladata allekirjoituksia" });
-  }
-
-  const userSignatures = signatures.get(clientIp);
-
-  // Luo ZIP-tiedosto
-  res.setHeader("Content-Type", "application/zip");
-  res.setHeader(
-    "Content-Disposition",
-    `attachment; filename=signatures-${Date.now()}.zip`
-  );
-
-  const archive = archiver("zip", { zlib: { level: 9 } });
-  archive.pipe(res);
-
-  // Luo uudet kuvat ilman vesileimaa
-  signatureFonts.forEach((fontStyle, index) => {
-    const signatureImage = createSignatureWithoutWatermark(
-      userSignatures.name,
-      fontStyle,
-      "black"
-    );
-    const imgBuffer = Buffer.from(
-      signatureImage.replace(/^data:image\/png;base64,/, ""),
-      "base64"
-    );
-    archive.append(imgBuffer, { name: `signature-${index + 1}.png` });
-  });
-
-  archive.finalize();
-
-  // Poista tallennetut allekirjoitukset ja maksutila latauksen jälkeen
-  signatures.delete(clientIp);
-  paidIPs.delete(clientIp);
-});
-
-// Luo Stripe-maksu
-app.post("/api/create-payment", async (req, res) => {
-  try {
-    const clientIp = getClientIpFormatted(req);
-
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "eur",
-            product_data: {
-              name: "Allekirjoitusten luonti",
-            },
-            unit_amount: 100, // 5 EUR
-          },
-          quantity: 1,
-        },
-      ],
-      mode: "payment",
-      success_url: `${process.env.FRONTEND_URL}?success=true`,
-      cancel_url: `${process.env.FRONTEND_URL}?canceled=true`,
-      metadata: {
-        clientIp,
-      },
-    });
-
-    res.json({ url: session.url });
-  } catch (error) {
-    console.error("Virhe maksun luonnissa:", error);
-    res.status(500).json({ error: "Virhe maksun käsittelyssä" });
-  }
-});
-
-// Lähetä allekirjoitukset sähköpostiin
+// Sähköpostin lähetys
 app.post("/api/send-email", async (req, res) => {
   try {
     const { email } = req.body;
@@ -446,9 +390,6 @@ app.post("/api/send-email", async (req, res) => {
       });
     }
 
-    // Tässä voit toteuttaa sähköpostin lähetyksen
-    // Esimerkiksi käyttäen nodemailer-kirjastoa
-
     res.json({ success: true, message: "Sähköposti lähetetty onnistuneesti" });
   } catch (error) {
     console.error("Virhe sähköpostin lähetyksessä:", error);
@@ -456,7 +397,7 @@ app.post("/api/send-email", async (req, res) => {
   }
 });
 
-// Debug-endpoint
+// Debug-reitti
 app.get("/api/debug", (req, res) => {
   const clientIp = getClientIpFormatted(req);
   res.json({
@@ -468,7 +409,7 @@ app.get("/api/debug", (req, res) => {
   });
 });
 
-// API-reitti karusellin allekirjoitusten luomiseen
+// Karusellin allekirjoitusten luonti
 app.post("/api/create-signature-for-carousel", (req, res) => {
   const { name } = req.body;
 
@@ -476,7 +417,6 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
     return res.status(400).json({ error: "Nimi puuttuu" });
   }
 
-  // Etsi "OmaFontti3" fonttilistasta
   const fontStyle = signatureFonts.find(
     (font) => font.name.toLowerCase() === "omafontti3"
   );
@@ -485,32 +425,26 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
     return res.status(400).json({ error: "Fonttia ei löytynyt" });
   }
 
-  // Luo allekirjoitus erikseen karusellille
   const canvas = createCanvas(600, 200);
   const ctx = canvas.getContext("2d");
 
-  // Aseta tausta
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Aseta fontti
   ctx.font = fontStyle.font;
-  ctx.fillStyle = "blue"; // Kuulakärkikynän väri
+  ctx.fillStyle = "blue";
   ctx.textAlign = "center";
 
-  // Mittaa tekstin todellinen korkeus
   const textMetrics = ctx.measureText(name);
   const textHeight =
     textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
 
-  // Lasketaan oikea y-keskiö ja säädetään tekstiä, jotta se on tasapainossa
   const centerY =
     canvas.height / 2 +
     (textMetrics.actualBoundingBoxAscent -
       textMetrics.actualBoundingBoxDescent) /
       2;
 
-  // Piirrä teksti täsmälleen keskelle canvasia
   ctx.fillText(name, canvas.width / 2, centerY);
 
   const signatureImage = canvas.toDataURL("image/png");
@@ -522,7 +456,7 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
   res.json({ image: signatureImage });
 });
 
-// API-reitti allekirjoitusten palauttamiseen
+// Allekirjoitusten palautus
 app.post("/api/restore-signatures", (req, res) => {
   const { name, images } = req.body;
   const clientIp = getClientIpFormatted(req);
@@ -533,14 +467,12 @@ app.post("/api/restore-signatures", (req, res) => {
 
   console.log(`Palautetaan allekirjoitukset IP:lle ${clientIp}, nimi: ${name}`);
 
-  // Tallenna allekirjoitukset käyttäjälle
   signatures.set(clientIp, {
     name,
     images,
     createdAt: new Date().toISOString(),
   });
 
-  // Loki kaikista tallennetuista allekirjoituksista
   console.log("Kaikki tallennetut allekirjoitukset:");
   signatures.forEach((value, key) => {
     console.log(
