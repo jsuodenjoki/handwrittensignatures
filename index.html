@@ -869,7 +869,8 @@
               data &&
               data.images &&
               Array.isArray(data.images) &&
-              data.images.length > 0
+              data.images.length > 0 &&
+              data.name // Varmista että nimikentässä on arvo
             ) {
               console.log("Löydettiin aiemmat allekirjoitukset:", data);
 
@@ -881,7 +882,7 @@
 
                 const img = document.createElement("img");
                 img.src = imageData;
-                img.alt = "Tallennettu allekirjoitus";
+                img.alt = `${data.name} allekirjoitus`;
 
                 signatureItem.appendChild(img);
                 signaturesContainer.appendChild(signatureItem);
@@ -893,8 +894,7 @@
               }
 
               // Näytä selkeä viesti käyttäjälle
-              statusMessage.textContent =
-                "Aiemmin luodut allekirjoitukset ladattu.";
+              statusMessage.textContent = `Aiemmin luodut allekirjoitukset (${data.name}) ladattu.`;
               statusMessage.style.color = "#4CAF50"; // Vihreä väri
 
               // Näytä ostonappi

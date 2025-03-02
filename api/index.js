@@ -17,14 +17,33 @@ app.use(cors());
 app.use("/api/webhook", express.raw({ type: "application/json" }));
 app.use(express.json({ limit: "50mb" }));
 
-// IP-osoitteen normalisointi
+// Tarkistetaan IP-osoitteen käsittely
 function getClientIp(req) {
-  return req.headers["x-forwarded-for"] || req.connection.remoteAddress;
+  // Tarkistetaan kaikki mahdolliset IP-osoitteen lähteet
+  const ip =
+    req.headers["x-forwarded-for"] ||
+    req.headers["x-real-ip"] ||
+    req.connection.remoteAddress ||
+    req.socket.remoteAddress ||
+    req.connection.socket?.remoteAddress;
+
+  console.log("Alkuperäinen IP:", ip);
+
+  // Normalisoidaan IP-osoite
+  const normalizedIp = ip
+    ? ip.includes(",")
+      ? ip.split(",")[0].trim()
+      : ip.trim()
+    : "unknown-ip";
+
+  console.log("Normalisoitu IP:", normalizedIp);
+
+  return normalizedIp;
 }
 
+// Korvataan getClientIpFormatted-funktio
 function getClientIpFormatted(req) {
-  const ip = getClientIp(req);
-  return ip.includes(",") ? ip.split(",")[0].trim() : ip.trim();
+  return getClientIp(req);
 }
 
 // Palauttaa käyttäjän IP-osoitteen
@@ -134,10 +153,22 @@ app.post("/api/create-signatures", (req, res) => {
 
   // Tallenna allekirjoitukset käyttäjälle
   const clientIp = getClientIpFormatted(req);
+  console.log(
+    `Tallennetaan allekirjoitukset IP:lle ${clientIp}, nimi: ${name}`
+  );
+
   signatures.set(clientIp, {
     name,
     images: signatureImages,
     createdAt: new Date().toISOString(),
+  });
+
+  // Loki kaikista tallennetuista allekirjoituksista
+  console.log("Kaikki tallennetut allekirjoitukset:");
+  signatures.forEach((value, key) => {
+    console.log(
+      `IP: ${key}, Nimi: ${value.name}, Kuvia: ${value.images.length}`
+    );
   });
 
   res.json({ images: signatureImages });
@@ -146,10 +177,16 @@ app.post("/api/create-signatures", (req, res) => {
 // Hae tallennetut allekirjoitukset
 app.get("/api/get-signatures", (req, res) => {
   const clientIp = getClientIpFormatted(req);
+  console.log(`Haetaan allekirjoitukset IP:lle ${clientIp}`);
 
   if (signatures.has(clientIp)) {
+    const data = signatures.get(clientIp);
+    console.log(
+      `Löydettiin allekirjoitukset: Nimi: ${data.name}, Kuvia: ${data.images.length}`
+    );
     res.json(signatures.get(clientIp));
   } else {
+    console.log(`Ei löydetty allekirjoituksia IP:lle ${clientIp}`);
     res.status(404).json({ error: "Allekirjoituksia ei löytynyt" });
   }
 });
