@@ -380,7 +380,7 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
   // Piirrä teksti täsmälleen keskelle canvasia
   // Voit säätää y-koordinaattia tässä
   // Esim. canvas.height / 2 - 20 siirtää tekstiä 20px ylöspäin
-  ctx.fillText(name, canvas.width / 2, canvas.height / 2 - 20); // Kokeile eri arvoja
+  ctx.fillText(name, canvas.width / 2, canvas.height / 2); // Kokeile eri arvoja
 
   const signatureImage = canvas.toDataURL("image/png");
 
