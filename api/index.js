@@ -125,41 +125,17 @@ function createSignature(name, fontStyle) {
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Aseta fontti mittausta varten
+  // Aseta fontti
   ctx.font = fontStyle.font;
-
-  // Mittaa tekstin korkeus käyttäen sekä testitekstejä että varsinaista nimeä
-  const testText = "ÄjgpqyQ";
-  const metrics = ctx.measureText(testText);
-  const nameMetrics = ctx.measureText(name);
-
-  // Laske tekstin todellinen korkeus
-  const testHeight =
-    metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
-  const nameHeight =
-    nameMetrics.actualBoundingBoxAscent + nameMetrics.actualBoundingBoxDescent;
-
-  // Käytä suurempaa korkeutta
-  const textHeight = Math.max(testHeight, nameHeight);
-
-  // Laske korjauskerroin perustuen tekstin korkeuteen
-  // Käytetään suurempaa korjauskerrointa (25%)
-  const yOffset = textHeight * 0.25;
-
-  console.log(
-    `Nimi: ${name}, Tekstin korkeus: ${textHeight}, korjauskerroin: ${yOffset}`
-  );
-  console.log(
-    `Nimen metrics: ascent=${nameMetrics.actualBoundingBoxAscent}, descent=${nameMetrics.actualBoundingBoxDescent}`
-  );
 
   // Piirrä allekirjoitus
   ctx.fillStyle = "black";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  // Käytä suurempaa korjauskerrointa
-  ctx.fillText(name, canvas.width / 2, canvas.height / 2 + yOffset);
+  // Käytä kiinteää negatiivista korjauskerrointa, joka siirtää tekstiä ylöspäin
+  // Negatiivinen arvo siirtää tekstiä ylöspäin
+  ctx.fillText(name, canvas.width / 2, canvas.height / 2 - 20);
 
   return canvas.toDataURL("image/png");
 }
