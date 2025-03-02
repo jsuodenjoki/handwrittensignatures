@@ -654,7 +654,7 @@
         });
       }
 
-      // Muokataan allekirjoitusten tallennusta localStorageen
+      // Luo allekirjoitukset
       async function createSignatures() {
         const name = nameInput.value.trim();
         const color = document.querySelector(
@@ -675,86 +675,168 @@
             body: JSON.stringify({ name, color }),
           });
 
-          const data = await response.json();
-
-          if (!data.images) {
-            throw new Error("Virheellinen vastaus palvelimelta");
+          if (!response.ok) {
+            throw new Error(
+              `Virhe allekirjoituksen luonnissa: ${response.status}`
+            );
           }
 
-          // Tallenna localStorage:en
-          const storageData = {
-            name: name,
-            images: data.images,
-            timestamp: data.timestamp,
-            createdAt: data.createdAt,
-          };
+          const data = await response.json();
 
-          localStorage.setItem("signatures", JSON.stringify(storageData));
+          // Tallenna allekirjoitukset myös selaimen paikalliseen tallennustilaan
+          localStorage.setItem(
+            "signatures",
+            JSON.stringify({
+              name,
+              images: data.images,
+              createdAt: new Date().toISOString(),
+            })
+          );
 
-          // Päivitä näkymä
-          displaySignatures(storageData);
+          // Näytä allekirjoitukset
+          signaturesContainer.innerHTML = "";
+          data.images.forEach((imageData) => {
+            const signatureItem = document.createElement("div");
+            signatureItem.className = "signature-item";
 
-          statusMessage.textContent = "Allekirjoitukset luotu!";
-          statusMessage.style.color = "#6e8efb";
+            const img = document.createElement("img");
+            img.src = imageData;
+            img.alt = `${name} allekirjoitus`;
+
+            signatureItem.appendChild(img);
+            signaturesContainer.appendChild(signatureItem);
+          });
+
+          // Näytä ostonappi
           buyButton.style.display = "inline-block";
+
+          // Näytä viesti
+          statusMessage.textContent = "Allekirjoitukset luotu onnistuneesti!";
+          statusMessage.style.color = "#4CAF50"; // Vihreä väri
         } catch (error) {
           console.error("Virhe allekirjoitusten luonnissa:", error);
           statusMessage.textContent = "Virhe allekirjoitusten luonnissa.";
-          statusMessage.style.color = "#ff0000";
+          statusMessage.style.color = "#f44336"; // Punainen väri
         }
       }
 
-      // Muokataan olemassa olevien allekirjoitusten tarkistusta
-      async function checkExistingSignatures() {
-        try {
-          const response = await fetch(`${API_URL}/api/get-signatures`);
-          const serverData = await response.json();
+      // Tarkista onko käyttäjällä jo allekirjoituksia
+      function checkExistingSignatures() {
+        // Tarkista ensin paikallisesta tallennustilasta
+        const localSignatures = localStorage.getItem("signatures");
 
-          const localData = localStorage.getItem("signatures");
-          const localSignatures = localData ? JSON.parse(localData) : null;
+        if (localSignatures) {
+          try {
+            const data = JSON.parse(localSignatures);
 
-          if (localSignatures?.timestamp && serverData?.timestamp) {
-            if (localSignatures.timestamp > serverData.timestamp) {
-              await sendSignaturesToServer(localSignatures);
-              displaySignatures(localSignatures);
-            } else {
-              localStorage.setItem("signatures", JSON.stringify(serverData));
-              displaySignatures(serverData);
+            // Näytä tallennetut allekirjoitukset
+            signaturesContainer.innerHTML = "";
+            data.images.forEach((imageData) => {
+              const signatureItem = document.createElement("div");
+              signatureItem.className = "signature-item";
+
+              const img = document.createElement("img");
+              img.src = imageData;
+              img.alt = `${data.name} allekirjoitus`;
+
+              signatureItem.appendChild(img);
+              signaturesContainer.appendChild(signatureItem);
+            });
+
+            // Aseta nimi kenttään, mutta vain jos kenttä on tyhjä
+            if (nameInput.value.trim() === "" && data.name) {
+              nameInput.value = data.name;
             }
-          } else if (serverData?.images?.length > 0) {
-            localStorage.setItem("signatures", JSON.stringify(serverData));
-            displaySignatures(serverData);
-          }
-        } catch (error) {
-          console.error("Virhe allekirjoitusten tarkistuksessa:", error);
-        }
-      }
 
-      // Apufunktio allekirjoitusten näyttämiseen
-      function displaySignatures(data) {
-        if (data?.images?.length > 0) {
-          signaturesContainer.innerHTML = "";
-          data.images.forEach((src, index) => {
-            const div = document.createElement("div");
-            div.className = "signature-item";
-            const img = document.createElement("img");
-            img.src = src;
-            img.alt = `${data.name} allekirjoitus ${index + 1}`;
-            div.appendChild(img);
-            signaturesContainer.appendChild(div);
+            // Näytä selkeä viesti käyttäjälle
+            statusMessage.textContent = `Aiemmin luodut allekirjoitukset (${data.name}) ladattu.`;
+            statusMessage.style.color = "#4CAF50"; // Vihreä väri
+
+            // Näytä ostonappi
+            buyButton.style.display = "inline-block";
+
+            // Lähetä allekirjoitukset takaisin palvelimelle
+            sendSignaturesToServer(data);
+
+            return;
+          } catch (error) {
+            console.error(
+              "Virhe paikallisten allekirjoitusten lataamisessa:",
+              error
+            );
+          }
+        }
+
+        // Jos paikallisesta tallennustilasta ei löydy, tarkista palvelimelta
+        fetch(`${API_URL}/api/get-signatures`)
+          .then((response) => {
+            if (response.ok) return response.json();
+            throw new Error("Ei allekirjoituksia");
+          })
+          .then((data) => {
+            // Tarkista, että data on oikeassa muodossa ja sisältää kuvia
+            if (
+              data &&
+              data.images &&
+              Array.isArray(data.images) &&
+              data.images.length > 0 &&
+              data.name // Varmista että nimikentässä on arvo
+            ) {
+              console.log("Löydettiin aiemmat allekirjoitukset:", data);
+
+              // Tallenna allekirjoitukset myös selaimen paikalliseen tallennustilaan
+              localStorage.setItem("signatures", JSON.stringify(data));
+
+              // Näytä tallennetut allekirjoitukset
+              signaturesContainer.innerHTML = "";
+              data.images.forEach((imageData) => {
+                const signatureItem = document.createElement("div");
+                signatureItem.className = "signature-item";
+
+                const img = document.createElement("img");
+                img.src = imageData;
+                img.alt = `${data.name} allekirjoitus`;
+
+                signatureItem.appendChild(img);
+                signaturesContainer.appendChild(signatureItem);
+              });
+
+              // Aseta nimi kenttään, mutta vain jos kenttä on tyhjä
+              if (nameInput.value.trim() === "" && data.name) {
+                nameInput.value = data.name;
+              }
+
+              // Näytä selkeä viesti käyttäjälle
+              statusMessage.textContent = `Aiemmin luodut allekirjoitukset (${data.name}) ladattu.`;
+              statusMessage.style.color = "#4CAF50"; // Vihreä väri
+
+              // Näytä ostonappi
+              buyButton.style.display = "inline-block";
+            } else {
+              console.log(
+                "Ei aiempia allekirjoituksia tai data on virheellinen:",
+                data
+              );
+              // Tyhjennä allekirjoituskontti
+              signaturesContainer.innerHTML = "";
+              // Piilota ostonappi
+              buyButton.style.display = "none";
+              // Tyhjennä statusviesti
+              statusMessage.textContent = "";
+            }
+          })
+          .catch((error) => {
+            console.log("Ei aiempia allekirjoituksia:", error);
+            // Tyhjennä allekirjoituskontti
+            signaturesContainer.innerHTML = "";
+            // Piilota ostonappi
+            buyButton.style.display = "none";
+            // Tyhjennä statusviesti
+            statusMessage.textContent = "";
           });
-
-          if (nameInput.value.trim() === "" && data.name) {
-            nameInput.value = data.name;
-          }
-
-          statusMessage.textContent = `Aiemmin luodut allekirjoitukset (${data.name}) ladattu.`;
-          statusMessage.style.color = "#4CAF50";
-          buyButton.style.display = "inline-block";
-        }
       }
 
-      // Muokataan sendSignaturesToServer-funktiota
+      // Funktio allekirjoitusten lähettämiseksi takaisin palvelimelle
       async function sendSignaturesToServer(data) {
         try {
           const response = await fetch(`${API_URL}/api/restore-signatures`, {
@@ -765,8 +847,6 @@
             body: JSON.stringify({
               name: data.name,
               images: data.images,
-              timestamp: data.timestamp,
-              createdAt: data.createdAt,
             }),
           });
 
@@ -775,6 +855,8 @@
           }
 
           console.log("Allekirjoitukset palautettu palvelimelle onnistuneesti");
+
+          // Tarkista tila uudelleen
           checkStatus();
         } catch (error) {
           console.error(
@@ -836,16 +918,8 @@
       }
 
       // Lataa allekirjoitukset
-      async function downloadSignatures() {
-        const response = await fetch("/api/download-signatures");
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "signatures.zip";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+      function downloadSignatures() {
+        window.location.href = `${API_URL}/api/download-signatures`;
       }
 
       // Osta-painikkeen toiminnallisuus
