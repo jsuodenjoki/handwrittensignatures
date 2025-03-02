@@ -120,19 +120,20 @@ try {
   );
 }
 
-function loadPoppinsFont() {
+async function loadPoppinsFont() {
   const poppins = new FontFace(
     "Poppins",
     "url(https://fonts.gstatic.com/s/poppins/v15/pxiEyp8kv8JHgFVrJJLmE3tFOvWDSw.ttf)"
   );
 
-  return poppins.load().then((loadedFont) => {
-    document.fonts.add(loadedFont);
-  });
+  await poppins.load();
+  registerFont(poppins);
 }
 
 // Luo allekirjoitus
-function createSignature(name, fontStyle, color = "black") {
+async function createSignature(name, fontStyle, color = "black") {
+  await loadPoppinsFont(); // Varmista, että fontti on ladattu
+
   const canvas = createCanvas(600, 200);
   const ctx = canvas.getContext("2d");
 
