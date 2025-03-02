@@ -296,6 +296,37 @@
         font-weight: normal;
         font-style: normal;
       }
+
+      .color-options {
+        display: inline-block;
+        margin: 0 15px;
+      }
+
+      .color-circle {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        margin: 0 5px;
+        cursor: pointer;
+        border: 2px solid #fff;
+      }
+
+      .color-circle.black {
+        background-color: black;
+      }
+
+      .color-circle.blue {
+        background-color: blue;
+      }
+
+      .color-options input[type="radio"] {
+        display: none;
+      }
+
+      .color-options input[type="radio"]:checked + .color-circle {
+        border: 2px solid #6e8efb;
+      }
     </style>
   </head>
   <body>
@@ -313,25 +344,28 @@
 
     <div class="container">
       <div class="input-group">
-        <label for="nameInput">Syötä nimesi:</label>
         <input
           type="text"
           id="nameInput"
           placeholder="Kirjoita nimesi tähän..."
+          style="width: 40%"
         />
-      </div>
 
-      <div class="input-group">
-        <label for="colorSelect">Valitse väri:</label>
-        <select id="colorSelect">
-          <option value="black">Musta</option>
-          <option value="blue">Kuulakärkikynä</option>
-        </select>
-      </div>
+        <div class="color-options">
+          <label>
+            <input type="radio" name="color" value="black" checked />
+            <span class="color-circle black"></span>
+          </label>
+          <label>
+            <input type="radio" name="color" value="blue" />
+            <span class="color-circle blue"></span>
+          </label>
+        </div>
 
-      <button id="generateSignatures" class="button primary-button">
-        Luo allekirjoitukset
-      </button>
+        <button id="generateSignatures" class="button primary-button">
+          Luo allekirjoitukset
+        </button>
+      </div>
 
       <div id="statusMessage" class="status-message"></div>
 
@@ -614,7 +648,9 @@
       // Luo allekirjoitukset
       async function createSignatures() {
         const name = nameInput.value.trim();
-        const color = document.getElementById("colorSelect").value;
+        const color = document.querySelector(
+          'input[name="color"]:checked'
+        ).value;
 
         if (!name) {
           alert("Syötä nimesi ensin!");
