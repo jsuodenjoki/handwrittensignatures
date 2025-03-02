@@ -675,48 +675,32 @@
             body: JSON.stringify({ name, color }),
           });
 
-          if (!response.ok) {
-            throw new Error(
-              `Virhe allekirjoituksen luonnissa: ${response.status}`
-            );
-          }
-
           const data = await response.json();
 
-          // Tallenna allekirjoitukset myös selaimen paikalliseen tallennustilaan
-          localStorage.setItem(
-            "signatures",
-            JSON.stringify({
-              name,
-              images: data.images,
-              createdAt: new Date().toISOString(),
-            })
-          );
+          if (!data.images) {
+            throw new Error("Virheellinen vastaus palvelimelta");
+          }
 
-          // Näytä allekirjoitukset
+          // Päivitä allekirjoitukset käyttöliittymässä
           signaturesContainer.innerHTML = "";
-          data.images.forEach((imageData) => {
-            const signatureItem = document.createElement("div");
-            signatureItem.className = "signature-item";
-
+          data.images.forEach((src, index) => {
+            const div = document.createElement("div");
+            div.className = "signature-item";
             const img = document.createElement("img");
-            img.src = imageData;
-            img.alt = `${name} allekirjoitus`;
-
-            signatureItem.appendChild(img);
-            signaturesContainer.appendChild(signatureItem);
+            img.src = src;
+            img.alt = `Allekirjoitus ${index + 1}`;
+            div.appendChild(img);
+            signaturesContainer.appendChild(div);
           });
 
-          // Näytä ostonappi
+          // Päivitä tila
+          statusMessage.textContent = "Allekirjoitukset luotu!";
+          statusMessage.style.color = "#6e8efb";
           buyButton.style.display = "inline-block";
-
-          // Näytä viesti
-          statusMessage.textContent = "Allekirjoitukset luotu onnistuneesti!";
-          statusMessage.style.color = "#4CAF50"; // Vihreä väri
         } catch (error) {
           console.error("Virhe allekirjoitusten luonnissa:", error);
           statusMessage.textContent = "Virhe allekirjoitusten luonnissa.";
-          statusMessage.style.color = "#f44336"; // Punainen väri
+          statusMessage.style.color = "#ff0000";
         }
       }
 

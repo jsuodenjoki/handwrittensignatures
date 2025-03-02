@@ -203,7 +203,7 @@ app.post("/api/create-signatures", (req, res) => {
     createdAt: new Date().toISOString(),
   });
 
-  res.json({ previewImages });
+  res.json({ images: previewImages });
 });
 
 // Hae tallennetut allekirjoitukset
@@ -235,7 +235,6 @@ app.get("/api/download-signatures", (req, res) => {
 
   const userSignatures = signatures.get(clientIp);
 
-  // Luo ZIP-tiedosto
   res.setHeader("Content-Type", "application/zip");
   res.setHeader(
     "Content-Disposition",
@@ -248,8 +247,8 @@ app.get("/api/download-signatures", (req, res) => {
 
   archive.pipe(res);
 
-  // Lisää kuvat ZIP-tiedostoon
-  userSignatures.images.forEach((imgData, index) => {
+  // Käytä downloadImages-taulukkoa ZIP-tiedostoon
+  userSignatures.downloadImages.forEach((imgData, index) => {
     const imgBuffer = Buffer.from(
       imgData.replace(/^data:image\/png;base64,/, ""),
       "base64"
