@@ -332,14 +332,45 @@ app.post(
         const session = event.data.object;
         const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
 
+        console.log(
+          "Kaikki tallennetut allekirjoitukset:",
+          Array.from(signatures.keys())
+        );
+        console.log("Etsitään IP-osoitetta:", clientIp);
+
         if (signatures.has(clientIp)) {
           paidIPs.add(clientIp);
           console.log("✅ Maksu merkitty onnistuneeksi IP:lle:", clientIp);
         } else {
-          console.log(
-            "⚠️ Varoitus: Allekirjoituksia ei löytynyt IP:lle:",
-            clientIp
-          );
+          // Yritä löytää samankaltainen IP-osoite
+          let found = false;
+          for (const ip of signatures.keys()) {
+            // Tarkista sisältääkö toinen IP toisen tai onko niillä sama alkuosa
+            if (
+              ip.includes(clientIp) ||
+              clientIp.includes(ip) ||
+              ip.split(".").slice(0, 3).join(".") ===
+                clientIp.split(".").slice(0, 3).join(".")
+            ) {
+              paidIPs.add(ip);
+              console.log(
+                "✅ Maksu merkitty onnistuneeksi samankaltaiselle IP:lle:",
+                ip,
+                "(alkuperäinen:",
+                clientIp,
+                ")"
+              );
+              found = true;
+              break;
+            }
+          }
+
+          if (!found) {
+            console.log(
+              "⚠️ Varoitus: Allekirjoituksia ei löytynyt IP:lle:",
+              clientIp
+            );
+          }
         }
       }
 
