@@ -314,75 +314,84 @@ app.post("/api/create-payment", async (req, res) => {
 });
 
 // Stripe webhook käsittely
-app.post(
-  "/api/webhook",
-  express.raw({ type: "application/json" }),
-  async (req, res) => {
-    const sig = req.headers["stripe-signature"];
+app.post("/api/webhook", async (req, res) => {
+  const sig = req.headers["stripe-signature"];
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-    try {
-      const event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
+  console.log("Webhook called");
+  console.log("Signature:", sig);
+  console.log("Secret exists:", !!webhookSecret);
+  console.log("Raw body exists:", !!req.body);
 
-      console.log("Webhook event received:", event.type);
+  if (!webhookSecret) {
+    console.error("STRIPE_WEBHOOK_SECRET puuttuu!");
+    return res.status(400).send("Webhook secret puuttuu");
+  }
 
-      if (
-        [
-          "checkout.session.completed",
-          "payment_intent.succeeded",
-          "charge.succeeded",
-        ].includes(event.type)
-      ) {
-        const session = event.data.object;
-        const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN"; // Retrieve IP from Stripe
+  if (!sig) {
+    console.error("Stripe-signature header puuttuu!");
+    return res.status(400).send("Signature puuttuu");
+  }
 
-        console.log("All current signatures:", Array.from(signatures.keys()));
-        console.log("Looking for client IP:", clientIp);
+  try {
+    console.log("Trying to construct event...");
+    const event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    console.log("Event constructed successfully:", event.type);
 
-        if (signatures.has(clientIp)) {
-          paidIPs.add(clientIp);
-          console.log("✅ Payment marked as successful for IP:", clientIp);
-        } else {
-          // Try to find a close match (sometimes IP addresses can vary slightly)
-          let found = false;
-          for (const ip of signatures.keys()) {
-            // Check if one IP contains the other or if they share a common prefix
-            if (
-              ip.includes(clientIp) ||
-              clientIp.includes(ip) ||
-              ip.split(".").slice(0, 3).join(".") ===
-                clientIp.split(".").slice(0, 3).join(".")
-            ) {
-              paidIPs.add(ip);
-              console.log(
-                "✅ Payment marked as successful for similar IP:",
-                ip,
-                "(original:",
-                clientIp,
-                ")"
-              );
-              found = true;
-              break;
-            }
-          }
+    if (
+      [
+        "checkout.session.completed",
+        "payment_intent.succeeded",
+        "charge.succeeded",
+      ].includes(event.type)
+    ) {
+      const session = event.data.object;
+      const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN"; // Retrieve IP from Stripe
 
-          if (!found) {
-            console.log("⚠️ Warning: No signatures found for IP:", clientIp);
-            console.log("Available IPs:", Array.from(signatures.keys()));
+      console.log("All current signatures:", Array.from(signatures.keys()));
+      console.log("Looking for client IP:", clientIp);
+
+      if (signatures.has(clientIp)) {
+        paidIPs.add(clientIp);
+        console.log("✅ Payment marked as successful for IP:", clientIp);
+      } else {
+        // Try to find a close match (sometimes IP addresses can vary slightly)
+        let found = false;
+        for (const ip of signatures.keys()) {
+          // Check if one IP contains the other or if they share a common prefix
+          if (
+            ip.includes(clientIp) ||
+            clientIp.includes(ip) ||
+            ip.split(".").slice(0, 3).join(".") ===
+              clientIp.split(".").slice(0, 3).join(".")
+          ) {
+            paidIPs.add(ip);
+            console.log(
+              "✅ Payment marked as successful for similar IP:",
+              ip,
+              "(original:",
+              clientIp,
+              ")"
+            );
+            found = true;
+            break;
           }
         }
-      }
 
-      res.json({ received: true });
-    } catch (err) {
-      console.error("Webhook error:", err.message);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
+        if (!found) {
+          console.log("⚠️ Warning: No signatures found for IP:", clientIp);
+          console.log("Available IPs:", Array.from(signatures.keys()));
+        }
+      }
     }
+
+    res.json({ received: true });
+  } catch (err) {
+    console.error("Webhook error:", err.message);
+    console.error("Error details:", err);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
   }
-);
+});
 
 // Sähköpostin lähetys
 app.post("/api/send-email", async (req, res) => {
