@@ -404,34 +404,52 @@
 
         // Luo ensin kaikki allekirjoitukset ja tallenna ne
         for (const name of exampleNames) {
-          // Käytä vain omaa fonttia
-          const fontStyle = signatureFonts[0]; // Käytä ensimmäistä (ja ainoaa) fonttia
+          try {
+            // Käytä vain omaa fonttia
+            const fontStyle = signatureFonts[0]; // Käytä ensimmäistä (ja ainoaa) fonttia
 
-          // Luo uusi canvas jokaiselle allekirjoitukselle
-          const canvas = document.createElement("canvas");
-          canvas.width = 600;
-          canvas.height = 200;
-          const ctx = canvas.getContext("2d");
+            console.log(
+              `Luodaan allekirjoitus nimelle "${name}" fontilla:`,
+              fontStyle
+            );
 
-          // Aseta tausta
-          ctx.fillStyle = "white";
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Luo uusi canvas jokaiselle allekirjoitukselle
+            const canvas = document.createElement("canvas");
+            canvas.width = 600;
+            canvas.height = 200;
+            const ctx = canvas.getContext("2d");
 
-          // Piirrä allekirjoitus
-          ctx.fillStyle = "black";
-          ctx.font = fontStyle.font;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(name, canvas.width / 2, canvas.height / 2);
+            // Aseta tausta
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-          // Muunna canvas kuvaksi
-          const signatureImage = canvas.toDataURL("image/png");
+            // Piirrä allekirjoitus
+            ctx.fillStyle = "black";
 
-          signatures.push({
-            name,
-            image: signatureImage,
-            font: fontStyle.name,
-          });
+            // Varmista että fontti on ladattu ja asetettu oikein
+            try {
+              ctx.font = fontStyle.font;
+              console.log(`Asetettu fontti: ${fontStyle.font}`);
+            } catch (fontError) {
+              console.error(`Virhe fontin asettamisessa: ${fontError}`);
+              ctx.font = "40px Arial, sans-serif";
+            }
+
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(name, canvas.width / 2, canvas.height / 2);
+
+            // Muunna canvas kuvaksi
+            const signatureImage = canvas.toDataURL("image/png");
+
+            signatures.push({
+              name,
+              image: signatureImage,
+              font: fontStyle.name,
+            });
+          } catch (error) {
+            console.error(`Virhe allekirjoituksen luonnissa (${name}):`, error);
+          }
         }
 
         // Lisää allekirjoitukset karuselliin
@@ -804,13 +822,19 @@
 
           console.log("Fontit ladattu onnistuneesti:", signatureFonts);
 
-          // Alusta karuselli
+          // Alusta karuselli vasta kun fontit on ladattu
           await initializeCarousel();
 
           // Tarkista onko käyttäjällä jo allekirjoituksia
           checkExistingSignatures();
         } catch (error) {
           console.error("Virhe fonttien latauksessa:", error);
+          // Virhetilanteessa alusta karuselli järjestelmäfontilla
+          signatureFonts.length = 0;
+          signatureFonts.push({
+            name: "Järjestelmäfontti",
+            font: "40px Arial, sans-serif",
+          });
           initializeCarousel();
         }
       }
