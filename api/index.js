@@ -130,7 +130,7 @@ function createSignature(name, fontStyle, color = "black") {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // LISÄTÄÄN WATERMARK-TEKSTIT ENNEN SIGNATUREA
-  ctx.font = "bold 16px Arial"; // Pienempi fontti
+  ctx.font = "bold 16px 'Poppins', sans-serif"; // Pienempi fontti
   ctx.fillStyle = "rgba(0, 0, 0, 0.08)"; // Hyvin vaalea watermark
   ctx.textAlign = "center";
 
