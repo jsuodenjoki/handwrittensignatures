@@ -6,32 +6,25 @@ import path from "path";
 import archiver from "archiver";
 import { createCanvas, registerFont } from "canvas";
 import "dotenv/config";
+import JSZip from "jszip";
 
 const stripe = stripePackage(process.env.STRIPE_SECRET_KEY);
 const app = express();
 const signatures = new Map();
 const paidIPs = new Set();
 
-// Määritä middlewaret oikeassa järjestyksessä
+// 1. Määritä middlewaret oikeassa järjestyksessä
 app.use(cors());
-app.use("/api/webhook", express.raw({ type: "application/json" }));
-app.use(express.json());
 
-// Tarkistetaan IP-osoitteen käsittely
-function getClientIp(req) {
-  return req.headers["x-forwarded-for"] || req.connection.remoteAddress;
-}
+// 2. Määritä webhook middleware ENNEN muita middlewareja
+const webhookMiddleware = express.raw({ type: "application/json" });
 
-function getClientIpFormatted(req) {
-  const ip = getClientIp(req);
-  return ip.includes(",") ? ip.split(",")[0].trim() : ip.trim();
-}
-
-// Webhook käsittelijä
-app.post("/api/webhook", async (req, res) => {
+// 3. Määritä reittispesifinen middleware webhookille
+app.post("/api/webhook", webhookMiddleware, async (req, res) => {
   const sig = req.headers["stripe-signature"];
 
   try {
+    // Varmista että req.body on Buffer
     const event = stripe.webhooks.constructEvent(
       req.body,
       sig,
@@ -50,6 +43,7 @@ app.post("/api/webhook", async (req, res) => {
       const session = event.data.object;
       const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
 
+      console.log("Webhook metadata:", session.metadata);
       console.log(
         "Kaikki tallennetut allekirjoitukset:",
         Array.from(signatures.keys())
@@ -72,10 +66,7 @@ app.post("/api/webhook", async (req, res) => {
             paidIPs.add(ip);
             console.log(
               "✅ Maksu merkitty onnistuneeksi samankaltaiselle IP:lle:",
-              ip,
-              "(alkuperäinen:",
-              clientIp,
-              ")"
+              ip
             );
             found = true;
             break;
@@ -99,6 +90,31 @@ app.post("/api/webhook", async (req, res) => {
   }
 });
 
+// 4. Määritä JSON parser muille reiteille
+app.use(express.json());
+
+// 5. Paranna IP-osoitteen tunnistusta
+function getClientIp(req) {
+  // Tarkista kaikki mahdolliset IP-lähteet
+  return (
+    req.headers["cf-connecting-ip"] || // Cloudflare
+    req.headers["x-real-ip"] || // Nginx
+    req.headers["x-client-ip"] || // General
+    req.headers["x-forwarded-for"]?.split(",")[0] || // Proxy
+    req.connection?.remoteAddress ||
+    req.socket?.remoteAddress ||
+    "unknown"
+  );
+}
+
+function getClientIpFormatted(req) {
+  const ip = getClientIp(req);
+  console.log("Alkuperäinen IP:", ip);
+  const formattedIp = ip.includes(",") ? ip.split(",")[0].trim() : ip.trim();
+  console.log("Muotoiltu IP:", formattedIp);
+  return formattedIp;
+}
+
 // Palauttaa käyttäjän IP-osoitteen
 app.get("/api/get-client-ip", (req, res) => {
   res.send(getClientIpFormatted(req));
@@ -110,10 +126,17 @@ app.get("/api/check-signatures", (req, res) => {
   const hasSignatures = signatures.has(clientIp);
   const hasPaid = paidIPs.has(clientIp);
 
+  let signatureCount = 0;
+  if (hasSignatures) {
+    const data = signatures.get(clientIp);
+    signatureCount = data.previewImages.length;
+  }
+
   res.json({
     hasSignatures,
     hasPaid,
     canDownload: hasSignatures && hasPaid,
+    signatureCount,
   });
 });
 
@@ -239,18 +262,18 @@ app.post("/api/create-signatures", (req, res) => {
     return res.status(400).json({ error: "Nimi puuttuu" });
   }
 
-  // Luo molemmat versiot jokaiselle fonttityylille
+  // Luo molemmat versiot
   const previewImages = [];
   const downloadImages = [];
 
   for (const fontStyle of signatureFonts) {
-    const previewImage = createSignature(name, fontStyle, color, true); // Vesileimalla
-    const downloadImage = createSignature(name, fontStyle, color, false); // Ilman vesileimaa
+    const previewImage = createSignature(name, fontStyle, color, true);
+    const downloadImage = createSignature(name, fontStyle, color, false);
     previewImages.push(previewImage);
     downloadImages.push(downloadImage);
   }
 
-  // Tallenna molemmat versiot
+  // Tallenna IP:n perusteella
   signatures.set(clientIp, {
     name,
     previewImages,
@@ -258,16 +281,16 @@ app.post("/api/create-signatures", (req, res) => {
     createdAt: new Date().toISOString(),
   });
 
-  console.log(`Tallennettu allekirjoitukset IP:lle ${clientIp}, nimi: ${name}`);
+  console.log(`Tallennettu allekirjoitukset IP:lle ${clientIp}`);
   console.log(
     `Preview-kuvia: ${previewImages.length}, Download-kuvia: ${downloadImages.length}`
   );
 
-  // Palauta vain preview-kuvat näytettäväksi
+  // Palauta vain preview-kuvat
   res.json({
+    message: `${previewImages.length} allekirjoitusta luotu!`,
     images: previewImages,
-    name: name,
-    createdAt: new Date().toISOString(),
+    needsPayment: true,
   });
 });
 
@@ -309,41 +332,49 @@ app.get("/api/download-signatures", (req, res) => {
 
   const userSignatures = signatures.get(clientIp);
 
-  res.setHeader("Content-Type", "application/zip");
-  res.setHeader(
-    "Content-Disposition",
-    `attachment; filename=signatures-${Date.now()}.zip`
-  );
+  try {
+    const zip = new JSZip();
 
-  const archive = archiver("zip", {
-    zlib: { level: 9 },
-  });
+    userSignatures.downloadImages.forEach((imgData, index) => {
+      const imgBuffer = Buffer.from(
+        imgData.replace(/^data:image\/png;base64,/, ""),
+        "base64"
+      );
+      zip.file(`signature-${index + 1}.png`, imgBuffer);
+    });
 
-  archive.pipe(res);
+    zip.generateAsync({ type: "nodebuffer" }).then((content) => {
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=signatures-${Date.now()}.zip`
+      );
+      res.send(content);
 
-  // Käytä downloadImages-taulukkoa ZIP-tiedostoon
-  userSignatures.downloadImages.forEach((imgData, index) => {
-    const imgBuffer = Buffer.from(
-      imgData.replace(/^data:image\/png;base64,/, ""),
-      "base64"
-    );
-    archive.append(imgBuffer, { name: `signature-${index + 1}.png` });
-  });
-
-  archive.finalize();
-
-  // Poista tallennetut allekirjoitukset ja maksutila latauksen jälkeen
-  setTimeout(() => {
-    signatures.delete(clientIp);
-    paidIPs.delete(clientIp);
-    console.log(`Tyhjennetty allekirjoitukset ja maksutila IP:lle ${clientIp}`);
-  }, 180000); // 3 min
+      // Poista allekirjoitukset 3 minuutin kuluttua
+      setTimeout(() => {
+        signatures.delete(clientIp);
+        paidIPs.delete(clientIp);
+        console.log(`Tyhjennetty allekirjoitukset IP:lle ${clientIp}`);
+      }, 180000);
+    });
+  } catch (error) {
+    console.error("Virhe ZIP-tiedoston luonnissa:", error);
+    res.status(500).json({ error: "Virhe allekirjoitusten lataamisessa" });
+  }
 });
 
-// Luo Stripe-maksu
+// 6. Paranna Stripe-maksun luontia
 app.post("/api/create-payment", async (req, res) => {
   try {
     const clientIp = getClientIpFormatted(req);
+    console.log("Luodaan maksu IP:lle:", clientIp);
+
+    if (!signatures.has(clientIp)) {
+      return res
+        .status(400)
+        .json({ error: "Ei allekirjoituksia tälle IP:lle" });
+    }
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -354,7 +385,7 @@ app.post("/api/create-payment", async (req, res) => {
             product_data: {
               name: "Allekirjoitusten luonti",
             },
-            unit_amount: 100, // 5 EUR
+            unit_amount: 100,
           },
           quantity: 1,
         },
@@ -367,6 +398,7 @@ app.post("/api/create-payment", async (req, res) => {
       },
     });
 
+    console.log("Maksu luotu onnistuneesti, session ID:", session.id);
     res.json({ url: session.url });
   } catch (error) {
     console.error("Virhe maksun luonnissa:", error);
