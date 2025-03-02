@@ -379,16 +379,23 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
 
   // Aseta fontti
   ctx.font = fontStyle.font;
-
-  // Keskitä teksti täydellisesti
   ctx.fillStyle = "black";
   ctx.textAlign = "center";
-  ctx.textBaseline = "middle"; // Tämä keskittää tekstin y-akselilla
+
+  // Mittaa tekstin todellinen korkeus
+  const textMetrics = ctx.measureText(name);
+  const textHeight =
+    textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
+
+  // Lasketaan oikea y-keskiö ja säädetään tekstiä, jotta se on tasapainossa
+  const centerY =
+    canvas.height / 2 +
+    (textMetrics.actualBoundingBoxAscent -
+      textMetrics.actualBoundingBoxDescent) /
+      2;
 
   // Piirrä teksti täsmälleen keskelle canvasia
-  // Voit säätää y-koordinaattia tässä
-  // Esim. canvas.height / 2 - 20 siirtää tekstiä 20px ylöspäin
-  ctx.fillText(name, canvas.width / 2, canvas.height / 2); // Kokeile eri arvoja
+  ctx.fillText(name, canvas.width / 2, centerY);
 
   const signatureImage = canvas.toDataURL("image/png");
 
