@@ -121,7 +121,18 @@ try {
 }
 
 // Luo allekirjoitus
-function createSignature(name, fontStyle, color = "black") {
+async function loadFont() {
+  const font = new FontFace(
+    "Poppins",
+    "url(https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap)"
+  );
+  await font.load();
+  document.fonts.add(font);
+}
+
+async function createSignature(name, fontStyle, color = "black") {
+  await loadFont(); // ✅ Odota, että fontti latautuu ennen piirtämistä
+
   const canvas = createCanvas(600, 200);
   const ctx = canvas.getContext("2d");
 
