@@ -131,7 +131,7 @@ function createSignature(name, fontStyle, color = "black") {
 
   // Aseta fontti
   ctx.font = fontStyle.font;
-  ctx.fillStyle = color; // Käytä valittua väriä
+  ctx.fillStyle = color;
   ctx.textAlign = "center";
 
   // Mittaa tekstin korkeus
@@ -148,6 +148,10 @@ function createSignature(name, fontStyle, color = "black") {
 
   // Piirrä teksti
   ctx.fillText(name, canvas.width / 2, centerY);
+
+  // Lisää blur-efekti
+  ctx.filter = "blur(5px)"; // Lisää blur-efekti
+  ctx.drawImage(canvas, 0, 0);
 
   return canvas.toDataURL("image/png");
 }
