@@ -13,65 +13,6 @@ const app = express();
 const signatures = new Map();
 const paidIPs = new Set();
 
-// Määritellään tiedostopolku allekirjoitusten tallentamiseen
-const signaturesFilePath = path.join(__dirname, "../data/signatures.json");
-
-// Varmistetaan, että data-kansio on olemassa
-const dataDir = path.join(__dirname, "../data");
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
-
-// Ladataan tallennetut allekirjoitukset tiedostosta
-try {
-  if (fs.existsSync(signaturesFilePath)) {
-    const data = JSON.parse(fs.readFileSync(signaturesFilePath, "utf8"));
-
-    // Muunnetaan JSON-objekti takaisin Map-objektiksi
-    signatures = new Map(Object.entries(data.signatures || {}));
-
-    // Muunnetaan JSON-taulukko takaisin Set-objektiksi
-    paidIPs = new Set(data.paidIPs || []);
-
-    console.log(
-      `Ladattu ${signatures.size} allekirjoitusta ja ${paidIPs.size} maksettua IP:tä tiedostosta`
-    );
-  } else {
-    console.log(
-      "Allekirjoitustiedostoa ei löytynyt, aloitetaan tyhjällä tietokannalla"
-    );
-  }
-} catch (error) {
-  console.error("Virhe allekirjoitusten lataamisessa tiedostosta:", error);
-}
-
-// Funktio allekirjoitusten tallentamiseen tiedostoon
-function saveSignaturesToFile() {
-  try {
-    // Muunnetaan Map-objekti JSON-objektiksi
-    const signaturesObj = Object.fromEntries(signatures);
-
-    // Muunnetaan Set-objekti JSON-taulukoksi
-    const paidIPsArray = Array.from(paidIPs);
-
-    // Tallennetaan molemmat tiedostoon
-    fs.writeFileSync(
-      signaturesFilePath,
-      JSON.stringify(
-        { signatures: signaturesObj, paidIPs: paidIPsArray },
-        null,
-        2
-      )
-    );
-
-    console.log(
-      `Tallennettu ${signatures.size} allekirjoitusta ja ${paidIPs.size} maksettua IP:tä tiedostoon`
-    );
-  } catch (error) {
-    console.error("Virhe allekirjoitusten tallentamisessa tiedostoon:", error);
-  }
-}
-
 app.use(cors());
 app.use("/api/webhook", express.raw({ type: "application/json" }));
 app.use(express.json({ limit: "50mb" }));
@@ -115,10 +56,6 @@ app.get("/api/check-signatures", (req, res) => {
   const clientIp = getClientIpFormatted(req);
   const hasSignatures = signatures.has(clientIp);
   const hasPaid = paidIPs.has(clientIp);
-
-  console.log(
-    `Tarkistetaan allekirjoitukset IP:lle ${clientIp}: hasSignatures=${hasSignatures}, hasPaid=${hasPaid}`
-  );
 
   res.json({
     hasSignatures,
@@ -239,9 +176,6 @@ app.post("/api/create-signatures", (req, res) => {
     createdAt: new Date().toISOString(),
   });
 
-  // Tallenna allekirjoitukset tiedostoon
-  saveSignaturesToFile();
-
   // Loki kaikista tallennetuista allekirjoituksista
   console.log("Kaikki tallennetut allekirjoitukset:");
   signatures.forEach((value, key) => {
@@ -309,9 +243,6 @@ app.get("/api/download-signatures", (req, res) => {
   // Poista tallennetut allekirjoitukset ja maksutila latauksen jälkeen
   signatures.delete(clientIp);
   paidIPs.delete(clientIp);
-
-  // Tallenna muutokset tiedostoon
-  saveSignaturesToFile();
 });
 
 // Luo Stripe-maksu
@@ -377,9 +308,6 @@ app.post(
         if (signatures.has(clientIp)) {
           paidIPs.add(clientIp);
           console.log("✅ Maksu merkitty onnistuneeksi IP:lle:", clientIp);
-
-          // Tallenna muutokset tiedostoon
-          saveSignaturesToFile();
         } else {
           console.log(
             "⚠️ Varoitus: Allekirjoituksia ei löytynyt IP:lle:",
