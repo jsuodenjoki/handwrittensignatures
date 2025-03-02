@@ -389,7 +389,7 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
 
   // Aseta fontti
   ctx.font = fontStyle.font;
-  ctx.fillStyle = "black";
+  ctx.fillStyle = "blue"; // Kuulakärkikynän väri
   ctx.textAlign = "center";
 
   // Mittaa tekstin todellinen korkeus
