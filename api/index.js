@@ -121,7 +121,7 @@ try {
 }
 
 // Luo allekirjoitus
-function createSignature(name, fontStyle) {
+function createSignature(name, fontStyle, color = "black") {
   const canvas = createCanvas(600, 200);
   const ctx = canvas.getContext("2d");
 
@@ -131,7 +131,7 @@ function createSignature(name, fontStyle) {
 
   // Aseta fontti
   ctx.font = fontStyle.font;
-  ctx.fillStyle = "black";
+  ctx.fillStyle = color; // Käytä valittua väriä
   ctx.textAlign = "center";
 
   // Mittaa tekstin korkeus
@@ -154,7 +154,7 @@ function createSignature(name, fontStyle) {
 
 // API-reitti allekirjoitusten luomiseen
 app.post("/api/create-signatures", (req, res) => {
-  const { name } = req.body;
+  const { name, color } = req.body;
 
   if (!name) {
     return res.status(400).json({ error: "Nimi puuttuu" });
@@ -164,7 +164,7 @@ app.post("/api/create-signatures", (req, res) => {
 
   // Luo allekirjoitus jokaisella fontilla
   for (const fontStyle of signatureFonts) {
-    const signatureImage = createSignature(name, fontStyle);
+    const signatureImage = createSignature(name, fontStyle, color);
     signatureImages.push(signatureImage);
   }
 

@@ -321,6 +321,14 @@
         />
       </div>
 
+      <div class="input-group">
+        <label for="colorSelect">Valitse väri:</label>
+        <select id="colorSelect">
+          <option value="black">Musta</option>
+          <option value="blue">Kuulakärkikynä</option>
+        </select>
+      </div>
+
       <button id="generateSignatures" class="button primary-button">
         Luo allekirjoitukset
       </button>
@@ -606,6 +614,8 @@
       // Luo allekirjoitukset
       async function createSignatures() {
         const name = nameInput.value.trim();
+        const color = document.getElementById("colorSelect").value;
+
         if (!name) {
           alert("Syötä nimesi ensin!");
           return;
@@ -617,11 +627,13 @@
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ name }),
+            body: JSON.stringify({ name, color }),
           });
 
           if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            throw new Error(
+              `Virhe allekirjoituksen luonnissa: ${response.status}`
+            );
           }
 
           const data = await response.json();
