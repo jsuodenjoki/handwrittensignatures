@@ -430,103 +430,22 @@
           carouselItem.appendChild(img);
           signatureCarousel.appendChild(carouselItem);
         });
+
+        // Käynnistä karusellin animaatio
+        startCarouselAnimation();
       }
 
       // Karusellin animaatio
-      let carouselPosition = 0;
-      let carouselAnimationId;
-      let isResetting = false;
-
       function startCarouselAnimation() {
-        if (carouselAnimationId) {
-          cancelAnimationFrame(carouselAnimationId);
-        }
-
-        const items = signatureCarousel.querySelectorAll(".carousel-item");
+        let currentIndex = 0;
+        const items = document.querySelectorAll(".carousel-item");
         const totalItems = items.length;
-        const visibleItems = 3; // Näkyvien elementtien määrä
-        const itemWidth = 280; // Elementin leveys + marginaali
-        const duration = 10000; // Koko kierroksen kesto millisekunteina
-        const step = ((itemWidth * exampleNames.length) / duration) * 16.7; // Siirtymä per frame
-        const containerWidth = document.querySelector(
-          ".signature-carousel-container"
-        ).offsetWidth;
 
-        // Aseta alkuposition niin, että ensimmäinen elementti on näkyvissä
-        carouselPosition = 0;
-
-        function animateCarousel() {
-          if (!isResetting) {
-            carouselPosition -= step;
-
-            // Kun karuselli on liikkunut tarpeeksi, valmistele paluu alkuun
-            // Tarkistetaan onko ensimmäinen "aito" elementti liikkunut pois näkyvistä
-            if (carouselPosition <= -itemWidth * exampleNames.length) {
-              isResetting = true;
-
-              // Poista transition väliaikaisesti
-              signatureCarousel.style.transition = "none";
-
-              // Aseta timeout, jotta transition-muutos ehtii vaikuttaa
-              setTimeout(() => {
-                // Nollaa positio
-                carouselPosition = 0;
-                signatureCarousel.style.transform = `translateX(${carouselPosition}px)`;
-
-                // Palauta transition pienen viiveen jälkeen
-                setTimeout(() => {
-                  signatureCarousel.style.transition = "transform 0.5s ease";
-                  isResetting = false;
-                }, 20);
-              }, 20);
-            }
-          }
-
-          // Päivitä karusellin sijainti
-          if (!isResetting) {
-            signatureCarousel.style.transform = `translateX(${carouselPosition}px)`;
-
-            // Päivitä elementtien läpinäkyvyys sijainnin perusteella
-            updateItemsOpacity(containerWidth);
-          }
-
-          carouselAnimationId = requestAnimationFrame(animateCarousel);
-        }
-
-        carouselAnimationId = requestAnimationFrame(animateCarousel);
-      }
-
-      // Päivitä elementtien läpinäkyvyys
-      function updateItemsOpacity(containerWidth) {
-        const items = signatureCarousel.querySelectorAll(".carousel-item");
-        const fadeZone = 200; // Häivytysvyöhykkeen leveys
-
-        items.forEach((item) => {
-          const rect = item.getBoundingClientRect();
-          const containerRect =
-            signatureCarousel.parentElement.getBoundingClientRect();
-
-          // Laske etäisyys vasemmasta ja oikeasta reunasta
-          const distanceFromLeft = rect.left - containerRect.left;
-          const distanceFromRight = containerRect.right - rect.right;
-
-          // Laske läpinäkyvyys etäisyyden perusteella
-          let opacity = 1;
-          let scale = 1;
-
-          if (distanceFromLeft < fadeZone) {
-            opacity = distanceFromLeft / fadeZone;
-            scale = 0.9 + 0.1 * opacity;
-          } else if (distanceFromRight < fadeZone) {
-            opacity = distanceFromRight / fadeZone;
-            scale = 0.9 + 0.1 * opacity;
-          }
-
-          // Rajoita läpinäkyvyys välille 0-1 ja aseta se
-          opacity = Math.max(0.1, Math.min(1, opacity));
-          item.style.opacity = opacity;
-          item.style.transform = `scale(${scale})`;
-        });
+        setInterval(() => {
+          items[currentIndex].style.opacity = 0;
+          currentIndex = (currentIndex + 1) % totalItems;
+          items[currentIndex].style.opacity = 1;
+        }, 3000); // Vaihda kuvaa 3 sekunnin välein
       }
 
       // Luo allekirjoitukset
