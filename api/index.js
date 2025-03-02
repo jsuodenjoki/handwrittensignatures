@@ -406,4 +406,33 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
   res.json({ image: signatureImage });
 });
 
+// API-reitti allekirjoitusten palauttamiseen
+app.post("/api/restore-signatures", (req, res) => {
+  const { name, images } = req.body;
+  const clientIp = getClientIpFormatted(req);
+
+  if (!name || !images || !Array.isArray(images)) {
+    return res.status(400).json({ error: "Virheellinen pyyntö" });
+  }
+
+  console.log(`Palautetaan allekirjoitukset IP:lle ${clientIp}, nimi: ${name}`);
+
+  // Tallenna allekirjoitukset käyttäjälle
+  signatures.set(clientIp, {
+    name,
+    images,
+    createdAt: new Date().toISOString(),
+  });
+
+  // Loki kaikista tallennetuista allekirjoituksista
+  console.log("Kaikki tallennetut allekirjoitukset:");
+  signatures.forEach((value, key) => {
+    console.log(
+      `IP: ${key}, Nimi: ${value.name}, Kuvia: ${value.images.length}`
+    );
+  });
+
+  res.json({ success: true });
+});
+
 export default app;

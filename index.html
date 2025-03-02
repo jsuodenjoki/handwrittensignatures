@@ -698,8 +698,8 @@
             // Näytä ostonappi
             buyButton.style.display = "inline-block";
 
-            // Tarkista myös palvelimelta maksutila
-            checkStatus();
+            // Lähetä allekirjoitukset takaisin palvelimelle
+            sendSignaturesToServer(data);
 
             return;
           } catch (error) {
@@ -779,6 +779,36 @@
           });
       }
 
+      // Funktio allekirjoitusten lähettämiseksi takaisin palvelimelle
+      async function sendSignaturesToServer(data) {
+        try {
+          const response = await fetch(`${API_URL}/api/restore-signatures`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              name: data.name,
+              images: data.images,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          console.log("Allekirjoitukset palautettu palvelimelle onnistuneesti");
+
+          // Tarkista tila uudelleen
+          checkStatus();
+        } catch (error) {
+          console.error(
+            "Virhe allekirjoitusten palauttamisessa palvelimelle:",
+            error
+          );
+        }
+      }
+
       // Luo allekirjoitukset
       generateSignaturesButton.addEventListener("click", async () => {
         await createSignatures();
@@ -820,7 +850,7 @@
                 }
               }
             } else {
-              // Ei allekirjoituksia, piilota osta-painike
+              // Ei allekirjoituksia, piilota ostonappi
               buyButton.style.display = "none";
               statusMessage.textContent = "";
             }
