@@ -6,113 +6,44 @@ import path from "path";
 import archiver from "archiver";
 import { createCanvas, registerFont } from "canvas";
 import "dotenv/config";
-import JSZip from "jszip";
 
 const stripe = stripePackage(process.env.STRIPE_SECRET_KEY);
+
 const app = express();
 const signatures = new Map();
 const paidIPs = new Set();
 
-// 1. Määritä middlewaret oikeassa järjestyksessä
 app.use(cors());
+app.use("/api/webhook", express.raw({ type: "application/json" }));
+app.use(express.json({ limit: "50mb" }));
 
-// 2. Määritä webhook middleware ENNEN muita middlewareja
-const webhookMiddleware = express.raw({ type: "application/json" });
-
-// 3. Määritä reittispesifinen middleware webhookille
-app.post("/api/webhook", webhookMiddleware, async (req, res) => {
-  const sig = req.headers["stripe-signature"];
-
-  try {
-    // Varmista että req.body on Buffer
-    const event = stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
-
-    console.log("Webhook-tapahtuma vastaanotettu:", event.type);
-
-    if (
-      [
-        "checkout.session.completed",
-        "payment_intent.succeeded",
-        "charge.succeeded",
-      ].includes(event.type)
-    ) {
-      const session = event.data.object;
-      const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
-
-      console.log("Webhook metadata:", session.metadata);
-      console.log(
-        "Kaikki tallennetut allekirjoitukset:",
-        Array.from(signatures.keys())
-      );
-      console.log("Etsitään IP-osoitetta:", clientIp);
-
-      if (signatures.has(clientIp)) {
-        paidIPs.add(clientIp);
-        console.log("✅ Maksu merkitty onnistuneeksi IP:lle:", clientIp);
-      } else {
-        // Yritä löytää samankaltainen IP-osoite
-        let found = false;
-        for (const ip of signatures.keys()) {
-          if (
-            ip.includes(clientIp) ||
-            clientIp.includes(ip) ||
-            ip.split(".").slice(0, 3).join(".") ===
-              clientIp.split(".").slice(0, 3).join(".")
-          ) {
-            paidIPs.add(ip);
-            console.log(
-              "✅ Maksu merkitty onnistuneeksi samankaltaiselle IP:lle:",
-              ip
-            );
-            found = true;
-            break;
-          }
-        }
-
-        if (!found) {
-          console.log(
-            "⚠️ Varoitus: Allekirjoituksia ei löytynyt IP:lle:",
-            clientIp
-          );
-          console.log("Tallennetut IP:t:", Array.from(signatures.keys()));
-        }
-      }
-    }
-
-    res.json({ received: true });
-  } catch (err) {
-    console.error("Webhook-virhe:", err.message);
-    return res.status(400).send(`Webhook-virhe: ${err.message}`);
-  }
-});
-
-// 4. Määritä JSON parser muille reiteille
-app.use(express.json());
-
-// 5. Paranna IP-osoitteen tunnistusta
+// Tarkistetaan IP-osoitteen käsittely
 function getClientIp(req) {
-  // Tarkista kaikki mahdolliset IP-lähteet
-  return (
-    req.headers["cf-connecting-ip"] || // Cloudflare
-    req.headers["x-real-ip"] || // Nginx
-    req.headers["x-client-ip"] || // General
-    req.headers["x-forwarded-for"]?.split(",")[0] || // Proxy
-    req.connection?.remoteAddress ||
-    req.socket?.remoteAddress ||
-    "unknown"
-  );
+  // Tarkistetaan kaikki mahdolliset IP-osoitteen lähteet
+  const ip =
+    req.headers["x-forwarded-for"] ||
+    req.headers["x-real-ip"] ||
+    req.connection.remoteAddress ||
+    req.socket.remoteAddress ||
+    req.connection.socket?.remoteAddress;
+
+  console.log("Alkuperäinen IP:", ip);
+
+  // Normalisoidaan IP-osoite
+  const normalizedIp = ip
+    ? ip.includes(",")
+      ? ip.split(",")[0].trim()
+      : ip.trim()
+    : "unknown-ip";
+
+  console.log("Normalisoitu IP:", normalizedIp);
+
+  return normalizedIp;
 }
 
+// Korvataan getClientIpFormatted-funktio
 function getClientIpFormatted(req) {
-  const ip = getClientIp(req);
-  console.log("Alkuperäinen IP:", ip);
-  const formattedIp = ip.includes(",") ? ip.split(",")[0].trim() : ip.trim();
-  console.log("Muotoiltu IP:", formattedIp);
-  return formattedIp;
+  return getClientIp(req);
 }
 
 // Palauttaa käyttäjän IP-osoitteen
@@ -126,17 +57,10 @@ app.get("/api/check-signatures", (req, res) => {
   const hasSignatures = signatures.has(clientIp);
   const hasPaid = paidIPs.has(clientIp);
 
-  let signatureCount = 0;
-  if (hasSignatures) {
-    const data = signatures.get(clientIp);
-    signatureCount = data.previewImages.length;
-  }
-
   res.json({
     hasSignatures,
     hasPaid,
     canDownload: hasSignatures && hasPaid,
-    signatureCount,
   });
 });
 
@@ -262,7 +186,6 @@ app.post("/api/create-signatures", (req, res) => {
     return res.status(400).json({ error: "Nimi puuttuu" });
   }
 
-  // Luo molemmat versiot
   const previewImages = [];
   const downloadImages = [];
 
@@ -273,7 +196,6 @@ app.post("/api/create-signatures", (req, res) => {
     downloadImages.push(downloadImage);
   }
 
-  // Tallenna IP:n perusteella
   signatures.set(clientIp, {
     name,
     previewImages,
@@ -281,17 +203,7 @@ app.post("/api/create-signatures", (req, res) => {
     createdAt: new Date().toISOString(),
   });
 
-  console.log(`Tallennettu allekirjoitukset IP:lle ${clientIp}`);
-  console.log(
-    `Preview-kuvia: ${previewImages.length}, Download-kuvia: ${downloadImages.length}`
-  );
-
-  // Palauta vain preview-kuvat
-  res.json({
-    message: `${previewImages.length} allekirjoitusta luotu!`,
-    images: previewImages,
-    needsPayment: true,
-  });
+  res.json({ images: previewImages });
 });
 
 // Hae tallennetut allekirjoitukset
@@ -302,9 +214,8 @@ app.get("/api/get-signatures", (req, res) => {
   if (signatures.has(clientIp)) {
     const data = signatures.get(clientIp);
     console.log(
-      `Löydettiin allekirjoitukset: Nimi: ${data.name}, Preview-kuvia: ${data.previewImages.length}, Download-kuvia: ${data.downloadImages.length}`
+      `Löydettiin allekirjoitukset: Nimi: ${data.name}, Kuvia: ${data.previewImages.length}`
     );
-
     res.json({
       name: data.name,
       images: data.previewImages,
@@ -312,6 +223,7 @@ app.get("/api/get-signatures", (req, res) => {
     });
   } else {
     console.log(`Ei löydetty allekirjoituksia IP:lle ${clientIp}`);
+    // Palautetaan tyhjä tulos 404:n sijaan
     res.json({
       name: "",
       images: [],
@@ -332,49 +244,38 @@ app.get("/api/download-signatures", (req, res) => {
 
   const userSignatures = signatures.get(clientIp);
 
-  try {
-    const zip = new JSZip();
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename=signatures-${Date.now()}.zip`
+  );
 
-    userSignatures.downloadImages.forEach((imgData, index) => {
-      const imgBuffer = Buffer.from(
-        imgData.replace(/^data:image\/png;base64,/, ""),
-        "base64"
-      );
-      zip.file(`signature-${index + 1}.png`, imgBuffer);
-    });
+  const archive = archiver("zip", {
+    zlib: { level: 9 },
+  });
 
-    zip.generateAsync({ type: "nodebuffer" }).then((content) => {
-      res.setHeader("Content-Type", "application/zip");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename=signatures-${Date.now()}.zip`
-      );
-      res.send(content);
+  archive.pipe(res);
 
-      // Poista allekirjoitukset 3 minuutin kuluttua
-      setTimeout(() => {
-        signatures.delete(clientIp);
-        paidIPs.delete(clientIp);
-        console.log(`Tyhjennetty allekirjoitukset IP:lle ${clientIp}`);
-      }, 180000);
-    });
-  } catch (error) {
-    console.error("Virhe ZIP-tiedoston luonnissa:", error);
-    res.status(500).json({ error: "Virhe allekirjoitusten lataamisessa" });
-  }
+  // Käytä downloadImages-taulukkoa ZIP-tiedostoon
+  userSignatures.downloadImages.forEach((imgData, index) => {
+    const imgBuffer = Buffer.from(
+      imgData.replace(/^data:image\/png;base64,/, ""),
+      "base64"
+    );
+    archive.append(imgBuffer, { name: `signature-${index + 1}.png` });
+  });
+
+  archive.finalize();
+
+  // Poista tallennetut allekirjoitukset ja maksutila latauksen jälkeen
+  signatures.delete(clientIp);
+  paidIPs.delete(clientIp);
 });
 
-// 6. Paranna Stripe-maksun luontia
+// Luo Stripe-maksu
 app.post("/api/create-payment", async (req, res) => {
   try {
     const clientIp = getClientIpFormatted(req);
-    console.log("Luodaan maksu IP:lle:", clientIp);
-
-    if (!signatures.has(clientIp)) {
-      return res
-        .status(400)
-        .json({ error: "Ei allekirjoituksia tälle IP:lle" });
-    }
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -385,7 +286,7 @@ app.post("/api/create-payment", async (req, res) => {
             product_data: {
               name: "Allekirjoitusten luonti",
             },
-            unit_amount: 100,
+            unit_amount: 500, // 5 EUR
           },
           quantity: 1,
         },
@@ -398,13 +299,57 @@ app.post("/api/create-payment", async (req, res) => {
       },
     });
 
-    console.log("Maksu luotu onnistuneesti, session ID:", session.id);
     res.json({ url: session.url });
   } catch (error) {
     console.error("Virhe maksun luonnissa:", error);
     res.status(500).json({ error: "Virhe maksun käsittelyssä" });
   }
 });
+
+// Stripe webhook maksun käsittelyyn
+app.post(
+  "/api/webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+
+    try {
+      const event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+
+      console.log("Webhook-tapahtuma vastaanotettu:", event.type);
+
+      if (
+        [
+          "checkout.session.completed",
+          "payment_intent.succeeded",
+          "charge.succeeded",
+        ].includes(event.type)
+      ) {
+        const session = event.data.object;
+        const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
+
+        if (signatures.has(clientIp)) {
+          paidIPs.add(clientIp);
+          console.log("✅ Maksu merkitty onnistuneeksi IP:lle:", clientIp);
+        } else {
+          console.log(
+            "⚠️ Varoitus: Allekirjoituksia ei löytynyt IP:lle:",
+            clientIp
+          );
+        }
+      }
+
+      res.json({ received: true });
+    } catch (err) {
+      console.error("Webhook-virhe:", err.message);
+      return res.status(400).send(`Webhook-virhe: ${err.message}`);
+    }
+  }
+);
 
 // Lähetä allekirjoitukset sähköpostiin
 app.post("/api/send-email", async (req, res) => {

@@ -697,9 +697,6 @@
           statusMessage.textContent = "Allekirjoitukset luotu!";
           statusMessage.style.color = "#6e8efb";
           buyButton.style.display = "inline-block";
-
-          // Tarkista tila heti luonnin jälkeen
-          await checkStatus();
         } catch (error) {
           console.error("Virhe allekirjoitusten luonnissa:", error);
           statusMessage.textContent = "Virhe allekirjoitusten luonnissa.";
@@ -710,7 +707,53 @@
       // Tarkista onko käyttäjällä jo allekirjoituksia
       async function checkExistingSignatures() {
         try {
-          // Tarkista vain palvelimelta
+          // Tarkista ensin paikallisesta tallennustilasta
+          const localSignatures = localStorage.getItem("signatures");
+
+          if (localSignatures) {
+            try {
+              const data = JSON.parse(localSignatures);
+              if (
+                data &&
+                data.images &&
+                Array.isArray(data.images) &&
+                data.images.length > 0
+              ) {
+                // Näytä tallennetut allekirjoitukset
+                signaturesContainer.innerHTML = "";
+                data.images.forEach((imageData) => {
+                  const signatureItem = document.createElement("div");
+                  signatureItem.className = "signature-item";
+                  const img = document.createElement("img");
+                  img.src = imageData;
+                  img.alt = `${data.name} allekirjoitus`;
+                  signatureItem.appendChild(img);
+                  signaturesContainer.appendChild(signatureItem);
+                });
+
+                // Aseta nimi kenttään
+                if (nameInput.value.trim() === "" && data.name) {
+                  nameInput.value = data.name;
+                }
+
+                // Näytä viesti ja ostonappi
+                statusMessage.textContent = `Aiemmin luodut allekirjoitukset (${data.name}) ladattu.`;
+                statusMessage.style.color = "#4CAF50";
+                buyButton.style.display = "inline-block";
+
+                // Lähetä allekirjoitukset takaisin palvelimelle
+                await sendSignaturesToServer(data);
+                return;
+              }
+            } catch (error) {
+              console.error(
+                "Virhe paikallisten allekirjoitusten lataamisessa:",
+                error
+              );
+            }
+          }
+
+          // Jos paikallisesta tallennustilasta ei löydy, tarkista palvelimelta
           const response = await fetch(`${API_URL}/api/get-signatures`);
           const data = await response.json();
 
@@ -721,7 +764,8 @@
             Array.isArray(data.images) &&
             data.images.length > 0
           ) {
-            console.log("Löydettiin aiemmat allekirjoitukset:", data);
+            // Tallenna allekirjoitukset paikalliseen tallennustilaan
+            localStorage.setItem("signatures", JSON.stringify(data));
 
             // Näytä allekirjoitukset
             signaturesContainer.innerHTML = "";
@@ -761,42 +805,85 @@
         }
       }
 
+      // Funktio allekirjoitusten lähettämiseksi takaisin palvelimelle
+      async function sendSignaturesToServer(data) {
+        try {
+          const response = await fetch(`${API_URL}/api/restore-signatures`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              name: data.name,
+              images: data.images,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          console.log("Allekirjoitukset palautettu palvelimelle onnistuneesti");
+
+          // Tarkista tila uudelleen
+          checkStatus();
+        } catch (error) {
+          console.error(
+            "Virhe allekirjoitusten palauttamisessa palvelimelle:",
+            error
+          );
+        }
+      }
+
       // Luo allekirjoitukset
       generateSignaturesButton.addEventListener("click", async () => {
         await createSignatures();
       });
 
       // Tarkista allekirjoitusten tila
-      async function checkStatus(autoDownload = false) {
-        try {
-          const response = await fetch(`${API_URL}/api/check-signatures`);
-          const data = await response.json();
-          console.log("Tilan tarkistus:", data);
+      function checkStatus(autoDownload = false) {
+        fetch(`${API_URL}/api/check-signatures`)
+          .then((response) => response.json())
+          .then((data) => {
+            console.log("Tila päivitetty:", data);
 
-          if (data.hasSignatures) {
-            if (data.hasPaid) {
-              console.log("✅ Maksu vahvistettu, ladataan allekirjoitukset...");
-              statusMessage.textContent =
-                "Maksu onnistui! Allekirjoitukset ladataan...";
-              statusMessage.style.color = "#4CAF50";
-              buyButton.style.display = "none";
+            // Näytä osta-painike vain jos käyttäjä on luonut allekirjoitukset
+            if (data.hasSignatures) {
+              if (data.hasPaid && data.canDownload) {
+                console.log("Maksu vahvistettu, ladataan allekirjoitukset...");
+                statusMessage.textContent =
+                  "Maksu onnistui! Allekirjoitukset ladataan...";
+                statusMessage.style.color = "#4CAF50"; // Vihreä väri
+                buyButton.style.display = "none";
 
-              if (autoDownload) {
-                await downloadSignatures();
-                emailContainer.style.display = "block";
+                if (autoDownload) {
+                  downloadSignatures();
+                  emailContainer.style.display = "block";
+                }
+              } else if (
+                statusMessage.textContent !==
+                "Aiemmin luodut allekirjoitukset ladattu."
+              ) {
+                // Näytä viesti vain jos käyttäjä on luonut allekirjoitukset ja ei ole jo "aiemmin luodut" -viestiä
+                if (signaturesContainer.innerHTML.trim() !== "") {
+                  statusMessage.textContent = "Allekirjoitukset luotu!";
+                  statusMessage.style.color = "#6e8efb"; // Sininen väri
+                  buyButton.style.display = "inline-block";
+                } else {
+                  // Älä näytä viestiä tai osta-painiketta, jos käyttäjä ei ole luonut allekirjoituksia
+                  statusMessage.textContent = "";
+                  buyButton.style.display = "none";
+                }
               }
             } else {
-              buyButton.style.display = "inline-block";
-              statusMessage.textContent = "Allekirjoitukset luotu!";
-              statusMessage.style.color = "#6e8efb";
+              // Ei allekirjoituksia, piilota ostonappi
+              buyButton.style.display = "none";
+              statusMessage.textContent = "";
             }
-          } else {
-            buyButton.style.display = "none";
-            statusMessage.textContent = "";
-          }
-        } catch (error) {
-          console.error("Virhe tilan tarkistuksessa:", error);
-        }
+          })
+          .catch((error) => {
+            console.error("Virhe tilan tarkistuksessa:", error);
+          });
       }
 
       // Lataa allekirjoitukset
