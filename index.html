@@ -290,9 +290,8 @@
 
       /* Lisää oma fontti @font-face-säännöllä */
       @font-face {
-        font-family: "BarokahSignature";
-        src: url("data:font/truetype;base64,BASE64_ENCODED_FONT_DATA_HERE")
-          format("truetype");
+        font-family: "OmaFontti1";
+        src: url("/fonts/omafontti1.ttf") format("truetype");
         font-weight: normal;
         font-style: normal;
       }
@@ -798,7 +797,7 @@
       // Lataa oma fontti dynaamisesti ja alusta karuselli vasta kun fontti on ladattu
       async function loadFontsAndInitialize() {
         try {
-          // Käytä Google Fonts -palvelun fontteja
+          // Lataa Google Fonts -palvelun fontit
           signatureFonts.push(
             { name: "Dancing Script", font: "40px 'Dancing Script', cursive" },
             { name: "Parisienne", font: "40px 'Parisienne', cursive" },
@@ -806,7 +805,28 @@
             { name: "Great Vibes", font: "40px 'Great Vibes', cursive" }
           );
 
-          console.log("Google Fonts ladattu onnistuneesti!");
+          // Lataa oma fontti
+          try {
+            const fontFace = new FontFace(
+              "OmaFontti1",
+              `url(/fonts/omafontti1.ttf)`
+            );
+
+            const loadedFace = await fontFace.load();
+            document.fonts.add(loadedFace);
+
+            // Lisää oma fontti fonttilistaan
+            signatureFonts.push({
+              name: "Oma Fontti",
+              font: "40px 'OmaFontti1', cursive",
+            });
+
+            console.log("Oma fontti ladattu onnistuneesti!");
+          } catch (fontError) {
+            console.error("Virhe oman fontin latauksessa:", fontError);
+          }
+
+          console.log("Fontit ladattu onnistuneesti!");
 
           // Alusta karuselli
           await initializeCarousel();
@@ -860,9 +880,9 @@
       // Tarkista fonttitiedostojen saatavuus
       async function checkFontAvailability() {
         const fontPaths = [
-          "./fonts/barokah signature by alifinart studio.ttf",
-          "/fonts/barokah signature by alifinart studio.ttf",
-          "../public/fonts/barokah signature by alifinart studio.ttf",
+          "./fonts/omafontti1.ttf",
+          "/fonts/omafontti1.ttf",
+          "../public/fonts/omafontti1.ttf",
         ];
 
         for (const path of fontPaths) {

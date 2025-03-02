@@ -51,31 +51,50 @@ const fontsDir = path.join(__dirname, "../public/fonts");
 const signatureFonts = [];
 
 try {
-  const fontFiles = fs.readdirSync(fontsDir);
-  console.log("Saatavilla olevat fontit:", fontFiles);
+  // Tarkista onko fonts-kansio olemassa
+  if (fs.existsSync(fontsDir)) {
+    const fontFiles = fs.readdirSync(fontsDir);
+    console.log("Saatavilla olevat fontit:", fontFiles);
 
-  // Rekisteröi kaikki löydetyt fontit
-  fontFiles.forEach((fontFile) => {
-    if (fontFile.endsWith(".ttf")) {
-      const fontName = fontFile.replace(".ttf", "").replace(/[-_]/g, " ");
-      const fontFamily = fontName.replace(/\s+/g, "");
-      console.log(`Rekisteröidään fontti: ${fontFile} nimellä ${fontFamily}`);
-      registerFont(path.join(fontsDir, fontFile), { family: fontFamily });
+    // Rekisteröi kaikki löydetyt fontit
+    fontFiles.forEach((fontFile) => {
+      if (fontFile.endsWith(".ttf")) {
+        const fontName = fontFile.replace(".ttf", "").replace(/[-_]/g, " ");
+        const fontFamily = fontName.replace(/\s+/g, "");
+        console.log(`Rekisteröidään fontti: ${fontFile} nimellä ${fontFamily}`);
+        registerFont(path.join(fontsDir, fontFile), { family: fontFamily });
 
-      // Lisää fontti listaan
-      signatureFonts.push({
-        name: fontName,
-        font: `40px '${fontFamily}'`,
-      });
-    }
-  });
+        // Lisää fontti listaan
+        signatureFonts.push({
+          name: fontName,
+          font: `40px '${fontFamily}'`,
+        });
+      }
+    });
+  } else {
+    console.log("Fonts-kansiota ei löydy:", fontsDir);
+  }
 
-  // Jos ei löytynyt fontteja, lisää virheilmoitus
+  // Jos ei löytynyt fontteja, käytä oletusfontteja
   if (signatureFonts.length === 0) {
-    console.error("Varoitus: Ei löytynyt fontteja fonts-kansiosta!");
+    console.log("Ei löytynyt fontteja, käytetään oletusfontteja");
+
+    // Käytä järjestelmän oletusfontteja
+    signatureFonts.push(
+      { name: "Arial", font: "40px Arial, sans-serif" },
+      { name: "Times New Roman", font: "40px 'Times New Roman', serif" },
+      { name: "Courier New", font: "40px 'Courier New', monospace" }
+    );
   }
 } catch (error) {
   console.error("Virhe fonttien lataamisessa:", error);
+
+  // Virhetilanteessa käytä oletusfontteja
+  signatureFonts.push(
+    { name: "Arial", font: "40px Arial, sans-serif" },
+    { name: "Times New Roman", font: "40px 'Times New Roman', serif" },
+    { name: "Courier New", font: "40px 'Courier New', monospace" }
+  );
 }
 
 // Luo allekirjoitus
