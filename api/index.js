@@ -366,8 +366,11 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
     return res.status(400).json({ error: "Nimi puuttuu" });
   }
 
-  // Käytä vain ensimmäistä fonttia
-  const fontStyle = signatureFonts[0];
+  // Käytä vain ensimmäistä fonttia, mutta varmista että fonttikoko on riittävän suuri
+  const fontStyle = {
+    name: signatureFonts[0].name,
+    font: signatureFonts[0].font.replace(/\d+px/, "60px"), // Varmista että fonttikoko on 60px
+  };
 
   // Luo allekirjoitus erikseen karusellille
   const canvas = createCanvas(600, 200);
@@ -400,7 +403,7 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
   const signatureImage = canvas.toDataURL("image/png");
 
   console.log(
-    `Luotu karusellin allekirjoitus nimelle "${name}" fontilla ${fontStyle.name}`
+    `Luotu karusellin allekirjoitus nimelle "${name}" fontilla ${fontStyle.name} (${fontStyle.font})`
   );
 
   res.json({ image: signatureImage });
