@@ -120,20 +120,13 @@ try {
   );
 }
 
-async function loadPoppinsFont() {
-  const poppins = new FontFace(
-    "Poppins",
-    "url(https://fonts.gstatic.com/s/poppins/v15/pxiEyp8kv8JHgFVrJJLmE3tFOvWDSw.ttf)"
-  );
-
-  await poppins.load();
-  registerFont(poppins);
-}
+// Rekisteröi Poppins-fontti
+registerFont(path.join(__dirname, "../public/fonts/poppins.ttf"), {
+  family: "Poppins",
+});
 
 // Luo allekirjoitus
 async function createSignature(name, fontStyle, color = "black") {
-  await loadPoppinsFont(); // Varmista, että fontti on ladattu
-
   const canvas = createCanvas(600, 200);
   const ctx = canvas.getContext("2d");
 
@@ -142,7 +135,7 @@ async function createSignature(name, fontStyle, color = "black") {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // LISÄTÄÄN WATERMARK-TEKSTIT ENNEN SIGNATUREA
-  ctx.font = "bold 16px 'Poppins', sans-serif"; // Pienempi fontti
+  ctx.font = "bold 16px 'Poppins'"; // Pienempi fontti
   ctx.fillStyle = "rgba(0, 0, 0, 0.08)"; // Hyvin vaalea watermark
   ctx.textAlign = "center";
 
