@@ -378,7 +378,7 @@
         "Pekka Heikkinen",
       ];
 
-      // Lataa fontit
+      // Poista Google Fonts -lataus kokonaan
       const fontStylesheet = document.createElement("link");
       fontStylesheet.rel = "stylesheet";
       fontStylesheet.href =
@@ -780,32 +780,13 @@
       // Tarkista tila säännöllisesti
       setInterval(checkStatus, 2000);
 
-      // Varmista että fontti on ladattu ennen käyttöä
-      document.fonts.ready.then(() => {
-        console.log("Kaikki fontit on ladattu!");
-
-        // Lisää oma fontti fonttilistaan
-        signatureFonts.push({
-          name: "Oma Fontti",
-          font: "40px 'OmaFontti', cursive",
-        });
-
-        // Alusta karuselli uudelleen, jotta uusi fontti näkyy
-        initializeCarousel();
-      });
-
       // Lataa oma fontti dynaamisesti ja alusta karuselli vasta kun fontti on ladattu
       async function loadFontsAndInitialize() {
         try {
-          // Lataa Google Fonts -palvelun fontit
-          signatureFonts.push(
-            { name: "Dancing Script", font: "40px 'Dancing Script', cursive" },
-            { name: "Parisienne", font: "40px 'Parisienne', cursive" },
-            { name: "Caveat", font: "40px 'Caveat', cursive" },
-            { name: "Great Vibes", font: "40px 'Great Vibes', cursive" }
-          );
+          // Tyhjennä fonttilistaus ensin
+          signatureFonts.length = 0;
 
-          // Lataa oma fontti
+          // Lataa vain oma fontti
           try {
             const fontFace = new FontFace(
               "OmaFontti1",
@@ -824,9 +805,14 @@
             console.log("Oma fontti ladattu onnistuneesti!");
           } catch (fontError) {
             console.error("Virhe oman fontin latauksessa:", fontError);
+            // Jos oman fontin lataus epäonnistuu, käytä järjestelmäfonttia
+            signatureFonts.push({
+              name: "Järjestelmäfontti",
+              font: "40px Arial, sans-serif",
+            });
           }
 
-          console.log("Fontit ladattu onnistuneesti!");
+          console.log("Fontit ladattu onnistuneesti:", signatureFonts);
 
           // Alusta karuselli
           await initializeCarousel();
