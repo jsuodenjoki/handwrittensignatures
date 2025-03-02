@@ -506,9 +506,12 @@
       }
 
       // Alusta karuselli
-      function initializeCarousel() {
+      async function initializeCarousel() {
         // Tyhjennä karuselli
         signatureCarousel.innerHTML = "";
+
+        // Odota että fontit on ladattu
+        await document.fonts.ready;
 
         // Jos ei ole fontteja, näytä viesti
         if (signatureFonts.length === 0) {
@@ -791,39 +794,76 @@
         initializeCarousel();
       });
 
-      // Lataa oma fontti dynaamisesti
-      function loadCustomFont(fontUrl, fontName) {
-        const fontFace = new FontFace(fontName, `url(${fontUrl})`);
+      // Lataa oma fontti dynaamisesti ja alusta karuselli vasta kun fontti on ladattu
+      async function loadFontsAndInitialize() {
+        try {
+          // Lataa fontti
+          const fontFileName = "barokah signature by alifinart studio.ttf";
+          const fontFace = new FontFace(
+            "BarokahSignature",
+            `url(/fonts/${encodeURIComponent(fontFileName)})`
+          );
 
-        // Lataa fontti
-        fontFace
-          .load()
-          .then(function (loadedFace) {
-            // Lisää fontti dokumenttiin
-            document.fonts.add(loadedFace);
+          const loadedFace = await fontFace.load();
+          document.fonts.add(loadedFace);
 
-            // Lisää fontti fonttilistaan
-            signatureFonts.push({
-              name: fontName,
-              font: `40px '${fontName}', cursive`,
-            });
-
-            // Alusta karuselli uudelleen
-            initializeCarousel();
-
-            console.log(`Fontti ${fontName} ladattu onnistuneesti!`);
-          })
-          .catch(function (error) {
-            console.error(`Virhe fontin latauksessa: ${error}`);
+          // Lisää fontti fonttilistaan
+          signatureFonts.push({
+            name: "Barokah Signature",
+            font: "40px 'BarokahSignature', cursive",
           });
+
+          console.log("Fontti ladattu onnistuneesti!");
+
+          // Alusta karuselli vasta kun fontti on ladattu
+          await initializeCarousel();
+
+          // Tarkista onko käyttäjällä jo allekirjoituksia
+          checkExistingSignatures();
+        } catch (error) {
+          console.error("Virhe fontin latauksessa:", error);
+          // Alusta karuselli ilman fonttia
+          initializeCarousel();
+        }
       }
 
-      // Käytä funktiota oikealla tiedostonimellä ja koodaa URL
-      const fontFileName = "barokah signature by alifinart studio.ttf";
-      loadCustomFont(
-        `/fonts/${encodeURIComponent(fontFileName)}`,
-        "BarokahSignature"
-      );
+      // Käynnistä fonttien lataus ja alustus
+      loadFontsAndInitialize();
+
+      // Tarkista onko käyttäjällä jo allekirjoituksia
+      function checkExistingSignatures() {
+        fetch(`${API_URL}/api/get-signatures`)
+          .then((response) => {
+            if (response.ok) return response.json();
+            throw new Error("Ei allekirjoituksia");
+          })
+          .then((data) => {
+            if (data.images && data.images.length > 0) {
+              nameInput.value = data.name || "";
+
+              // Näytä tallennetut allekirjoitukset
+              signaturesContainer.innerHTML = "";
+              data.images.forEach((imageData) => {
+                const signatureItem = document.createElement("div");
+                signatureItem.className = "signature-item";
+
+                const img = document.createElement("img");
+                img.src = imageData;
+                img.alt = "Tallennettu allekirjoitus";
+
+                signatureItem.appendChild(img);
+                signaturesContainer.appendChild(signatureItem);
+              });
+
+              statusMessage.textContent =
+                "Aiemmin luodut allekirjoitukset ladattu.";
+              buyButton.style.display = "inline-block";
+            }
+          })
+          .catch((error) => {
+            console.log("Ei aiempia allekirjoituksia:", error);
+          });
+      }
     </script>
   </body>
 </html>
