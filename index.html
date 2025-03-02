@@ -291,7 +291,7 @@
       /* Lisää oma fontti @font-face-säännöllä */
       @font-face {
         font-family: "BarokahSignature";
-        src: url("./fonts/barokah signature by alifinart studio.ttf")
+        src: url("data:font/truetype;base64,BASE64_ENCODED_FONT_DATA_HERE")
           format("truetype");
         font-weight: normal;
         font-style: normal;
@@ -798,32 +798,23 @@
       // Lataa oma fontti dynaamisesti ja alusta karuselli vasta kun fontti on ladattu
       async function loadFontsAndInitialize() {
         try {
-          // Lataa fontti - korjattu polku
-          const fontFileName = "barokah signature by alifinart studio.ttf";
-          const fontFace = new FontFace(
-            "BarokahSignature",
-            `url(./fonts/${encodeURIComponent(fontFileName)})`
+          // Käytä Google Fonts -palvelun fontteja
+          signatureFonts.push(
+            { name: "Dancing Script", font: "40px 'Dancing Script', cursive" },
+            { name: "Parisienne", font: "40px 'Parisienne', cursive" },
+            { name: "Caveat", font: "40px 'Caveat', cursive" },
+            { name: "Great Vibes", font: "40px 'Great Vibes', cursive" }
           );
 
-          const loadedFace = await fontFace.load();
-          document.fonts.add(loadedFace);
+          console.log("Google Fonts ladattu onnistuneesti!");
 
-          // Lisää fontti fonttilistaan
-          signatureFonts.push({
-            name: "Barokah Signature",
-            font: "40px 'BarokahSignature', cursive",
-          });
-
-          console.log("Fontti ladattu onnistuneesti!");
-
-          // Alusta karuselli vasta kun fontti on ladattu
+          // Alusta karuselli
           await initializeCarousel();
 
           // Tarkista onko käyttäjällä jo allekirjoituksia
           checkExistingSignatures();
         } catch (error) {
-          console.error("Virhe fontin latauksessa:", error);
-          // Alusta karuselli ilman fonttia
+          console.error("Virhe fonttien latauksessa:", error);
           initializeCarousel();
         }
       }
