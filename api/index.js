@@ -216,7 +216,6 @@ app.get("/api/get-signatures", (req, res) => {
     console.log(
       `Löydettiin allekirjoitukset: Nimi: ${data.name}, Kuvia: ${data.previewImages.length}`
     );
-    // Palauta previewImages images-kentässä yhteensopivuuden vuoksi
     res.json({
       name: data.name,
       images: data.previewImages,
@@ -224,7 +223,12 @@ app.get("/api/get-signatures", (req, res) => {
     });
   } else {
     console.log(`Ei löydetty allekirjoituksia IP:lle ${clientIp}`);
-    res.status(404).json({ error: "Allekirjoituksia ei löytynyt" });
+    // Palautetaan tyhjä tulos 404:n sijaan
+    res.json({
+      name: "",
+      images: [],
+      createdAt: null,
+    });
   }
 });
 
@@ -444,16 +448,17 @@ app.post("/api/restore-signatures", (req, res) => {
     return res.status(400).json({ error: "Virheellinen pyyntö" });
   }
 
-  // Tallenna sekä preview että download versiot
+  // Tallenna vain previewImages, koska downloadImages luodaan vasta maksun jälkeen
   signatures.set(clientIp, {
     name,
     previewImages: images,
-    downloadImages: images.map((img) =>
-      createSignature(name, fontStyle, color, false)
-    ), // Luo vesileimattomat versiot
+    downloadImages: [], // Tyhjä array aluksi
     createdAt: new Date().toISOString(),
   });
 
+  console.log(
+    `Palautettu allekirjoitukset IP:lle ${clientIp}, nimi: ${name}, kuvia: ${images.length}`
+  );
   res.json({ success: true });
 });
 
