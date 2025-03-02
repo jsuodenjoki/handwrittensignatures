@@ -125,15 +125,31 @@ function createSignature(name, fontStyle) {
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // Aseta fontti mittausta varten
+  ctx.font = fontStyle.font;
+
+  // Mittaa tekstin korkeus (arvio)
+  // Käytetään yleisiä kirjaimia, jotka ulottuvat ylös ja alas
+  const testText = "ÄjgpqyQ";
+  const metrics = ctx.measureText(testText);
+
+  // Laske tekstin todellinen korkeus
+  const textHeight =
+    metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+
+  // Laske korjauskerroin perustuen tekstin korkeuteen
+  // Tämä ottaa huomioon fontin ominaisuudet
+  const yOffset = textHeight * 0.1; // 10% korjaus ylöspäin
+
+  console.log(`Tekstin korkeus: ${textHeight}, korjauskerroin: ${yOffset}`);
+
   // Piirrä allekirjoitus
   ctx.fillStyle = "black";
-  ctx.font = fontStyle.font;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  // Piirrä teksti hieman ylemmäs keskikohdasta
-  // Kokeillaan 10 pikseliä ylöspäin keskikohdasta
-  ctx.fillText(name, canvas.width / 2, canvas.height / 2 + 20);
+  // Käytä mitattua korjauskerrointa
+  ctx.fillText(name, canvas.width / 2, canvas.height / 2 + yOffset);
 
   return canvas.toDataURL("image/png");
 }
