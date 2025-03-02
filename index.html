@@ -799,9 +799,6 @@
           });
           const data = await response.json();
           window.location.href = data.url;
-
-          // Poista blur-efekti maksun jälkeen
-          regenerateSignaturesWithoutBlur();
         } catch (error) {
           console.error("Virhe maksun luonnissa:", error);
           statusMessage.textContent = "Virhe maksun käsittelyssä.";
@@ -971,68 +968,6 @@
 
       // Suorita tarkistus
       checkFontAvailability();
-
-      function createSignature(name, fontStyle) {
-        const canvas = createCanvas(600, 200);
-        const ctx = canvas.getContext("2d");
-
-        // Aseta tausta
-        ctx.fillStyle = "white";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Aseta fontti
-        ctx.font = fontStyle.font;
-        ctx.fillStyle = "black";
-        ctx.textAlign = "center";
-
-        // Mittaa tekstin korkeus
-        const textMetrics = ctx.measureText(name);
-        const actualHeight =
-          textMetrics.actualBoundingBoxAscent +
-          textMetrics.actualBoundingBoxDescent;
-
-        // Siirrä y-keskitystä riippuen fontin korkeudesta
-        const centerY =
-          canvas.height / 2 +
-          (textMetrics.actualBoundingBoxAscent -
-            textMetrics.actualBoundingBoxDescent) /
-            2;
-
-        // Piirrä teksti
-        ctx.fillText(name, canvas.width / 2, centerY);
-
-        // Lisää blur-efekti
-        ctx.globalAlpha = 0.5; // Vähennä läpinäkyvyyttä
-        ctx.filter = "blur(5px)"; // Lisää blur-efekti
-        ctx.drawImage(canvas, 0, 0);
-
-        return canvas.toDataURL("image/png");
-      }
-
-      async function regenerateSignaturesWithoutBlur() {
-        const response = await fetch(`${API_URL}/api/get-signatures`);
-        const data = await response.json();
-
-        // Luo kuvat uudelleen ilman blur-efektiä
-        data.images.forEach((imageData, index) => {
-          const img = new Image();
-          img.src = imageData;
-          img.onload = () => {
-            const canvas = document.createElement("canvas");
-            const ctx = canvas.getContext("2d");
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
-            const newImageData = canvas.toDataURL("image/png");
-
-            // Päivitä kuva ilman blur-efektiä
-            const imgElement = document.querySelectorAll(".signature-item img")[
-              index
-            ];
-            imgElement.src = newImageData;
-          };
-        });
-      }
     </script>
   </body>
 </html>
