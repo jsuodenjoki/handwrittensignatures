@@ -146,12 +146,11 @@ function createSignature(name, fontStyle, color = "black") {
       textMetrics.actualBoundingBoxDescent) /
       2;
 
+  // Aseta blur-efekti
+  ctx.filter = "blur(5px)";
+
   // Piirrä teksti
   ctx.fillText(name, canvas.width / 2, centerY);
-
-  // Lisää blur-efekti
-  ctx.filter = "blur(5px)"; // Lisää blur-efekti
-  ctx.drawImage(canvas, 0, 0);
 
   return canvas.toDataURL("image/png");
 }
