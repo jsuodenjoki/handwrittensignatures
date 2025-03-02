@@ -133,7 +133,7 @@ function createSignature(name, fontStyle) {
 
   // Piirrä teksti hieman ylemmäs keskikohdasta
   // Kokeillaan 10 pikseliä ylöspäin keskikohdasta
-  ctx.fillText(name, canvas.width / 2, canvas.height / 2 - 10);
+  ctx.fillText(name, canvas.width / 2, canvas.height / 2 + 20);
 
   return canvas.toDataURL("image/png");
 }
