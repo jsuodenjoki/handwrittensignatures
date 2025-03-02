@@ -370,11 +370,14 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
     return res.status(400).json({ error: "Nimi puuttuu" });
   }
 
-  // Käytä vain ensimmäistä fonttia, mutta varmista että fonttikoko on riittävän suuri
-  const fontStyle = {
-    name: signatureFonts[0].name,
-    font: signatureFonts[0].font.replace(/\d+px/, "60px"), // Varmista että fonttikoko on 60px
-  };
+  // Etsi "OmaFontti3" fonttilistasta
+  const fontStyle = signatureFonts.find(
+    (font) => font.name.toLowerCase() === "omafontti3"
+  );
+
+  if (!fontStyle) {
+    return res.status(400).json({ error: "Fonttia ei löytynyt" });
+  }
 
   // Luo allekirjoitus erikseen karusellille
   const canvas = createCanvas(600, 200);
