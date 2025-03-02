@@ -342,7 +342,7 @@ app.post("/api/create-payment", async (req, res) => {
             product_data: {
               name: "Allekirjoitusten luonti",
             },
-            unit_amount: 500, // 5 EUR
+            unit_amount: 100, // 5 EUR
           },
           quantity: 1,
         },
