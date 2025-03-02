@@ -377,7 +377,6 @@
         "Sari Laine",
         "Mikko Koskinen",
         "Tiina Järvinen",
-        "Pekka Heikkinen",
       ];
 
       // Luo allekirjoitukset karuselliin
@@ -388,94 +387,83 @@
         // Odota että fontit on ladattu
         await document.fonts.ready;
 
+        // Jos ei ole fontteja, näytä viesti
+        if (signatureFonts.length === 0) {
+          const message = document.createElement("div");
+          message.className = "carousel-item";
+          message.textContent =
+            "Ei fontteja saatavilla. Lisää fontteja fonts-kansioon.";
+          signatureCarousel.appendChild(message);
+          return;
+        }
+
+        console.log("Alustetaan karuselli fonteilla:", signatureFonts);
+
         // Luo esimerkkiallekirjoitukset ja lisää ne karuselliin
         const signatures = [];
 
-        // Luo esimerkkiallekirjoitukset backendissä
-        try {
-          // Luo allekirjoitukset jokaiselle esimerkkihenkilölle
-          for (const name of exampleNames) {
-            try {
-              // Käytä samaa backend-reittiä kuin käyttäjän allekirjoituksille
-              const response = await fetch(`${API_URL}/api/create-signatures`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ name }),
-              });
+        // Luo ensin kaikki allekirjoitukset ja tallenna ne
+        for (const name of exampleNames) {
+          // Käytä vain omaa fonttia
+          const fontStyle = signatureFonts[0]; // Käytä ensimmäistä (ja ainoaa) fonttia
 
-              if (!response.ok) {
-                throw new Error(
-                  `Virhe allekirjoituksen luonnissa: ${response.status}`
-                );
-              }
+          // Luo uusi canvas jokaiselle allekirjoitukselle
+          const canvas = document.createElement("canvas");
+          canvas.width = 600;
+          canvas.height = 200;
+          const ctx = canvas.getContext("2d");
 
-              const data = await response.json();
+          // Aseta tausta
+          ctx.fillStyle = "white";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-              // Käytä vain ensimmäistä allekirjoitusta jokaiselle nimelle
-              if (data.images && data.images.length > 0) {
-                signatures.push({
-                  name,
-                  image: data.images[0], // Käytä vain ensimmäistä allekirjoitusta
-                  font: "Oma Fontti",
-                });
-              }
-            } catch (error) {
-              console.error(
-                `Virhe esimerkkiallekirjoituksen luonnissa (${name}):`,
-                error
-              );
-            }
-          }
+          // Piirrä allekirjoitus
+          ctx.fillStyle = "black";
+          ctx.font = fontStyle.font;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(name, canvas.width / 2, canvas.height / 2);
 
-          // Jos ei saatu yhtään allekirjoitusta, näytä virheilmoitus
-          if (signatures.length === 0) {
-            const message = document.createElement("div");
-            message.className = "carousel-item";
-            message.textContent =
-              "Esimerkkiallekirjoitusten luonti epäonnistui.";
-            signatureCarousel.appendChild(message);
-            return;
-          }
+          // Muunna canvas kuvaksi
+          const signatureImage = canvas.toDataURL("image/png");
 
-          console.log(`Luotu ${signatures.length} esimerkkiallekirjoitusta`);
-
-          // Lisää allekirjoitukset karuselliin
-          for (const signature of signatures) {
-            const carouselItem = document.createElement("div");
-            carouselItem.className = "carousel-item";
-
-            const img = document.createElement("img");
-            img.src = signature.image;
-            img.alt = `${signature.name} allekirjoitus (${signature.font})`;
-
-            carouselItem.appendChild(img);
-            signatureCarousel.appendChild(carouselItem);
-          }
-
-          // Lisää samat allekirjoitukset uudelleen, jotta karuselli näyttää jatkuvalta
-          for (const signature of signatures) {
-            const carouselItem = document.createElement("div");
-            carouselItem.className = "carousel-item";
-
-            const img = document.createElement("img");
-            img.src = signature.image;
-            img.alt = `${signature.name} allekirjoitus (${signature.font})`;
-
-            carouselItem.appendChild(img);
-            signatureCarousel.appendChild(carouselItem);
-          }
-
-          // Käynnistä karusellin animaatio
-          startCarouselAnimation();
-        } catch (error) {
-          console.error("Virhe karusellin alustuksessa:", error);
-          const message = document.createElement("div");
-          message.className = "carousel-item";
-          message.textContent = "Virhe esimerkkiallekirjoitusten luonnissa.";
-          signatureCarousel.appendChild(message);
+          signatures.push({
+            name,
+            image: signatureImage,
+            font: fontStyle.name,
+          });
         }
+
+        // Lisää allekirjoitukset karuselliin
+        for (const signature of signatures) {
+          const carouselItem = document.createElement("div");
+          carouselItem.className = "carousel-item";
+          carouselItem.dataset.name = signature.name; // Lisää nimi data-attribuuttina
+
+          const img = document.createElement("img");
+          img.src = signature.image;
+          img.alt = `${signature.name} allekirjoitus (${signature.font})`;
+
+          carouselItem.appendChild(img);
+          signatureCarousel.appendChild(carouselItem);
+        }
+
+        // Lisää samat allekirjoitukset uudelleen, jotta karuselli näyttää jatkuvalta
+        for (const signature of signatures) {
+          const carouselItem = document.createElement("div");
+          carouselItem.className = "carousel-item";
+          carouselItem.dataset.name = signature.name; // Lisää nimi data-attribuuttina
+
+          const img = document.createElement("img");
+          img.src = signature.image;
+          img.alt = `${signature.name} allekirjoitus (${signature.font})`;
+
+          carouselItem.appendChild(img);
+          signatureCarousel.appendChild(carouselItem);
+        }
+
+        // Käynnistä karusellin animaatio
+        startCarouselAnimation();
       }
 
       // Karusellin animaatio
