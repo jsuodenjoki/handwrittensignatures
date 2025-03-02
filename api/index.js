@@ -15,9 +15,9 @@ const signatures = new Map();
 const paidIPs = new Set();
 
 //3. MIDDLEWARE MÄÄRITTELYT
-app.use("/api/webhook", express.raw({ type: "application/json" }));
 app.use(cors());
-app.use(express.json({ limit: "50mb" }));
+app.use("/api/webhook", express.raw({ type: "application/json" }));
+app.use(express.json());
 
 //4. IP-OSOITTEEN KÄSITTELYFUNKTIOT
 function getClientIp(req) {
