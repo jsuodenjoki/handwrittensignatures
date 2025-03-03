@@ -813,10 +813,28 @@
         await createSignatures();
       });
 
+      // Lisää globaali lippu latauksen seurantaan
+      let downloadStarted = false;
+
+      // Lisää lippu paikalliseen tallennustilaan
+      function isDownloadCompleted() {
+        return localStorage.getItem("signatureDownloadCompleted") === "true";
+      }
+
+      function markDownloadCompleted() {
+        localStorage.setItem("signatureDownloadCompleted", "true");
+        downloadStarted = true;
+      }
+
       // Tarkista tila
       function checkStatus(autoDownload = true) {
         // Hae session ID URL-parametreista
         const sessionId = getQueryParam("session_id");
+
+        // Jos lataus on jo käynnissä tai suoritettu, älä tee mitään
+        if (downloadStarted || isDownloadCompleted()) {
+          return;
+        }
 
         fetch(
           `${API_URL}/api/check-signatures${
@@ -830,18 +848,66 @@
             if (data.hasSignatures) {
               if (data.hasPaid && data.canDownload) {
                 console.log("Maksu vahvistettu, ladataan allekirjoitukset...");
+
+                // Näytä viesti käyttäjälle
                 statusMessage.textContent =
                   "Maksu onnistui! Allekirjoitukset ladataan...";
                 statusMessage.style.color = "#4CAF50"; // Vihreä väri
+
+                // Piilota ostonappi
                 buyButton.style.display = "none";
 
-                if (autoDownload) {
+                // Näytä "Lataa uudelleen" -nappi
+                if (!downloadButton) {
+                  // Luo "Lataa uudelleen" -nappi, jos sitä ei ole vielä
+                  downloadButton = document.createElement("button");
+                  downloadButton.textContent =
+                    "Lataa allekirjoitukset uudelleen";
+                  downloadButton.className = "button";
+                  downloadButton.style.display = "none"; // Piilotetaan aluksi
+                  downloadButton.addEventListener("click", () => {
+                    downloadSignatures(sessionId);
+                  });
+
+                  // Lisää nappi sivulle
+                  buyButton.parentNode.insertBefore(
+                    downloadButton,
+                    buyButton.nextSibling
+                  );
+                }
+
+                if (
+                  autoDownload &&
+                  !downloadStarted &&
+                  !isDownloadCompleted()
+                ) {
+                  // Merkitse lataus käynnistetyksi
+                  downloadStarted = true;
+
                   // Viive ennen latausta, jotta käyttäjä näkee viestin
                   setTimeout(() => {
-                    // Välitä session ID latausfunktiolle
+                    // Lataa allekirjoitukset
                     downloadSignatures(sessionId);
+
+                    // Merkitse lataus suoritetuksi
+                    markDownloadCompleted();
+
+                    // Näytä sähköpostikenttä
                     emailContainer.style.display = "block";
+
+                    // Näytä "Lataa uudelleen" -nappi
+                    if (downloadButton) {
+                      downloadButton.style.display = "inline-block";
+                    }
                   }, 1000);
+                } else if (isDownloadCompleted()) {
+                  // Jos lataus on jo suoritettu, näytä "Lataa uudelleen" -nappi
+                  if (downloadButton) {
+                    downloadButton.style.display = "inline-block";
+                  }
+
+                  // Näytä sähköpostikenttä
+                  emailContainer.style.display = "block";
                 }
               } else {
                 // Näytä viesti vain jos käyttäjä on luonut allekirjoitukset
@@ -849,12 +915,22 @@
                   statusMessage.textContent = "Allekirjoitukset luotu!";
                   statusMessage.style.color = "#6e8efb"; // Sininen väri
                   buyButton.style.display = "inline-block";
+
+                  // Piilota "Lataa uudelleen" -nappi
+                  if (downloadButton) {
+                    downloadButton.style.display = "none";
+                  }
                 }
               }
             } else {
               // Ei allekirjoituksia, piilota ostonappi
               buyButton.style.display = "none";
               statusMessage.textContent = "";
+
+              // Piilota "Lataa uudelleen" -nappi
+              if (downloadButton) {
+                downloadButton.style.display = "none";
+              }
             }
           })
           .catch((error) => {
@@ -871,8 +947,37 @@
           : `${API_URL}/api/download-signatures`;
 
         console.log("Lataus URL:", downloadUrl);
-        window.location.href = downloadUrl;
+
+        // Käytä iframe-tekniikkaa latauksen käynnistämiseen ilman sivulta poistumista
+        try {
+          const iframe = document.createElement("iframe");
+          iframe.style.display = "none";
+          iframe.src = downloadUrl;
+          document.body.appendChild(iframe);
+
+          // Poista iframe pienen viiveen jälkeen
+          setTimeout(() => {
+            try {
+              document.body.removeChild(iframe);
+            } catch (e) {
+              console.error("Virhe iframen poistamisessa:", e);
+            }
+          }, 5000);
+
+          // Näytä viesti käyttäjälle
+          statusMessage.textContent =
+            "Allekirjoitukset ladattu! Voit ladata ne uudelleen tarvittaessa.";
+          statusMessage.style.color = "#4CAF50"; // Vihreä väri
+        } catch (error) {
+          console.error("Virhe latauksen käynnistämisessä:", error);
+
+          // Varasuunnitelma: käytä window.location.href
+          window.location.href = downloadUrl;
+        }
       }
+
+      // Lisää muuttuja "Lataa uudelleen" -nappia varten
+      let downloadButton = null;
 
       // Osta-painikkeen toiminnallisuus
       buyButton.addEventListener("click", async () => {
@@ -1026,15 +1131,25 @@
       // Tarkista maksun tila sivun latautuessa
       if (getQueryParam("success") === "true") {
         console.log("✅ Maksu onnistui, tarkistetaan tila...");
-        checkStatus(true);
+
+        // Tarkista onko lataus jo suoritettu
+        if (!isDownloadCompleted()) {
+          // Jos ei, käynnistä automaattinen lataus
+          checkStatus(true);
+        } else {
+          // Jos kyllä, näytä "Lataa uudelleen" -nappi
+          checkStatus(false);
+        }
       } else if (getQueryParam("canceled") === "true") {
         console.log("❌ Maksu peruutettu.");
         statusMessage.textContent = "Maksu peruutettiin.";
       }
 
-      // Tarkista tila säännöllisesti
-      setInterval(checkStatus, 2000);
-      checkStatus();
+      // Tarkista tila säännöllisesti, mutta harvemmin
+      const checkStatusInterval = setInterval(() => {
+        // Tarkista tila ilman automaattista latausta
+        checkStatus(false);
+      }, 5000); // 5 sekunnin välein
     </script>
   </body>
 </html>
