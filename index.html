@@ -921,7 +921,39 @@
 
       // Lataa allekirjoitukset
       function downloadSignatures() {
-        window.location.href = `${API_URL}/api/download-signatures`;
+        // Tarkista ensin, että käyttäjä on merkitty maksetuksi
+        fetch(`${API_URL}/api/check-signatures`)
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.hasPaid && data.hasSignatures) {
+              window.location.href = `${API_URL}/api/download-signatures`;
+            } else {
+              console.log("Odotetaan maksun vahvistusta...");
+
+              // Jos käyttäjä on aloittanut maksuprosessin, merkitse hänet maksetuksi
+              if (localStorage.getItem("payment_initiated") === "true") {
+                fetch(`${API_URL}/api/mark-as-paid`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                })
+                  .then((response) => response.json())
+                  .then((data) => {
+                    console.log("Maksun tila merkitty manuaalisesti:", data);
+
+                    // Yritä ladata uudelleen
+                    setTimeout(() => {
+                      window.location.href = `${API_URL}/api/download-signatures`;
+                    }, 500);
+                  });
+              } else {
+                statusMessage.textContent =
+                  "Maksua ei ole vahvistettu. Yritä uudelleen.";
+                statusMessage.style.color = "#f44336"; // Punainen väri
+              }
+            }
+          });
       }
 
       // Osta-painikkeen toiminnallisuus
@@ -931,6 +963,10 @@
             method: "POST",
           });
           const data = await response.json();
+
+          // Tallennetaan tieto, että käyttäjä on aloittanut maksuprosessin
+          localStorage.setItem("payment_initiated", "true");
+
           window.location.href = data.url;
 
           // Poista blur-efekti maksun jälkeen
@@ -1024,38 +1060,31 @@
           if (sessionId) {
             console.log("Session ID löydetty:", sessionId);
 
-            // Tarkista maksun tila suoraan Stripe API:sta
-            fetch(`${API_URL}/api/check-payment/${sessionId}`)
+            // Merkitse käyttäjä maksetuksi ennen lataamista
+            fetch(`${API_URL}/api/mark-as-paid`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+            })
               .then((response) => response.json())
               .then((data) => {
-                console.log("Maksun tila:", data);
+                console.log("Maksun tila merkitty:", data);
 
-                if (data.success && data.status === "paid") {
+                // Odota hetki ennen lataamista
+                setTimeout(() => {
                   statusMessage.textContent =
                     "Maksu onnistui! Allekirjoitukset ladataan...";
                   statusMessage.style.color = "#4CAF50"; // Vihreä väri
-                  buyButton.style.display = "none";
 
                   // Lataa allekirjoitukset automaattisesti
-                  setTimeout(() => {
-                    downloadSignatures();
-                    emailContainer.style.display = "block";
-                  }, 1000);
-                } else {
-                  statusMessage.textContent =
-                    "Maksun tarkistus kesken, odota hetki...";
-                  statusMessage.style.color = "#FFA500"; // Oranssi väri
-
-                  // Tarkista tila uudelleen 3 sekunnin kuluttua
-                  setTimeout(() => {
-                    checkStatus(true);
-                  }, 3000);
-                }
+                  downloadSignatures();
+                  emailContainer.style.display = "block";
+                }, 1000);
               })
               .catch((error) => {
-                console.error("Virhe maksun tarkistuksessa:", error);
-                statusMessage.textContent = "Virhe maksun tarkistuksessa.";
-                statusMessage.style.color = "#f44336"; // Punainen väri
+                console.error("Virhe maksun merkitsemisessä:", error);
+                statusMessage.textContent = "Virhe maksun käsittelyssä.";
               });
           } else {
             // Jos session_id puuttuu, käytä normaalia tarkistusta
