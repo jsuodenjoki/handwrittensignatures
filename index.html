@@ -814,46 +814,58 @@
 
       // Tarkista tila
       async function checkStatus(autoDownload = true) {
+        // Varmista että IP on haettu ennen tilan tarkistusta
         const clientIp = await getClientIp();
+        console.log("Tarkistetaan tila IP:lle:", clientIp);
 
-        fetch(`${API_URL}/api/check-signatures?clientIp=${clientIp}`)
-          .then((response) => response.json())
-          .then((data) => {
-            console.log("Tila päivitetty:", data);
+        try {
+          const response = await fetch(
+            `${API_URL}/api/check-signatures?clientIp=${clientIp}`
+          );
+          const data = await response.json();
 
-            if (data.hasSignatures) {
-              if (data.hasPaid && data.canDownload) {
-                console.log("Maksu vahvistettu, ladataan allekirjoitukset...");
-                statusMessage.textContent =
-                  "Maksu onnistui! Allekirjoitukset ladataan...";
-                statusMessage.style.color = "#4CAF50"; // Vihreä väri
-                buyButton.style.display = "none";
+          console.log("Tila päivitetty:", data);
 
-                if (autoDownload) {
-                  // Viive ennen latausta, jotta käyttäjä näkee viestin
-                  setTimeout(() => {
-                    downloadSignatures();
-                    emailContainer.style.display = "block";
-                  }, 1000);
-                }
-              } else {
-                // Näytä viesti vain jos käyttäjä on luonut allekirjoitukset
-                if (signaturesContainer.innerHTML.trim() !== "") {
-                  statusMessage.textContent = "Allekirjoitukset luotu!";
-                  statusMessage.style.color = "#6e8efb"; // Sininen väri
-                  buyButton.style.display = "inline-block";
-                }
+          if (data.hasSignatures) {
+            if (data.hasPaid && data.canDownload) {
+              console.log("Maksu vahvistettu, ladataan allekirjoitukset...");
+              statusMessage.textContent =
+                "Maksu onnistui! Allekirjoitukset ladataan...";
+              statusMessage.style.color = "#4CAF50"; // Vihreä väri
+              buyButton.style.display = "none";
+
+              if (autoDownload) {
+                // Viive ennen latausta, jotta käyttäjä näkee viestin
+                setTimeout(() => {
+                  downloadSignatures();
+                  emailContainer.style.display = "block";
+                }, 1000);
               }
             } else {
-              // Ei allekirjoituksia, piilota ostonappi
-              buyButton.style.display = "none";
-              statusMessage.textContent = "";
+              // Näytä viesti vain jos käyttäjä on luonut allekirjoitukset
+              if (signaturesContainer.innerHTML.trim() !== "") {
+                statusMessage.textContent = "Allekirjoitukset luotu!";
+                statusMessage.style.color = "#6e8efb"; // Sininen väri
+                buyButton.style.display = "inline-block";
+              }
             }
-          })
-          .catch((error) => {
-            console.error("Virhe tilan tarkistuksessa:", error);
-            statusMessage.textContent = "Virhe tilan tarkistuksessa.";
-          });
+          } else if (data.hasPaid) {
+            // Jos maksu on suoritettu mutta allekirjoituksia ei löydy, yritä hakea ne
+            console.log(
+              "Maksu löytyy mutta allekirjoituksia ei, yritetään hakea..."
+            );
+            await checkExistingSignatures();
+            // Tarkista tila uudelleen pienen viiveen jälkeen
+            setTimeout(() => checkStatus(autoDownload), 500);
+          } else {
+            // Ei allekirjoituksia, piilota ostonappi
+            buyButton.style.display = "none";
+            statusMessage.textContent = "";
+          }
+        } catch (error) {
+          console.error("Virhe tilan tarkistuksessa:", error);
+          statusMessage.textContent = "Virhe tilan tarkistuksessa.";
+        }
       }
 
       // Lataa allekirjoitukset
@@ -987,6 +999,8 @@
         // Tallenna IP-osoite heti alussa
         await saveClientIp();
         await loadFontsAndInitialize();
+        // Tarkista maksun tila vasta kun IP on tallennettu
+        await checkStatus();
       }
 
       // Käynnistä sovellus
@@ -999,17 +1013,24 @@
       }
 
       // Tarkista maksun tila sivun latautuessa
-      if (getQueryParam("success") === "true") {
-        console.log("✅ Maksu onnistui, tarkistetaan tila...");
-        checkStatus(true);
-      } else if (getQueryParam("canceled") === "true") {
-        console.log("❌ Maksu peruutettu.");
-        statusMessage.textContent = "Maksu peruutettiin.";
+      async function checkPaymentStatus() {
+        if (getQueryParam("success") === "true") {
+          console.log("✅ Maksu onnistui, tarkistetaan tila...");
+          // Varmista että IP on haettu ennen tilan tarkistusta
+          await getClientIp();
+          // Odota hetki että backend ehtii käsitellä maksun
+          setTimeout(() => checkStatus(true), 1000);
+        } else if (getQueryParam("canceled") === "true") {
+          console.log("❌ Maksu peruutettu.");
+          statusMessage.textContent = "Maksu peruutettiin.";
+        }
       }
 
-      // Tarkista tila säännöllisesti
-      setInterval(checkStatus, 2000);
-      checkStatus();
+      // Tarkista tila säännöllisesti, mutta varmista että IP on haettu
+      setTimeout(() => {
+        setInterval(checkStatus, 2000);
+        checkStatus();
+      }, 1000);
     </script>
   </body>
 </html>

@@ -452,47 +452,25 @@ app.post(
 
         console.log("Etsitään asiakkaan IP:", clientIp);
 
-        if (signatures.has(clientIp)) {
+        // Merkitse IP maksetuksi
+        if (clientIp !== "UNKNOWN") {
           paidIPs.add(clientIp);
           console.log("✅ Maksu merkitty onnistuneeksi IP:lle:", clientIp);
-        } else {
-          // Yritetään löytää läheinen vastaavuus (joskus IP-osoitteet voivat vaihdella hieman)
-          let found = false;
-          for (const ip of signatures.keys()) {
-            // Tarkistetaan, sisältääkö yksi IP toisen tai onko niillä yhteinen etuliite
-            if (
-              ip.includes(clientIp) ||
-              clientIp.includes(ip) ||
-              ip.split(".").slice(0, 3).join(".") ===
-                clientIp.split(".").slice(0, 3).join(".")
-            ) {
-              paidIPs.add(ip);
+
+          // Varmista että allekirjoitukset löytyvät tälle IP:lle
+          if (!signatures.has(clientIp)) {
+            // Etsi allekirjoitukset muista IP-osoitteista
+            for (const [ip, data] of signatures.entries()) {
+              // Kopioi allekirjoitukset tälle IP:lle
+              signatures.set(clientIp, data);
               console.log(
-                "✅ Maksu merkitty onnistuneeksi samankaltaiselle IP:lle:",
-                ip,
-                "(alkuperäinen:",
-                clientIp,
-                ")"
+                `Kopioitu allekirjoitukset IP:ltä ${ip} IP:lle ${clientIp}`
               );
-              found = true;
               break;
             }
           }
-
-          if (!found) {
-            console.log(
-              "⚠️ Varoitus: Allekirjoituksia ei löytynyt IP:lle:",
-              clientIp
-            );
-            console.log(
-              "Saatavilla olevat IP:t:",
-              Array.from(signatures.keys())
-            );
-
-            // Tallennetaan IP joka tapauksessa maksetuksi
-            paidIPs.add(clientIp);
-            console.log("IP merkitty maksetuksi joka tapauksessa:", clientIp);
-          }
+        } else {
+          console.log("⚠️ Varoitus: Asiakkaan IP tuntematon");
         }
       }
 
