@@ -1016,17 +1016,21 @@
         ) {
           console.log("✅ Maksu onnistui, tarkistetaan tila...");
 
-          // Tarkista tila heti ja sitten 2 sekunnin välein
-          checkStatus(true);
+          // Hae session_id URL-parametreista
+          const sessionId = new URLSearchParams(window.location.search).get(
+            "session_id"
+          );
 
-          const checkInterval = setInterval(() => {
-            fetch(`${API_URL}/api/check-signatures`)
+          if (sessionId) {
+            console.log("Session ID löydetty:", sessionId);
+
+            // Tarkista maksun tila suoraan Stripe API:sta
+            fetch(`${API_URL}/api/check-payment/${sessionId}`)
               .then((response) => response.json())
               .then((data) => {
-                console.log("Tila päivitetty:", data);
-                if (data.hasPaid && data.hasSignatures) {
-                  clearInterval(checkInterval);
-                  console.log("✅ Allekirjoitukset valmiina ladattavaksi!");
+                console.log("Maksun tila:", data);
+
+                if (data.success && data.status === "paid") {
                   statusMessage.textContent =
                     "Maksu onnistui! Allekirjoitukset ladataan...";
                   statusMessage.style.color = "#4CAF50"; // Vihreä väri
@@ -1037,18 +1041,26 @@
                     downloadSignatures();
                     emailContainer.style.display = "block";
                   }, 1000);
+                } else {
+                  statusMessage.textContent =
+                    "Maksun tarkistus kesken, odota hetki...";
+                  statusMessage.style.color = "#FFA500"; // Oranssi väri
+
+                  // Tarkista tila uudelleen 3 sekunnin kuluttua
+                  setTimeout(() => {
+                    checkStatus(true);
+                  }, 3000);
                 }
               })
-              .catch((err) => {
-                console.error("Virhe tilan tarkistuksessa:", err);
+              .catch((error) => {
+                console.error("Virhe maksun tarkistuksessa:", error);
+                statusMessage.textContent = "Virhe maksun tarkistuksessa.";
+                statusMessage.style.color = "#f44336"; // Punainen väri
               });
-          }, 2000);
-
-          // Lopeta tarkistus 30 sekunnin jälkeen
-          setTimeout(() => {
-            clearInterval(checkInterval);
-            console.log("⚠️ Maksun tarkistus aikakatkaistiin");
-          }, 30000);
+          } else {
+            // Jos session_id puuttuu, käytä normaalia tarkistusta
+            checkStatus(true);
+          }
         } else if (
           new URLSearchParams(window.location.search).get("canceled") === "true"
         ) {
