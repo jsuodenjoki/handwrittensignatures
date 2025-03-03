@@ -1191,10 +1191,15 @@
           const response = await fetch(`${API_URL}/api/clear-memory`);
           const data = await response.json();
           console.log("Muisti tyhjennetty:", data);
+
+          // Tyhjennä myös selaimen paikallinen tallennustila
+          localStorage.clear();
+          sessionStorage.clear();
+
           alert("Muisti tyhjennetty onnistuneesti!");
 
-          // Päivitä sivu
-          window.location.reload();
+          // Pakota sivu latautumaan kokonaan uudelleen
+          window.location.href = "/?nocache=" + new Date().getTime();
         } catch (error) {
           console.error("Virhe muistin tyhjentämisessä:", error);
           alert("Virhe muistin tyhjentämisessä!");
