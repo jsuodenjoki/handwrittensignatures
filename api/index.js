@@ -363,7 +363,7 @@ app.get("/api/download-signatures", (req, res) => {
     const signatureImage = createSignatureWithoutWatermark(
       userSignatures.name,
       fontStyle,
-      "black"
+      userSignatures.color
     );
     const imgBuffer = Buffer.from(
       signatureImage.replace(/^data:image\/png;base64,/, ""),
