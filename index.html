@@ -813,14 +813,8 @@
         await createSignatures();
       });
 
-      // Lisää globaali lippu latauksen seurantaan
-      let downloadStarted = false;
-
       // Tarkista tila
-      function checkStatus(autoDownload = true, sessionId = null) {
-        // Jos lataus on jo käynnissä, älä tee mitään
-        if (downloadStarted) return;
-
+      function checkStatus(autoDownload = true) {
         fetch(`${API_URL}/api/check-signatures`)
           .then((response) => response.json())
           .then((data) => {
@@ -834,13 +828,10 @@
                 statusMessage.style.color = "#4CAF50"; // Vihreä väri
                 buyButton.style.display = "none";
 
-                if (autoDownload && !downloadStarted) {
-                  // Aseta lippu estämään useita latauksia
-                  downloadStarted = true;
-
+                if (autoDownload) {
                   // Viive ennen latausta, jotta käyttäjä näkee viestin
                   setTimeout(() => {
-                    downloadSignatures(sessionId);
+                    downloadSignatures();
                     emailContainer.style.display = "block";
                   }, 1000);
                 }
@@ -865,13 +856,8 @@
       }
 
       // Lataa allekirjoitukset
-      function downloadSignatures(sessionId = null) {
-        const downloadUrl = sessionId
-          ? `${API_URL}/api/download-signatures?session_id=${sessionId}`
-          : `${API_URL}/api/download-signatures`;
-
-        console.log("Lataus URL:", downloadUrl);
-        window.location.href = downloadUrl;
+      function downloadSignatures() {
+        window.location.href = `${API_URL}/api/download-signatures`;
       }
 
       // Osta-painikkeen toiminnallisuus
@@ -1026,11 +1012,7 @@
       // Tarkista maksun tila sivun latautuessa
       if (getQueryParam("success") === "true") {
         console.log("✅ Maksu onnistui, tarkistetaan tila...");
-        const sessionId = getQueryParam("session_id");
-        console.log("Session ID:", sessionId);
-
-        // Välitä session ID latausfunktiolle
-        checkStatus(true, sessionId);
+        checkStatus(true);
       } else if (getQueryParam("canceled") === "true") {
         console.log("❌ Maksu peruutettu.");
         statusMessage.textContent = "Maksu peruutettiin.";

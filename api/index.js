@@ -270,11 +270,10 @@ app.get("/api/get-signatures", (req, res) => {
 // Allekirjoitusten lataus
 app.get("/api/download-signatures", (req, res) => {
   const clientIp = getClientIpFormatted(req);
-  const sessionId = req.query.session_id;
 
   // Tarkistetaan ensin täsmällinen vastaavuus
   let hasSignatures = signatures.has(clientIp);
-  let hasPaid = paidIPs.has(sessionId);
+  let hasPaid = paidIPs.has(clientIp);
   let signatureIp = clientIp;
 
   // Jos ei löydy täsmällistä vastaavuutta, tarkistetaan osittaiset vastaavuudet
@@ -304,7 +303,7 @@ app.get("/api/download-signatures", (req, res) => {
     if (!hasPaid) {
       for (const ip of paidIPs) {
         if (
-          ip.includes(sessionId) ||
+          ip.includes(clientIp) ||
           clientIp.includes(ip) ||
           ip.split(".").slice(0, 3).join(".") ===
             clientIp.split(".").slice(0, 3).join(".")
@@ -385,7 +384,6 @@ Kiitos että käytit palveluamme!`;
 app.post("/api/create-payment", async (req, res) => {
   try {
     const clientIp = getClientIpFormatted(req);
-    console.log(`Luodaan maksu IP:lle ${clientIp}`);
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -394,16 +392,15 @@ app.post("/api/create-payment", async (req, res) => {
           price_data: {
             currency: "eur",
             product_data: {
-              name: "Allekirjoitukset",
-              description: "Lataa allekirjoitukset ilman vesileimaa",
+              name: "Allekirjoitusten luonti",
             },
-            unit_amount: 500, // 5 EUR
+            unit_amount: 100,
           },
           quantity: 1,
         },
       ],
       mode: "payment",
-      success_url: `${process.env.FRONTEND_URL}?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${process.env.FRONTEND_URL}?success=true`,
       cancel_url: `${process.env.FRONTEND_URL}?canceled=true`,
       metadata: {
         clientIp,
@@ -413,7 +410,7 @@ app.post("/api/create-payment", async (req, res) => {
     res.json({ url: session.url });
   } catch (error) {
     console.error("Virhe maksun luonnissa:", error);
-    res.status(500).json({ error: "Virhe maksun luonnissa" });
+    res.status(500).json({ error: "Virhe maksun käsittelyssä" });
   }
 });
 
@@ -446,16 +443,13 @@ app.post(
         ].includes(event.type)
       ) {
         const session = event.data.object;
-        const sessionId = session.id;
         const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
 
         console.log("Etsitään asiakkaan IP:", clientIp);
-        console.log("Session ID:", sessionId);
 
         if (signatures.has(clientIp)) {
-          paidIPs.add(sessionId); // Tallenna session ID
+          paidIPs.add(clientIp);
           console.log("✅ Maksu merkitty onnistuneeksi IP:lle:", clientIp);
-          console.log("Session ID tallennettu:", sessionId);
         } else {
           // Yritetään löytää läheinen vastaavuus (joskus IP-osoitteet voivat vaihdella hieman)
           let found = false;
@@ -467,7 +461,7 @@ app.post(
               ip.split(".").slice(0, 3).join(".") ===
                 clientIp.split(".").slice(0, 3).join(".")
             ) {
-              paidIPs.add(sessionId); // Tallenna session ID
+              paidIPs.add(ip);
               console.log(
                 "✅ Maksu merkitty onnistuneeksi samankaltaiselle IP:lle:",
                 ip,
@@ -475,7 +469,6 @@ app.post(
                 clientIp,
                 ")"
               );
-              console.log("Session ID tallennettu:", sessionId);
               found = true;
               break;
             }
@@ -492,11 +485,8 @@ app.post(
             );
 
             // Tallennetaan IP joka tapauksessa maksetuksi
-            paidIPs.add(sessionId); // Tallenna session ID
-            console.log(
-              "Session ID merkitty maksetuksi joka tapauksessa:",
-              sessionId
-            );
+            paidIPs.add(clientIp);
+            console.log("IP merkitty maksetuksi joka tapauksessa:", clientIp);
           }
         }
       }
