@@ -456,6 +456,8 @@ app.post(
                 clientIp.split(".").slice(0, 3).join(".")
             ) {
               paidIPs.add(ip);
+              // Lisää myös alkuperäinen IP maksettuihin, jotta se löytyy helpommin
+              paidIPs.add(clientIp);
               console.log(
                 "✅ Maksu merkitty onnistuneeksi samankaltaiselle IP:lle:",
                 ip,
@@ -655,6 +657,43 @@ app.get("/api/check-payment/:sessionId", async (req, res) => {
       .status(500)
       .json({ success: false, error: "Virhe maksun tarkistuksessa" });
   }
+});
+
+// Lisätään reitti maksun merkitsemiseksi onnistuneeksi
+app.post("/api/mark-as-paid", (req, res) => {
+  const clientIp = getClientIpFormatted(req);
+
+  console.log(`Merkitään IP ${clientIp} maksaneeksi manuaalisesti`);
+
+  // Merkitse IP maksetuksi
+  paidIPs.add(clientIp);
+
+  // Tarkista onko allekirjoituksia
+  const hasSignatures = signatures.has(clientIp);
+
+  // Jos ei ole allekirjoituksia, tarkista osittaiset vastaavuudet
+  if (!hasSignatures) {
+    for (const ip of signatures.keys()) {
+      if (
+        ip.includes(clientIp) ||
+        clientIp.includes(ip) ||
+        ip.split(".").slice(0, 3).join(".") ===
+          clientIp.split(".").slice(0, 3).join(".")
+      ) {
+        // Merkitse myös tämä IP maksetuksi
+        paidIPs.add(ip);
+        console.log(`Merkitty myös samankaltainen IP ${ip} maksaneeksi`);
+        break;
+      }
+    }
+  }
+
+  res.json({
+    success: true,
+    message: "IP merkitty maksaneeksi",
+    hasSignatures: signatures.has(clientIp),
+    hasPaid: true,
+  });
 });
 
 export default app;

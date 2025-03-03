@@ -1017,16 +1017,26 @@
           console.log("✅ Maksu onnistui, tarkistetaan tila...");
 
           // Tarkista tila heti ja sitten 2 sekunnin välein
-          checkSignatureStatus();
+          checkStatus(true);
 
           const checkInterval = setInterval(() => {
-            checkSignatureStatus()
-              .then((status) => {
-                if (status.canDownload) {
+            fetch(`${API_URL}/api/check-signatures`)
+              .then((response) => response.json())
+              .then((data) => {
+                console.log("Tila päivitetty:", data);
+                if (data.hasPaid && data.hasSignatures) {
                   clearInterval(checkInterval);
                   console.log("✅ Allekirjoitukset valmiina ladattavaksi!");
-                  // Aloita lataus automaattisesti
-                  window.location.href = "/api/download-signatures";
+                  statusMessage.textContent =
+                    "Maksu onnistui! Allekirjoitukset ladataan...";
+                  statusMessage.style.color = "#4CAF50"; // Vihreä väri
+                  buyButton.style.display = "none";
+
+                  // Lataa allekirjoitukset automaattisesti
+                  setTimeout(() => {
+                    downloadSignatures();
+                    emailContainer.style.display = "block";
+                  }, 1000);
                 }
               })
               .catch((err) => {
