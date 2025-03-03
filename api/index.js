@@ -21,31 +21,13 @@ app.use(express.json());
 
 //4. IP-OSOITTEEN KÄSITTELYFUNKTIOT
 function getClientIp(req) {
-  const ip =
-    req.headers["x-forwarded-for"] ||
-    req.headers["x-real-ip"] ||
-    req.connection.remoteAddress ||
-    req.socket.remoteAddress ||
-    req.connection.socket?.remoteAddress;
-
-  console.log("Alkuperäinen IP:", ip);
-
-  const normalizedIp = ip
-    ? ip.includes(",")
-      ? ip.split(",")[0].trim()
-      : ip.trim()
-    : "unknown-ip";
-
-  console.log("Normalisoitu IP:", normalizedIp);
-
-  return normalizedIp;
+  return req.headers["x-forwarded-for"] || req.connection.remoteAddress;
 }
 
 function getClientIpFormatted(req) {
   const ip = getClientIp(req);
-
-  // Poistetaan IPv6-osoitteen etuliite, jos sellainen on
-  return ip.replace(/^::ffff:/, "");
+  const formattedIp = ip.includes(",") ? ip.split(",")[0].trim() : ip.trim();
+  return formattedIp.replace(/^::ffff:/, "");
 }
 
 //5. FONTTIEN REKISTERÖINTI JA HALLINTA
@@ -447,6 +429,11 @@ app.post(
       );
 
       console.log("Webhook-tapahtuma vastaanotettu:", event.type);
+      console.log(
+        "Kaikki tallennetut allekirjoitukset:",
+        Array.from(signatures.keys())
+      );
+      console.log("Kaikki maksetut IP:t:", Array.from(paidIPs));
 
       if (
         [
@@ -458,10 +445,6 @@ app.post(
         const session = event.data.object;
         const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
 
-        console.log(
-          "Kaikki tallennetut allekirjoitukset:",
-          Array.from(signatures.keys())
-        );
         console.log("Etsitään asiakkaan IP:", clientIp);
 
         if (signatures.has(clientIp)) {
