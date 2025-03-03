@@ -833,8 +833,13 @@
 
         // Jos lataus on jo käynnissä tai suoritettu, älä tee mitään
         if (downloadStarted || isDownloadCompleted()) {
+          console.log(
+            "Lataus on jo käynnissä tai suoritettu, ohitetaan tarkistus"
+          );
           return;
         }
+
+        console.log("Tarkistetaan tila, sessionId:", sessionId);
 
         fetch(
           `${API_URL}/api/check-signatures${
@@ -843,7 +848,7 @@
         )
           .then((response) => response.json())
           .then((data) => {
-            console.log("Tila päivitetty:", data);
+            console.log("Tila päivitetty:", data, "sessionId:", sessionId);
 
             if (data.hasSignatures) {
               if (data.hasPaid && data.canDownload) {

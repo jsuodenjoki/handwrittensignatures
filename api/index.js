@@ -171,15 +171,25 @@ app.get("/api/check-signatures", (req, res) => {
       sessionId || "ei saatavilla"
     }`
   );
+  console.log("Kaikki maksetut session ID:t:", Array.from(paidIPs));
 
   const hasSignatures = signatures.has(clientIp);
 
   // Tarkistetaan maksu session ID:n perusteella, jos se on saatavilla
   let hasPaid = sessionId ? paidIPs.has(sessionId) : paidIPs.has(clientIp);
 
+  console.log(
+    `Suora tarkistus: hasPaid = ${hasPaid}, sessionId = ${sessionId}, paidIPs.has(sessionId) = ${paidIPs.has(
+      sessionId
+    )}`
+  );
+
   if (!hasPaid && sessionId) {
     // Tarkistetaan osittaiset vastaavuudet session ID:lle
     for (const id of paidIPs) {
+      console.log(
+        `Verrataan session ID:tä ${sessionId} maksettuun ID:hen ${id}`
+      );
       if (id.includes(sessionId) || sessionId.includes(id)) {
         hasPaid = true;
         console.log(
@@ -495,6 +505,10 @@ app.post(
         // Tallenna session ID maksetuksi
         paidIPs.add(sessionId);
         console.log("✅ Session ID merkitty maksetuksi:", sessionId);
+        console.log(
+          "Kaikki maksetut session ID:t päivityksen jälkeen:",
+          Array.from(paidIPs)
+        );
 
         // Tarkista, onko IP:llä allekirjoituksia
         if (signatures.has(clientIp)) {
@@ -654,6 +668,26 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
   );
 
   res.json({ image: signatureImage });
+});
+
+// Debug-reitti
+app.get("/api/debug-session", (req, res) => {
+  const sessionId = req.query.session_id;
+
+  if (!sessionId) {
+    return res.status(400).json({ error: "Session ID puuttuu" });
+  }
+
+  const isPaid = paidIPs.has(sessionId);
+
+  res.json({
+    sessionId,
+    isPaid,
+    allPaidIds: Array.from(paidIPs),
+    includes: Array.from(paidIPs).some(
+      (id) => id.includes(sessionId) || sessionId.includes(id)
+    ),
+  });
 });
 
 export default app;
