@@ -1189,6 +1189,25 @@
           clearInterval(resetTimerInterval);
         }
 
+        // Hae tallennettu clientIp (ennen kuin se poistetaan localStoragesta)
+        const clientIp = await getClientIp();
+
+        // Poista tiedot myös palvelimelta
+        try {
+          const response = await fetch(`${API_URL}/api/reset-user-data`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ clientIp }),
+          });
+
+          const data = await response.json();
+          console.log("Palvelimen palautus:", data);
+        } catch (error) {
+          console.error("Virhe palvelimen tietojen palautuksessa:", error);
+        }
+
         // Hae uusi IP-osoite
         await saveClientIp();
 
