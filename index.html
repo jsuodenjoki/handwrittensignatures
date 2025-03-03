@@ -392,10 +392,6 @@
       <div id="emailTimer" class="hidden"></div>
     </div>
 
-    <button id="clearMemoryButton" style="display: none; margin-top: 20px">
-      Tyhjennä muisti (vain kehitys)
-    </button>
-
     <script>
       const API_URL =
         window.location.hostname === "localhost"
@@ -418,7 +414,6 @@
       const sendEmailButton = document.getElementById("sendEmailButton");
       const emailTimer = document.getElementById("emailTimer");
       const signatureCarousel = document.querySelector(".signature-carousel");
-      const clearMemoryButton = document.getElementById("clearMemoryButton");
 
       // Fontit allekirjoituksille - alusta tyhjä lista
       const signatureFonts = [];
@@ -1052,14 +1047,6 @@
 
         // Alusta karuselli
         initializeCarousel();
-
-        // Näytä nappi vain kehitysympäristössä
-        if (
-          window.location.hostname === "localhost" ||
-          window.location.hostname === "127.0.0.1"
-        ) {
-          clearMemoryButton.style.display = "block";
-        }
       });
 
       // Tarkista tila säännöllisesti
@@ -1177,34 +1164,6 @@
         console.log("Tila päivitetty:", status);
         return status;
       }
-
-      // Näytä nappi vain kehitysympäristössä
-      if (
-        window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1"
-      ) {
-        clearMemoryButton.style.display = "block";
-      }
-
-      clearMemoryButton.addEventListener("click", async () => {
-        try {
-          const response = await fetch(`${API_URL}/api/clear-memory`);
-          const data = await response.json();
-          console.log("Muisti tyhjennetty:", data);
-
-          // Tyhjennä myös selaimen paikallinen tallennustila
-          localStorage.clear();
-          sessionStorage.clear();
-
-          alert("Muisti tyhjennetty onnistuneesti!");
-
-          // Pakota sivu latautumaan kokonaan uudelleen
-          window.location.href = "/?nocache=" + new Date().getTime();
-        } catch (error) {
-          console.error("Virhe muistin tyhjentämisessä:", error);
-          alert("Virhe muistin tyhjentämisessä!");
-        }
-      });
     </script>
   </body>
 </html>
