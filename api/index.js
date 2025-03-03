@@ -642,4 +642,26 @@ app.get("/api/check-payment/:sessionId", async (req, res) => {
   }
 });
 
+// Allekirjoitusten poistaminen
+app.post("/api/reset-signatures", (req, res) => {
+  const { clientIp } = req.body;
+  const ipToUse = clientIp || getClientIpFormatted(req);
+
+  console.log(`Poistetaan allekirjoitukset IP:lle ${ipToUse}`);
+
+  // Poista allekirjoitukset
+  if (signatures.has(ipToUse)) {
+    signatures.delete(ipToUse);
+    console.log(`Allekirjoitukset poistettu IP:lle ${ipToUse}`);
+  }
+
+  // Poista maksutila
+  if (paidIPs.has(ipToUse)) {
+    paidIPs.delete(ipToUse);
+    console.log(`Maksutila poistettu IP:lle ${ipToUse}`);
+  }
+
+  res.json({ success: true });
+});
+
 export default app;
