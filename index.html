@@ -815,7 +815,14 @@
 
       // Tarkista tila
       function checkStatus(autoDownload = true) {
-        fetch(`${API_URL}/api/check-signatures`)
+        // Hae session ID URL-parametreista
+        const sessionId = getQueryParam("session_id");
+
+        fetch(
+          `${API_URL}/api/check-signatures${
+            sessionId ? `?session_id=${sessionId}` : ""
+          }`
+        )
           .then((response) => response.json())
           .then((data) => {
             console.log("Tila päivitetty:", data);
@@ -831,7 +838,8 @@
                 if (autoDownload) {
                   // Viive ennen latausta, jotta käyttäjä näkee viestin
                   setTimeout(() => {
-                    downloadSignatures();
+                    // Välitä session ID latausfunktiolle
+                    downloadSignatures(sessionId);
                     emailContainer.style.display = "block";
                   }, 1000);
                 }
@@ -856,8 +864,14 @@
       }
 
       // Lataa allekirjoitukset
-      function downloadSignatures() {
-        window.location.href = `${API_URL}/api/download-signatures`;
+      function downloadSignatures(sessionId = null) {
+        // Lisää session ID URL-parametreihin, jos se on saatavilla
+        const downloadUrl = sessionId
+          ? `${API_URL}/api/download-signatures?session_id=${sessionId}`
+          : `${API_URL}/api/download-signatures`;
+
+        console.log("Lataus URL:", downloadUrl);
+        window.location.href = downloadUrl;
       }
 
       // Osta-painikkeen toiminnallisuus
@@ -1004,23 +1018,18 @@
       checkFontAvailability();
 
       // Tarkista URL-parametrit sivun latautuessa
-      const sessionId = getQueryParam("session_id"); // 🔹 Hae session ID URL:stä
+      function getQueryParam(name) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name);
+      }
 
-      if (sessionId) {
-        console.log(`🔍 Tarkistetaan maksu sessionId: ${sessionId}`);
-        fetch(`${API_URL}/api/check-payment/${sessionId}`)
-          .then((response) => response.json())
-          .then((data) => {
-            if (data.success && data.status === "paid") {
-              console.log(
-                "✅ Maksu vahvistettu, tarkistetaan allekirjoitukset..."
-              );
-              checkStatus(true); // 🔹 Automaattinen lataus käynnistyy
-            }
-          })
-          .catch((error) =>
-            console.error("❌ Virhe maksun tarkistuksessa:", error)
-          );
+      // Tarkista maksun tila sivun latautuessa
+      if (getQueryParam("success") === "true") {
+        console.log("✅ Maksu onnistui, tarkistetaan tila...");
+        checkStatus(true);
+      } else if (getQueryParam("canceled") === "true") {
+        console.log("❌ Maksu peruutettu.");
+        statusMessage.textContent = "Maksu peruutettiin.";
       }
 
       // Tarkista tila säännöllisesti
