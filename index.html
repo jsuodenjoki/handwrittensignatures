@@ -480,6 +480,17 @@
         return clientIp;
       }
 
+      // Tallenna maksutila localStorageen
+      function savePaymentStatus(isPaid) {
+        localStorage.setItem("hasPaid", isPaid ? "true" : "false");
+        console.log("Maksutila tallennettu localStorageen:", isPaid);
+      }
+
+      // Hae maksutila localStoragesta
+      function getPaymentStatus() {
+        return localStorage.getItem("hasPaid") === "true";
+      }
+
       // Luo allekirjoitukset karuselliin
       async function initializeCarousel() {
         // Tyhjennä karuselli
@@ -852,6 +863,23 @@
           );
           const data = await response.json();
 
+          // Tarkista localStoragesta maksutila ja yhdistä se palvelimen tietoihin
+          const localPaymentStatus = getPaymentStatus();
+
+          // Jos joko palvelin tai localStorage sanoo että on maksettu, käsitellään maksettuna
+          if (localPaymentStatus && !data.hasPaid) {
+            console.log(
+              "Maksutila löytyi localStoragesta mutta ei palvelimelta, käytetään localStoragen tietoa"
+            );
+            data.hasPaid = true;
+            data.canDownload = data.hasSignatures && data.hasPaid;
+          }
+
+          // Tallenna maksutila localStorageen jos se on muuttunut
+          if (data.hasPaid) {
+            savePaymentStatus(true);
+          }
+
           console.log("Tila päivitetty:", data);
 
           if (data.hasSignatures) {
@@ -1087,6 +1115,9 @@
         if (getQueryParam("success") === "true") {
           console.log("✅ Maksu onnistui, tarkistetaan tila...");
 
+          // Merkitse maksu onnistuneeksi heti localStorageen
+          savePaymentStatus(true);
+
           // Nollaa automaattisen latauksen tila, jos käyttäjä on juuri maksanut
           localStorage.removeItem("hasAutoDownloaded");
 
@@ -1135,6 +1166,7 @@
         // Tyhjennä localStorage
         localStorage.removeItem("clientIp");
         localStorage.removeItem("hasAutoDownloaded");
+        localStorage.removeItem("hasPaid");
 
         // Tyhjennä allekirjoitukset
         signaturesContainer.innerHTML = "";
