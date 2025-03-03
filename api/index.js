@@ -42,7 +42,10 @@ function getClientIp(req) {
 }
 
 function getClientIpFormatted(req) {
-  return getClientIp(req);
+  const ip = getClientIp(req);
+
+  // Poistetaan IPv6-osoitteen etuliite, jos sellainen on
+  return ip.replace(/^::ffff:/, "");
 }
 
 //5. FONTTIEN REKISTERÖINTI JA HALLINTA
@@ -177,7 +180,31 @@ app.get("/api/get-client-ip", (req, res) => {
 app.get("/api/check-signatures", (req, res) => {
   const clientIp = getClientIpFormatted(req);
   const hasSignatures = signatures.has(clientIp);
-  const hasPaid = paidIPs.has(clientIp);
+
+  // Tarkistetaan myös osittaiset IP-vastaavuudet
+  let hasPaid = paidIPs.has(clientIp);
+
+  if (!hasPaid) {
+    // Tarkistetaan osittaiset vastaavuudet
+    for (const ip of paidIPs) {
+      if (
+        ip.includes(clientIp) ||
+        clientIp.includes(ip) ||
+        ip.split(".").slice(0, 3).join(".") ===
+          clientIp.split(".").slice(0, 3).join(".")
+      ) {
+        hasPaid = true;
+        console.log(`IP ${clientIp} vastaa osittain maksettua IP:tä ${ip}`);
+        // Lisätään tämä IP myös maksettuihin, jotta jatkossa tarkistus on nopeampi
+        paidIPs.add(clientIp);
+        break;
+      }
+    }
+  }
+
+  console.log(
+    `Tarkistetaan tila IP:lle ${clientIp}: hasSignatures=${hasSignatures}, hasPaid=${hasPaid}`
+  );
 
   res.json({
     hasSignatures,
@@ -496,6 +523,60 @@ app.post("/api/restore-signatures", (req, res) => {
   });
 
   res.json({ success: true });
+});
+
+// Lisätään uusi reitti maksun tarkistukseen
+app.get("/api/check-payment/:sessionId", async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const clientIp = getClientIpFormatted(req);
+
+    console.log(
+      `Tarkistetaan maksun tila sessionId:lle ${sessionId}, IP: ${clientIp}`
+    );
+
+    // Tarkista ensin, onko käyttäjä jo merkitty maksaneeksi
+    if (paidIPs.has(clientIp)) {
+      console.log(`IP ${clientIp} on jo merkitty maksaneeksi`);
+      return res.json({ success: true, status: "paid" });
+    }
+
+    // Tarkista osittaiset vastaavuudet
+    for (const ip of paidIPs) {
+      if (
+        ip.includes(clientIp) ||
+        clientIp.includes(ip) ||
+        ip.split(".").slice(0, 3).join(".") ===
+          clientIp.split(".").slice(0, 3).join(".")
+      ) {
+        console.log(`IP ${clientIp} vastaa osittain maksettua IP:tä ${ip}`);
+        paidIPs.add(clientIp); // Lisää tämä IP myös maksettuihin
+        return res.json({ success: true, status: "paid" });
+      }
+    }
+
+    // Jos ei löydy paikallisesti, tarkista Stripe API:sta
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (session.payment_status === "paid") {
+      console.log(
+        `Maksu vahvistettu Stripe API:sta sessionId:lle ${sessionId}`
+      );
+
+      // Merkitse IP maksetuksi
+      paidIPs.add(clientIp);
+      console.log(`IP ${clientIp} merkitty maksetuksi Stripe API:n kautta`);
+
+      return res.json({ success: true, status: "paid" });
+    }
+
+    return res.json({ success: true, status: session.payment_status });
+  } catch (error) {
+    console.error("Virhe maksun tarkistuksessa:", error);
+    return res
+      .status(500)
+      .json({ success: false, error: "Virhe maksun tarkistuksessa" });
+  }
 });
 
 export default app;
