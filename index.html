@@ -1003,6 +1003,13 @@
       // Suorita tarkistus
       checkFontAvailability();
 
+      // Tarkista URL-parametrit sivun latautuessa
+      function getQueryParam(name) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name);
+      }
+
+      // Tarkista maksun tila sivun latautuessa
       if (getQueryParam("success") === "true") {
         console.log("✅ Maksu onnistui, tarkistetaan tila...");
         checkStatus(true);
@@ -1011,6 +1018,7 @@
         statusMessage.textContent = "Maksu peruutettiin.";
       }
 
+      // Tarkista tila säännöllisesti
       setInterval(checkStatus, 2000);
       checkStatus();
     </script>
