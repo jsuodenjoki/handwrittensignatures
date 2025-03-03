@@ -7,7 +7,6 @@ import path from "path";
 import archiver from "archiver";
 import { createCanvas, registerFont } from "canvas";
 import "dotenv/config";
-import JSZip from "jszip";
 
 //2. ALUSTETAAN MUUTTUJAT
 const stripe = stripePackage(process.env.STRIPE_SECRET_KEY);
@@ -18,7 +17,7 @@ const paidIPs = new Set();
 //3. MIDDLEWARE MÄÄRITTELYT
 app.use(cors());
 app.use("/api/webhook", express.raw({ type: "application/json" }));
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
 
 //4. IP-OSOITTEEN KÄSITTELYFUNKTIOT
 function getClientIp(req) {
@@ -350,7 +349,7 @@ app.get("/api/download-signatures", (req, res) => {
     const signatureImage = createSignatureWithoutWatermark(
       userSignatures.name,
       fontStyle,
-      userSignatures.color || "black"
+      userSignatures.color
     );
     const imgBuffer = Buffer.from(
       signatureImage.replace(/^data:image\/png;base64,/, ""),
@@ -432,7 +431,7 @@ app.post(
         ].includes(event.type)
       ) {
         const session = event.data.object;
-        const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
+        const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN"; // Hae IP Stripestä
 
         console.log(
           "Kaikki tallennetut allekirjoitukset:",
@@ -444,10 +443,10 @@ app.post(
           paidIPs.add(clientIp);
           console.log("✅ Maksu merkitty onnistuneeksi IP:lle:", clientIp);
         } else {
-          // Yritetään löytää läheinen vastaavuus (joskus IP-osoitteet voivat vaihdella hieman)
+          // Yritä löytää samankaltainen IP (joskus IP-osoitteet voivat vaihdella hieman)
           let found = false;
           for (const ip of signatures.keys()) {
-            // Tarkistetaan, sisältääkö yksi IP toisen tai onko niillä yhteinen etuliite
+            // Tarkista, sisältääkö yksi IP toisen tai onko niillä yhteinen etuliite
             if (
               ip.includes(clientIp) ||
               clientIp.includes(ip) ||
@@ -476,10 +475,6 @@ app.post(
               "Saatavilla olevat IP:t:",
               Array.from(signatures.keys())
             );
-
-            // Tallennetaan IP joka tapauksessa maksetuksi
-            paidIPs.add(clientIp);
-            console.log("IP merkitty maksetuksi joka tapauksessa:", clientIp);
           }
         }
       }
@@ -595,60 +590,6 @@ app.post("/api/restore-signatures", (req, res) => {
   });
 
   res.json({ success: true });
-});
-
-// Lisätään uusi reitti maksun tarkistukseen
-app.get("/api/check-payment/:sessionId", async (req, res) => {
-  try {
-    const { sessionId } = req.params;
-    const clientIp = getClientIpFormatted(req);
-
-    console.log(
-      `Tarkistetaan maksun tila sessionId:lle ${sessionId}, IP: ${clientIp}`
-    );
-
-    // Tarkista ensin, onko käyttäjä jo merkitty maksaneeksi
-    if (paidIPs.has(clientIp)) {
-      console.log(`IP ${clientIp} on jo merkitty maksaneeksi`);
-      return res.json({ success: true, status: "paid" });
-    }
-
-    // Tarkista osittaiset vastaavuudet
-    for (const ip of paidIPs) {
-      if (
-        ip.includes(clientIp) ||
-        clientIp.includes(ip) ||
-        ip.split(".").slice(0, 3).join(".") ===
-          clientIp.split(".").slice(0, 3).join(".")
-      ) {
-        console.log(`IP ${clientIp} vastaa osittain maksettua IP:tä ${ip}`);
-        paidIPs.add(clientIp); // Lisää tämä IP myös maksettuihin
-        return res.json({ success: true, status: "paid" });
-      }
-    }
-
-    // Jos ei löydy paikallisesti, tarkista Stripe API:sta
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-
-    if (session.payment_status === "paid") {
-      console.log(
-        `Maksu vahvistettu Stripe API:sta sessionId:lle ${sessionId}`
-      );
-
-      // Merkitse IP maksetuksi
-      paidIPs.add(clientIp);
-      console.log(`IP ${clientIp} merkitty maksetuksi Stripe API:n kautta`);
-
-      return res.json({ success: true, status: "paid" });
-    }
-
-    return res.json({ success: true, status: session.payment_status });
-  } catch (error) {
-    console.error("Virhe maksun tarkistuksessa:", error);
-    return res
-      .status(500)
-      .json({ success: false, error: "Virhe maksun tarkistuksessa" });
-  }
 });
 
 export default app;
