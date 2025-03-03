@@ -1014,37 +1014,29 @@
         ) {
           console.log("✅ Maksu onnistui, tarkistetaan tila...");
 
-          // Tarkista tila 10 kertaa 2 sekunnin välein
-          let checkCount = 0;
-          const maxChecks = 10;
+          // Tarkista tila heti ja sitten 2 sekunnin välein
+          checkSignatureStatus();
 
           const checkInterval = setInterval(() => {
-            fetch(`${API_URL}/api/check-signatures`)
-              .then((response) => response.json())
-              .then((data) => {
-                if (data.hasSignatures && data.hasPaid) {
+            checkSignatureStatus()
+              .then((status) => {
+                if (status.canDownload) {
                   clearInterval(checkInterval);
-                  console.log(
-                    "Maksu vahvistettu, ladataan allekirjoitukset..."
-                  );
-                  statusMessage.textContent =
-                    "Maksu onnistui! Allekirjoitukset ladataan...";
-                  statusMessage.style.color = "#4CAF50";
-
-                  downloadSignatures();
-                  emailContainer.style.display = "block";
-                } else if (++checkCount >= maxChecks) {
-                  clearInterval(checkInterval);
-                  console.log("Maksun tilan tarkistus aikakatkaistiin");
-                  statusMessage.textContent =
-                    "Maksun tilan tarkistus epäonnistui. Yritä päivittää sivu.";
-                  statusMessage.style.color = "#f44336";
+                  console.log("✅ Allekirjoitukset valmiina ladattavaksi!");
+                  // Aloita lataus automaattisesti
+                  window.location.href = "/api/download-signatures";
                 }
               })
-              .catch((error) => {
-                console.error("Virhe tilan tarkistuksessa:", error);
+              .catch((err) => {
+                console.error("Virhe tilan tarkistuksessa:", err);
               });
           }, 2000);
+
+          // Lopeta tarkistus 30 sekunnin jälkeen
+          setTimeout(() => {
+            clearInterval(checkInterval);
+            console.log("⚠️ Maksun tarkistus aikakatkaistiin");
+          }, 30000);
         } else if (
           new URLSearchParams(window.location.search).get("canceled") === "true"
         ) {
@@ -1163,6 +1155,14 @@
             imgElement.src = newImageData;
           };
         });
+      }
+
+      // Funktio allekirjoitusten tilan tarkistamiseen
+      async function checkSignatureStatus() {
+        const response = await fetch("/api/check-signatures");
+        const status = await response.json();
+        console.log("Tila päivitetty:", status);
+        return status;
       }
     </script>
   </body>

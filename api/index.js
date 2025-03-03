@@ -270,14 +270,64 @@ app.get("/api/get-signatures", (req, res) => {
 app.get("/api/download-signatures", (req, res) => {
   const clientIp = getClientIpFormatted(req);
 
-  if (!signatures.has(clientIp) || !paidIPs.has(clientIp)) {
+  // Tarkistetaan ensin täsmällinen vastaavuus
+  let hasSignatures = signatures.has(clientIp);
+  let hasPaid = paidIPs.has(clientIp);
+  let signatureIp = clientIp;
+
+  // Jos ei löydy täsmällistä vastaavuutta, tarkistetaan osittaiset vastaavuudet
+  if (!hasSignatures || !hasPaid) {
+    console.log("Etsitään osittaisia IP-vastaavuuksia latausta varten...");
+
+    // Tarkistetaan allekirjoitukset
+    if (!hasSignatures) {
+      for (const ip of signatures.keys()) {
+        if (
+          ip.includes(clientIp) ||
+          clientIp.includes(ip) ||
+          ip.split(".").slice(0, 3).join(".") ===
+            clientIp.split(".").slice(0, 3).join(".")
+        ) {
+          hasSignatures = true;
+          signatureIp = ip; // Tallennetaan löydetty IP
+          console.log(
+            `Löydettiin allekirjoitukset samankaltaiselle IP:lle: ${ip}`
+          );
+          break;
+        }
+      }
+    }
+
+    // Tarkistetaan maksutila
+    if (!hasPaid) {
+      for (const ip of paidIPs) {
+        if (
+          ip.includes(clientIp) ||
+          clientIp.includes(ip) ||
+          ip.split(".").slice(0, 3).join(".") ===
+            clientIp.split(".").slice(0, 3).join(".")
+        ) {
+          hasPaid = true;
+          console.log(`Löydettiin maksutila samankaltaiselle IP:lle: ${ip}`);
+          break;
+        }
+      }
+    }
+  }
+
+  console.log(
+    `Lataus IP:lle ${clientIp}: hasSignatures=${hasSignatures}, hasPaid=${hasPaid}`
+  );
+
+  if (!hasSignatures || !hasPaid) {
     return res
       .status(403)
       .json({ error: "Ei oikeutta ladata allekirjoituksia" });
   }
 
-  const userSignatures = signatures.get(clientIp);
+  const userSignatures = signatures.get(signatureIp);
 
+  // Luo ZIP-tiedosto
   res.setHeader("Content-Type", "application/zip");
   res.setHeader(
     "Content-Disposition",
@@ -285,8 +335,16 @@ app.get("/api/download-signatures", (req, res) => {
   );
 
   const archive = archiver("zip", { zlib: { level: 9 } });
+
+  // Käsittele virheet
+  archive.on("error", function (err) {
+    console.error("Virhe ZIP-tiedoston luonnissa:", err);
+    res.status(500).send({ error: "Virhe tiedoston luonnissa" });
+  });
+
   archive.pipe(res);
 
+  // Lisää kuvat ilman vesileimaa
   signatureFonts.forEach((fontStyle, index) => {
     const signatureImage = createSignatureWithoutWatermark(
       userSignatures.name,
@@ -300,10 +358,19 @@ app.get("/api/download-signatures", (req, res) => {
     archive.append(imgBuffer, { name: `signature-${index + 1}.png` });
   });
 
+  // Lisää README-tiedosto
+  const readme = `Allekirjoitukset luotu: ${new Date().toLocaleString("fi-FI")}
+Nimi: ${userSignatures.name}
+Tiedostoja: ${signatureFonts.length} kpl
+
+Kiitos että käytit palveluamme!`;
+
+  archive.append(readme, { name: "README.txt" });
+
   archive.finalize();
 
-  signatures.delete(clientIp);
-  paidIPs.delete(clientIp);
+  // Älä poista allekirjoituksia tai maksutilaa, jotta käyttäjä voi ladata ne uudelleen tarvittaessa
+  console.log(`Allekirjoitukset ladattu onnistuneesti IP:lle ${clientIp}`);
 });
 
 // Stripe-maksun luonti
@@ -341,84 +408,88 @@ app.post("/api/create-payment", async (req, res) => {
 });
 
 // Stripe webhook käsittely
-app.post("/api/webhook", async (req, res) => {
-  const sig = req.headers["stripe-signature"];
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+app.post(
+  "/api/webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const sig = req.headers["stripe-signature"];
 
-  console.log("Webhook called");
-  console.log("Signature:", sig);
-  console.log("Secret exists:", !!webhookSecret);
-  console.log("Raw body exists:", !!req.body);
+    try {
+      const event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
 
-  if (!webhookSecret) {
-    console.error("STRIPE_WEBHOOK_SECRET puuttuu!");
-    return res.status(400).send("Webhook secret puuttuu");
-  }
+      console.log("Webhook-tapahtuma vastaanotettu:", event.type);
 
-  if (!sig) {
-    console.error("Stripe-signature header puuttuu!");
-    return res.status(400).send("Signature puuttuu");
-  }
+      if (
+        [
+          "checkout.session.completed",
+          "payment_intent.succeeded",
+          "charge.succeeded",
+        ].includes(event.type)
+      ) {
+        const session = event.data.object;
+        const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
 
-  try {
-    console.log("Trying to construct event...");
-    const event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-    console.log("Event constructed successfully:", event.type);
+        console.log(
+          "Kaikki tallennetut allekirjoitukset:",
+          Array.from(signatures.keys())
+        );
+        console.log("Etsitään asiakkaan IP:", clientIp);
 
-    if (
-      [
-        "checkout.session.completed",
-        "payment_intent.succeeded",
-        "charge.succeeded",
-      ].includes(event.type)
-    ) {
-      const session = event.data.object;
-      const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN"; // Retrieve IP from Stripe
+        if (signatures.has(clientIp)) {
+          paidIPs.add(clientIp);
+          console.log("✅ Maksu merkitty onnistuneeksi IP:lle:", clientIp);
+        } else {
+          // Yritetään löytää läheinen vastaavuus (joskus IP-osoitteet voivat vaihdella hieman)
+          let found = false;
+          for (const ip of signatures.keys()) {
+            // Tarkistetaan, sisältääkö yksi IP toisen tai onko niillä yhteinen etuliite
+            if (
+              ip.includes(clientIp) ||
+              clientIp.includes(ip) ||
+              ip.split(".").slice(0, 3).join(".") ===
+                clientIp.split(".").slice(0, 3).join(".")
+            ) {
+              paidIPs.add(ip);
+              console.log(
+                "✅ Maksu merkitty onnistuneeksi samankaltaiselle IP:lle:",
+                ip,
+                "(alkuperäinen:",
+                clientIp,
+                ")"
+              );
+              found = true;
+              break;
+            }
+          }
 
-      console.log("All current signatures:", Array.from(signatures.keys()));
-      console.log("Looking for client IP:", clientIp);
-
-      if (signatures.has(clientIp)) {
-        paidIPs.add(clientIp);
-        console.log("✅ Payment marked as successful for IP:", clientIp);
-      } else {
-        // Try to find a close match (sometimes IP addresses can vary slightly)
-        let found = false;
-        for (const ip of signatures.keys()) {
-          // Check if one IP contains the other or if they share a common prefix
-          if (
-            ip.includes(clientIp) ||
-            clientIp.includes(ip) ||
-            ip.split(".").slice(0, 3).join(".") ===
-              clientIp.split(".").slice(0, 3).join(".")
-          ) {
-            paidIPs.add(ip);
+          if (!found) {
             console.log(
-              "✅ Payment marked as successful for similar IP:",
-              ip,
-              "(original:",
-              clientIp,
-              ")"
+              "⚠️ Varoitus: Allekirjoituksia ei löytynyt IP:lle:",
+              clientIp
             );
-            found = true;
-            break;
+            console.log(
+              "Saatavilla olevat IP:t:",
+              Array.from(signatures.keys())
+            );
+
+            // Tallennetaan IP joka tapauksessa maksetuksi
+            paidIPs.add(clientIp);
+            console.log("IP merkitty maksetuksi joka tapauksessa:", clientIp);
           }
         }
-
-        if (!found) {
-          console.log("⚠️ Warning: No signatures found for IP:", clientIp);
-          console.log("Available IPs:", Array.from(signatures.keys()));
-        }
       }
-    }
 
-    res.json({ received: true });
-  } catch (err) {
-    console.error("Webhook error:", err.message);
-    console.error("Error details:", err);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+      res.json({ received: true });
+    } catch (err) {
+      console.error("Webhook-virhe:", err.message);
+      return res.status(400).send(`Webhook-virhe: ${err.message}`);
+    }
   }
-});
+);
 
 // Sähköpostin lähetys
 app.post("/api/send-email", async (req, res) => {
