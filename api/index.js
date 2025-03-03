@@ -7,6 +7,7 @@ import path from "path";
 import archiver from "archiver";
 import { createCanvas, registerFont } from "canvas";
 import "dotenv/config";
+import JSZip from "jszip";
 
 //2. ALUSTETAAN MUUTTUJAT
 const stripe = stripePackage(process.env.STRIPE_SECRET_KEY);
@@ -17,7 +18,7 @@ const paidIPs = new Set();
 //3. MIDDLEWARE MÄÄRITTELYT
 app.use(cors());
 app.use("/api/webhook", express.raw({ type: "application/json" }));
-app.use(express.json({ limit: "50mb" }));
+app.use(express.json());
 
 //4. IP-OSOITTEEN KÄSITTELYFUNKTIOT
 function getClientIp(req) {
@@ -349,7 +350,7 @@ app.get("/api/download-signatures", (req, res) => {
     const signatureImage = createSignatureWithoutWatermark(
       userSignatures.name,
       fontStyle,
-      "black"
+      userSignatures.color || "black"
     );
     const imgBuffer = Buffer.from(
       signatureImage.replace(/^data:image\/png;base64,/, ""),
@@ -431,7 +432,7 @@ app.post(
         ].includes(event.type)
       ) {
         const session = event.data.object;
-        const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN"; // Hae IP Stripestä
+        const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
 
         console.log(
           "Kaikki tallennetut allekirjoitukset:",
@@ -443,10 +444,10 @@ app.post(
           paidIPs.add(clientIp);
           console.log("✅ Maksu merkitty onnistuneeksi IP:lle:", clientIp);
         } else {
-          // Yritä löytää samankaltainen IP (joskus IP-osoitteet voivat vaihdella hieman)
+          // Yritetään löytää läheinen vastaavuus (joskus IP-osoitteet voivat vaihdella hieman)
           let found = false;
           for (const ip of signatures.keys()) {
-            // Tarkista, sisältääkö yksi IP toisen tai onko niillä yhteinen etuliite
+            // Tarkistetaan, sisältääkö yksi IP toisen tai onko niillä yhteinen etuliite
             if (
               ip.includes(clientIp) ||
               clientIp.includes(ip) ||
@@ -475,6 +476,10 @@ app.post(
               "Saatavilla olevat IP:t:",
               Array.from(signatures.keys())
             );
+
+            // Tallennetaan IP joka tapauksessa maksetuksi
+            paidIPs.add(clientIp);
+            console.log("IP merkitty maksetuksi joka tapauksessa:", clientIp);
           }
         }
       }
