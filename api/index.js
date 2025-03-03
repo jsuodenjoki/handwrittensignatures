@@ -100,26 +100,29 @@ try {
 }
 
 //6. ALLEKIRJOITUSTEN LUONTIFUNKTIOT
-function createSignatureWithoutWatermark(name, fontStyle, color = "black") {
-  const canvas = createCanvas(600, 200);
+function createSignatureWithoutWatermark(name, fontStyle, color) {
+  console.log(
+    `Luodaan allekirjoitus ilman vesileimaa: nimi=${name}, väri=${color}`
+  );
+
+  const canvas = createCanvas(800, 300);
   const ctx = canvas.getContext("2d");
 
+  // Tyhjennä canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // Aseta fontti ja väri
   ctx.font = fontStyle.font;
-  ctx.fillStyle = color;
-  ctx.textAlign = "center";
+  ctx.fillStyle = color || "black"; // Käytä valittua väriä tai mustaa oletuksena
 
-  const textMetrics = ctx.measureText(name);
-  const centerY =
-    canvas.height / 2 +
-    (textMetrics.actualBoundingBoxAscent -
-      textMetrics.actualBoundingBoxDescent) /
-      2;
+  console.log(`Käytetään väriä: ${ctx.fillStyle}`);
 
-  ctx.fillText(name, canvas.width / 2, centerY);
+  // Piirrä allekirjoitus
+  ctx.fillText(name, 50, 150);
 
+  // Palauta base64-koodattu kuva
   return canvas.toDataURL("image/png");
 }
 
@@ -216,6 +219,7 @@ app.get("/api/check-signatures", (req, res) => {
 // Allekirjoitusten luonti
 app.post("/api/create-signatures", (req, res) => {
   const { name, color } = req.body;
+  console.log(`Luodaan allekirjoitukset: nimi=${name}, väri=${color}`);
 
   if (!name) {
     return res.status(400).json({ error: "Nimi puuttuu" });
@@ -230,19 +234,20 @@ app.post("/api/create-signatures", (req, res) => {
 
   const clientIp = getClientIpFormatted(req);
   console.log(
-    `Tallennetaan allekirjoitukset IP:lle ${clientIp}, nimi: ${name}`
+    `Tallennetaan allekirjoitukset IP:lle ${clientIp}, nimi: ${name}, väri: ${color}`
   );
 
   signatures.set(clientIp, {
     name,
     images: signatureImages,
+    color: color,
     createdAt: new Date().toISOString(),
   });
 
   console.log("Kaikki tallennetut allekirjoitukset:");
   signatures.forEach((value, key) => {
     console.log(
-      `IP: ${key}, Nimi: ${value.name}, Kuvia: ${value.images.length}`
+      `IP: ${key}, Nimi: ${value.name}, Väri: ${value.color}, Kuvia: ${value.images.length}`
     );
   });
 
@@ -360,15 +365,21 @@ app.get("/api/download-signatures", (req, res) => {
 
   // Lisää kuvat ilman vesileimaa
   signatureFonts.forEach((fontStyle, index) => {
+    console.log(
+      `Luodaan allekirjoitus ${index + 1} värilllä: ${userSignatures.color}`
+    );
+
     const signatureImage = createSignatureWithoutWatermark(
       userSignatures.name,
       fontStyle,
-      userSignatures.color
+      userSignatures.color // Käytä tallennettua väriä
     );
+
     const imgBuffer = Buffer.from(
       signatureImage.replace(/^data:image\/png;base64,/, ""),
       "base64"
     );
+
     archive.append(imgBuffer, { name: `signature-${index + 1}.png` });
   });
 

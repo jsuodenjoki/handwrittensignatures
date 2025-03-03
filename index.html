@@ -814,7 +814,7 @@
       });
 
       // Tarkista tila
-      function checkStatus(autoDownload = false) {
+      function checkStatus(autoDownload = true) {
         fetch(`${API_URL}/api/check-signatures`)
           .then((response) => response.json())
           .then((data) => {
