@@ -817,7 +817,7 @@
       let downloadStarted = false;
 
       // Tarkista tila
-      function checkStatus(autoDownload = true) {
+      function checkStatus(autoDownload = true, sessionId = null) {
         // Jos lataus on jo käynnissä, älä tee mitään
         if (downloadStarted) return;
 
@@ -840,7 +840,7 @@
 
                   // Viive ennen latausta, jotta käyttäjä näkee viestin
                   setTimeout(() => {
-                    downloadSignatures();
+                    downloadSignatures(sessionId);
                     emailContainer.style.display = "block";
                   }, 1000);
                 }
@@ -865,8 +865,13 @@
       }
 
       // Lataa allekirjoitukset
-      function downloadSignatures() {
-        window.location.href = `${API_URL}/api/download-signatures`;
+      function downloadSignatures(sessionId = null) {
+        const downloadUrl = sessionId
+          ? `${API_URL}/api/download-signatures?session_id=${sessionId}`
+          : `${API_URL}/api/download-signatures`;
+
+        console.log("Lataus URL:", downloadUrl);
+        window.location.href = downloadUrl;
       }
 
       // Osta-painikkeen toiminnallisuus
@@ -1021,7 +1026,11 @@
       // Tarkista maksun tila sivun latautuessa
       if (getQueryParam("success") === "true") {
         console.log("✅ Maksu onnistui, tarkistetaan tila...");
-        checkStatus(true);
+        const sessionId = getQueryParam("session_id");
+        console.log("Session ID:", sessionId);
+
+        // Välitä session ID latausfunktiolle
+        checkStatus(true, sessionId);
       } else if (getQueryParam("canceled") === "true") {
         console.log("❌ Maksu peruutettu.");
         statusMessage.textContent = "Maksu peruutettiin.";
