@@ -249,21 +249,35 @@ app.post("/api/create-signatures", (req, res) => {
   res.json({ images: signatureImages });
 });
 
-// Allekirjoitusten haku
+// Allekirjoitusten hakeminen
 app.get("/api/get-signatures", (req, res) => {
   const clientIp = getClientIpFormatted(req);
-  console.log(`Haetaan allekirjoitukset IP:lle ${clientIp}`);
+  console.log(`Haetaan allekirjoituksia IP:lle ${clientIp}`);
+  console.log(
+    `Kaikki tallennetut allekirjoitukset: ${Array.from(signatures.keys())}`
+  );
 
+  // Tarkistetaan ensin täsmällinen vastaavuus
   if (signatures.has(clientIp)) {
-    const data = signatures.get(clientIp);
-    console.log(
-      `Löydettiin allekirjoitukset: Nimi: ${data.name}, Kuvia: ${data.images.length}`
-    );
-    res.json(signatures.get(clientIp));
-  } else {
-    console.log(`Ei löydetty allekirjoituksia IP:lle ${clientIp}`);
-    res.status(404).json({ error: "Allekirjoituksia ei löytynyt" });
+    console.log(`Löydettiin allekirjoitukset IP:lle ${clientIp}`);
+    return res.json(signatures.get(clientIp));
   }
+
+  // Jos ei löydy täsmällistä vastaavuutta, tarkistetaan osittaiset vastaavuudet
+  for (const ip of signatures.keys()) {
+    if (
+      ip.includes(clientIp) ||
+      clientIp.includes(ip) ||
+      ip.split(".").slice(0, 3).join(".") ===
+        clientIp.split(".").slice(0, 3).join(".")
+    ) {
+      console.log(`Löydettiin allekirjoitukset samankaltaiselle IP:lle: ${ip}`);
+      return res.json(signatures.get(ip));
+    }
+  }
+
+  console.log(`Allekirjoituksia ei löytynyt IP:lle ${clientIp}`);
+  return res.status(404).json({ error: "Allekirjoituksia ei löytynyt" });
 });
 
 // Allekirjoitusten lataus

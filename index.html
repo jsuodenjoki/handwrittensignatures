@@ -813,14 +813,13 @@
         await createSignatures();
       });
 
-      // Tarkista allekirjoitusten tila
+      // Tarkista tila
       function checkStatus(autoDownload = false) {
         fetch(`${API_URL}/api/check-signatures`)
           .then((response) => response.json())
           .then((data) => {
             console.log("Tila päivitetty:", data);
 
-            // Näytä osta-painike vain jos käyttäjä on luonut allekirjoitukset
             if (data.hasSignatures) {
               if (data.hasPaid && data.canDownload) {
                 console.log("Maksu vahvistettu, ladataan allekirjoitukset...");
@@ -830,22 +829,18 @@
                 buyButton.style.display = "none";
 
                 if (autoDownload) {
-                  downloadSignatures();
-                  emailContainer.style.display = "block";
+                  // Viive ennen latausta, jotta käyttäjä näkee viestin
+                  setTimeout(() => {
+                    downloadSignatures();
+                    emailContainer.style.display = "block";
+                  }, 1000);
                 }
-              } else if (
-                statusMessage.textContent !==
-                "Aiemmin luodut allekirjoitukset ladattu."
-              ) {
-                // Näytä viesti vain jos käyttäjä on luonut allekirjoitukset ja ei ole jo "aiemmin luodut" -viestiä
+              } else {
+                // Näytä viesti vain jos käyttäjä on luonut allekirjoitukset
                 if (signaturesContainer.innerHTML.trim() !== "") {
                   statusMessage.textContent = "Allekirjoitukset luotu!";
                   statusMessage.style.color = "#6e8efb"; // Sininen väri
                   buyButton.style.display = "inline-block";
-                } else {
-                  // Älä näytä viestiä tai osta-painiketta, jos käyttäjä ei ole luonut allekirjoituksia
-                  statusMessage.textContent = "";
-                  buyButton.style.display = "none";
                 }
               }
             } else {
@@ -856,6 +851,7 @@
           })
           .catch((error) => {
             console.error("Virhe tilan tarkistuksessa:", error);
+            statusMessage.textContent = "Virhe tilan tarkistuksessa.";
           });
       }
 
@@ -1008,11 +1004,11 @@
       checkFontAvailability();
 
       if (getQueryParam("success") === "true") {
-        console.log("✅ Payment successful, checking status...");
+        console.log("✅ Maksu onnistui, tarkistetaan tila...");
         checkStatus(true);
       } else if (getQueryParam("canceled") === "true") {
-        console.log("❌ Payment canceled.");
-        statusMessage.textContent = "Payment was canceled.";
+        console.log("❌ Maksu peruutettu.");
+        statusMessage.textContent = "Maksu peruutettiin.";
       }
 
       setInterval(checkStatus, 2000);
