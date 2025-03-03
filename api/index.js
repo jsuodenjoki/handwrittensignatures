@@ -650,4 +650,22 @@ app.get("/api/check-payment/:sessionId", async (req, res) => {
   }
 });
 
+// Lisätään reitti muistin tyhjentämiseksi (vain kehitystä varten)
+app.get("/api/clear-memory", (req, res) => {
+  // Tyhjennä allekirjoitukset
+  signatures.clear();
+
+  // Tyhjennä maksetut IP:t
+  paidIPs.clear();
+
+  console.log("✅ Kaikki muisti tyhjennetty!");
+
+  res.json({
+    success: true,
+    message: "Kaikki muisti tyhjennetty",
+    signaturesSize: signatures.size,
+    paidIPsSize: paidIPs.size,
+  });
+});
+
 export default app;
