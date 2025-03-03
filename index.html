@@ -737,6 +737,11 @@
         }
       }
 
+      // Lisää tapahtumankäsittelijä painikkeelle
+      generateSignaturesButton.addEventListener("click", async () => {
+        await createSignatures();
+      });
+
       // Tarkista onko käyttäjällä jo allekirjoituksia
       async function checkExistingSignatures() {
         const clientIp = await getClientIp();
