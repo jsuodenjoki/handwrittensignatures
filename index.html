@@ -392,6 +392,16 @@
       <div id="emailTimer" class="hidden"></div>
     </div>
 
+    <div
+      id="download-again-container"
+      class="email-container"
+      style="display: none"
+    >
+      <button id="downloadAgainButton" class="button primary-button">
+        Lataa allekirjoitukset uudelleen
+      </button>
+    </div>
+
     <script>
       const API_URL =
         window.location.hostname === "localhost"
@@ -414,6 +424,12 @@
       const sendEmailButton = document.getElementById("sendEmailButton");
       const emailTimer = document.getElementById("emailTimer");
       const signatureCarousel = document.querySelector(".signature-carousel");
+      const downloadAgainContainer = document.getElementById(
+        "download-again-container"
+      );
+      const downloadAgainButton = document.getElementById(
+        "downloadAgainButton"
+      );
 
       // Fontit allekirjoituksille - alusta tyhjä lista
       const signatureFonts = [];
@@ -828,17 +844,29 @@
 
           if (data.hasSignatures) {
             if (data.hasPaid && data.canDownload) {
-              console.log("Maksu vahvistettu, ladataan allekirjoitukset...");
+              console.log("Maksu vahvistettu, allekirjoitukset ladattavissa");
               statusMessage.textContent =
-                "Maksu onnistui! Allekirjoitukset ladataan...";
+                "Maksu onnistui! Allekirjoitukset ladattavissa.";
               statusMessage.style.color = "#4CAF50"; // Vihreä väri
               buyButton.style.display = "none";
 
-              if (autoDownload) {
+              // Näytä "Lataa uudelleen" -nappi
+              downloadAgainContainer.style.display = "block";
+
+              // Näytä sähköpostikenttä
+              emailContainer.style.display = "block";
+
+              // Tarkista onko automaattinen lataus jo suoritettu
+              const hasAutoDownloaded =
+                localStorage.getItem("hasAutoDownloaded");
+
+              if (autoDownload && !hasAutoDownloaded) {
+                // Merkitse automaattinen lataus suoritetuksi
+                localStorage.setItem("hasAutoDownloaded", "true");
+
                 // Viive ennen latausta, jotta käyttäjä näkee viestin
                 setTimeout(() => {
                   downloadSignatures();
-                  emailContainer.style.display = "block";
                 }, 1000);
               }
             } else {
@@ -847,6 +875,9 @@
                 statusMessage.textContent = "Allekirjoitukset luotu!";
                 statusMessage.style.color = "#6e8efb"; // Sininen väri
                 buyButton.style.display = "inline-block";
+
+                // Piilota "Lataa uudelleen" -nappi
+                downloadAgainContainer.style.display = "none";
               }
             }
           } else if (data.hasPaid) {
@@ -861,6 +892,9 @@
             // Ei allekirjoituksia, piilota ostonappi
             buyButton.style.display = "none";
             statusMessage.textContent = "";
+
+            // Piilota "Lataa uudelleen" -nappi
+            downloadAgainContainer.style.display = "none";
           }
         } catch (error) {
           console.error("Virhe tilan tarkistuksessa:", error);
@@ -1016,6 +1050,10 @@
       async function checkPaymentStatus() {
         if (getQueryParam("success") === "true") {
           console.log("✅ Maksu onnistui, tarkistetaan tila...");
+
+          // Nollaa automaattisen latauksen tila, jos käyttäjä on juuri maksanut
+          localStorage.removeItem("hasAutoDownloaded");
+
           // Varmista että IP on haettu ennen tilan tarkistusta
           await getClientIp();
           // Odota hetki että backend ehtii käsitellä maksun
@@ -1025,6 +1063,11 @@
           statusMessage.textContent = "Maksu peruutettiin.";
         }
       }
+
+      // Lisää tapahtumankäsittelijä "Lataa uudelleen" -napille
+      downloadAgainButton.addEventListener("click", async () => {
+        await downloadSignatures();
+      });
 
       // Tarkista tila säännöllisesti, mutta varmista että IP on haettu
       setTimeout(() => {
