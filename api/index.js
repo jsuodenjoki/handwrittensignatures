@@ -171,6 +171,7 @@ app.get("/api/check-signatures", (req, res) => {
       sessionId || "ei saatavilla"
     }`
   );
+  console.log("Kaikki tallennetut IP:t:", Array.from(signatures.keys()));
   console.log("Kaikki maksetut session ID:t:", Array.from(paidIPs));
 
   const hasSignatures = signatures.has(clientIp);
@@ -184,45 +185,10 @@ app.get("/api/check-signatures", (req, res) => {
     )}`
   );
 
-  if (!hasPaid && sessionId) {
-    // Tarkistetaan osittaiset vastaavuudet session ID:lle
-    for (const id of paidIPs) {
-      console.log(
-        `Verrataan session ID:tä ${sessionId} maksettuun ID:hen ${id}`
-      );
-      if (id.includes(sessionId) || sessionId.includes(id)) {
-        hasPaid = true;
-        console.log(
-          `Session ID ${sessionId} vastaa maksettua session ID:tä ${id}`
-        );
-        // Lisätään tämä session ID myös maksettuihin
-        paidIPs.add(sessionId);
-        break;
-      }
-    }
-  } else if (!hasPaid) {
-    // Tarkistetaan osittaiset vastaavuudet IP:lle (vanha tapa)
-    for (const ip of paidIPs) {
-      if (
-        ip.includes(clientIp) ||
-        clientIp.includes(ip) ||
-        ip.split(".").slice(0, 3).join(".") ===
-          clientIp.split(".").slice(0, 3).join(".")
-      ) {
-        hasPaid = true;
-        console.log(`IP ${clientIp} vastaa osittain maksettua IP:tä ${ip}`);
-        // Lisätään tämä IP myös maksettuihin
-        paidIPs.add(clientIp);
-        break;
-      }
-    }
-  }
-
-  console.log(
-    `Tarkistetaan tila IP:lle ${clientIp}, session ID: ${
-      sessionId || "ei saatavilla"
-    }: hasSignatures=${hasSignatures}, hasPaid=${hasPaid}`
-  );
+  // Lisää debug-tietoja
+  console.log(`Allekirjoitukset löytyvät: ${hasSignatures}`);
+  console.log(`Maksu löytyy: ${hasPaid}`);
+  console.log(`Voidaanko ladata: ${hasSignatures && hasPaid}`);
 
   res.json({
     hasSignatures,
@@ -234,39 +200,31 @@ app.get("/api/check-signatures", (req, res) => {
 // Allekirjoitusten luonti
 app.post("/api/create-signatures", (req, res) => {
   const { name, color } = req.body;
-  console.log(`Luodaan allekirjoitukset: nimi=${name}, väri=${color}`);
+  const clientIp = getClientIpFormatted(req);
+
+  console.log(
+    `Luodaan allekirjoitukset IP:lle ${clientIp}, nimi: ${name}, väri: ${color}`
+  );
 
   if (!name) {
     return res.status(400).json({ error: "Nimi puuttuu" });
   }
 
-  const signatureImages = [];
+  const images = [];
 
-  for (const fontStyle of signatureFonts) {
+  // Luo allekirjoitukset eri fonteilla
+  signatureFonts.forEach((fontStyle) => {
     const signatureImage = createSignature(name, fontStyle, color);
-    signatureImages.push(signatureImage);
-  }
-
-  const clientIp = getClientIpFormatted(req);
-  console.log(
-    `Tallennetaan allekirjoitukset IP:lle ${clientIp}, nimi: ${name}, väri: ${color}`
-  );
-
-  signatures.set(clientIp, {
-    name,
-    images: signatureImages,
-    color: color,
-    createdAt: new Date().toISOString(),
+    images.push(signatureImage);
   });
 
-  console.log("Kaikki tallennetut allekirjoitukset:");
-  signatures.forEach((value, key) => {
-    console.log(
-      `IP: ${key}, Nimi: ${value.name}, Väri: ${value.color}, Kuvia: ${value.images.length}`
-    );
-  });
+  // Tallenna allekirjoitukset IP-osoitteen perusteella
+  signatures.set(clientIp, { name, color, images });
 
-  res.json({ images: signatureImages });
+  console.log(`Allekirjoitukset tallennettu IP:lle ${clientIp}`);
+  console.log(`Kaikki tallennetut IP:t: ${Array.from(signatures.keys())}`);
+
+  res.json({ images });
 });
 
 // Allekirjoitusten hakeminen
