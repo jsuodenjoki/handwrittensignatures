@@ -290,9 +290,16 @@ app.get("/api/get-signatures", (req, res) => {
   }
 });
 
-// Allekirjoitusten lataus
+// Lataa allekirjoitukset ZIP-tiedostona
 app.get("/api/download-signatures", (req, res) => {
   const clientIp = getClientIpFormatted(req);
+
+  console.log("Lataus pyydetty IP:ltä:", clientIp);
+  console.log(
+    "Kaikki tallennetut allekirjoitukset:",
+    Array.from(signatures.keys())
+  );
+  console.log("Kaikki maksetut IP:t:", Array.from(paidIPs));
 
   // Tarkistetaan ensin täsmällinen vastaavuus
   let hasSignatures = signatures.has(clientIp);
@@ -344,6 +351,7 @@ app.get("/api/download-signatures", (req, res) => {
   );
 
   if (!hasSignatures || !hasPaid) {
+    console.log("Ei oikeutta ladata allekirjoituksia");
     return res
       .status(403)
       .json({ error: "Ei oikeutta ladata allekirjoituksia" });
@@ -351,7 +359,7 @@ app.get("/api/download-signatures", (req, res) => {
 
   const userSignatures = signatures.get(signatureIp);
 
-  // Käytä käyttäjän valitsemaa väriä tai oletuksena mustaa
+  // Käytä käyttäjän valitsemaa väriä tai oletuksena sinistä
   const color = userSignatures.color || "blue";
   console.log(`Käytetään väriä: ${color}`);
 

@@ -393,12 +393,10 @@
     </div>
 
     <script>
-      const API_URL =
-        window.location.hostname === "localhost"
-          ? "http://localhost:3000"
-          : window.location.origin;
+      // Määritellään API URL Vercel-ympäristöä varten
+      const API_URL = "";  // Tyhjä merkkijono tarkoittaa suhteellista polkua samalla palvelimella
 
-      console.log("API_URL asetettu:", API_URL);
+      console.log("API_URL asetettu:", API_URL || "suhteellinen polku");
 
       // DOM-elementit
       const nameInput = document.getElementById("nameInput");
@@ -1014,29 +1012,60 @@
         ) {
           console.log("✅ Maksu onnistui, tarkistetaan tila...");
 
+          // Näytä käyttäjälle tieto
+          statusMessage.textContent = "Maksu onnistui! Tarkistetaan tila...";
+          statusMessage.style.color = "#4CAF50";
+
           // Tarkista tila heti ja sitten 2 sekunnin välein
           checkSignatureStatus();
 
+          let attempts = 0;
+          const maxAttempts = 15; // 30 sekuntia (15 * 2s)
+
           const checkInterval = setInterval(() => {
+            attempts++;
+
             checkSignatureStatus()
               .then((status) => {
+                console.log(`Tarkistus #${attempts}:`, status);
+
                 if (status.canDownload) {
                   clearInterval(checkInterval);
                   console.log("✅ Allekirjoitukset valmiina ladattavaksi!");
-                  // Aloita lataus automaattisesti
-                  window.location.href = "/api/download-signatures";
+
+                  statusMessage.textContent =
+                    "Maksu onnistui! Allekirjoitukset ladataan...";
+
+                  // Odota hetki ennen latausta
+                  setTimeout(() => {
+                    // Aloita lataus automaattisesti
+                    window.location.href = "/api/download-signatures";
+                  }, 1000);
+                } else if (attempts >= maxAttempts) {
+                  clearInterval(checkInterval);
+                  console.log("⚠️ Maksun tarkistus aikakatkaistiin");
+
+                  statusMessage.textContent =
+                    "Maksun tarkistus kesti odotettua kauemmin. Yritä ladata allekirjoitukset manuaalisesti.";
+                  statusMessage.style.color = "#ff9800";
+
+                  // Näytä lataa-painike
+                  const downloadButton = document.createElement("button");
+                  downloadButton.textContent = "Lataa allekirjoitukset";
+                  downloadButton.className = "button primary-button";
+                  downloadButton.onclick = () => {
+                    window.location.href = "/api/download-signatures";
+                  };
+
+                  document
+                    .querySelector(".container")
+                    .appendChild(downloadButton);
                 }
               })
               .catch((err) => {
                 console.error("Virhe tilan tarkistuksessa:", err);
               });
           }, 2000);
-
-          // Lopeta tarkistus 30 sekunnin jälkeen
-          setTimeout(() => {
-            clearInterval(checkInterval);
-            console.log("⚠️ Maksun tarkistus aikakatkaistiin");
-          }, 30000);
         } else if (
           new URLSearchParams(window.location.search).get("canceled") === "true"
         ) {
@@ -1127,7 +1156,6 @@
             );
           }
         }
-      }
 
       // Suorita tarkistus
       checkFontAvailability();
@@ -1159,10 +1187,18 @@
 
       // Funktio allekirjoitusten tilan tarkistamiseen
       async function checkSignatureStatus() {
-        const response = await fetch("/api/check-signatures");
-        const status = await response.json();
-        console.log("Tila päivitetty:", status);
-        return status;
+        try {
+          const response = await fetch("/api/check-signatures");
+          if (!response.ok) {
+            throw new Error(`HTTP-virhe: ${response.status}`);
+          }
+          const status = await response.json();
+          console.log("Tila päivitetty:", status);
+          return status;
+        } catch (error) {
+          console.error("Virhe tilan tarkistuksessa:", error);
+          return { hasSignatures: false, hasPaid: false, canDownload: false };
+        }
       }
     </script>
   </body>
