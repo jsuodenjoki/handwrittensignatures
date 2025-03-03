@@ -237,13 +237,12 @@ app.post("/api/create-signatures", (req, res) => {
     name,
     images: signatureImages,
     createdAt: new Date().toISOString(),
-    color: color,
   });
 
   console.log("Kaikki tallennetut allekirjoitukset:");
   signatures.forEach((value, key) => {
     console.log(
-      `IP: ${key}, Nimi: ${value.name}, Kuvia: ${value.images.length}, Väri: ${value.color}`
+      `IP: ${key}, Nimi: ${value.name}, Kuvia: ${value.images.length}`
     );
   });
 
@@ -327,7 +326,6 @@ app.get("/api/download-signatures", (req, res) => {
   }
 
   const userSignatures = signatures.get(signatureIp);
-  const userColor = userSignatures.color || "black";
 
   // Luo ZIP-tiedosto
   res.setHeader("Content-Type", "application/zip");
@@ -351,7 +349,7 @@ app.get("/api/download-signatures", (req, res) => {
     const signatureImage = createSignatureWithoutWatermark(
       userSignatures.name,
       fontStyle,
-      userColor
+      "black"
     );
     const imgBuffer = Buffer.from(
       signatureImage.replace(/^data:image\/png;base64,/, ""),
@@ -395,7 +393,7 @@ app.post("/api/create-payment", async (req, res) => {
         },
       ],
       mode: "payment",
-      success_url: `${process.env.FRONTEND_URL}?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${process.env.FRONTEND_URL}?success=true`,
       cancel_url: `${process.env.FRONTEND_URL}?canceled=true`,
       metadata: {
         clientIp,
@@ -456,8 +454,6 @@ app.post(
                 clientIp.split(".").slice(0, 3).join(".")
             ) {
               paidIPs.add(ip);
-              // Lisää myös alkuperäinen IP maksettuihin, jotta se löytyy helpommin
-              paidIPs.add(clientIp);
               console.log(
                 "✅ Maksu merkitty onnistuneeksi samankaltaiselle IP:lle:",
                 ip,
@@ -575,30 +571,25 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
 
 // Allekirjoitusten palautus
 app.post("/api/restore-signatures", (req, res) => {
-  const { name, images, color } = req.body;
+  const { name, images } = req.body;
   const clientIp = getClientIpFormatted(req);
 
   if (!name || !images || !Array.isArray(images)) {
     return res.status(400).json({ error: "Virheellinen pyyntö" });
   }
 
-  console.log(
-    `Palautetaan allekirjoitukset IP:lle ${clientIp}, nimi: ${name}, väri: ${
-      color || "ei määritelty"
-    }`
-  );
+  console.log(`Palautetaan allekirjoitukset IP:lle ${clientIp}, nimi: ${name}`);
 
   signatures.set(clientIp, {
     name,
     images,
     createdAt: new Date().toISOString(),
-    color: color || "black",
   });
 
   console.log("Kaikki tallennetut allekirjoitukset:");
   signatures.forEach((value, key) => {
     console.log(
-      `IP: ${key}, Nimi: ${value.name}, Kuvia: ${value.images.length}, Väri: ${value.color}`
+      `IP: ${key}, Nimi: ${value.name}, Kuvia: ${value.images.length}`
     );
   });
 
@@ -657,43 +648,6 @@ app.get("/api/check-payment/:sessionId", async (req, res) => {
       .status(500)
       .json({ success: false, error: "Virhe maksun tarkistuksessa" });
   }
-});
-
-// Lisätään reitti maksun merkitsemiseksi onnistuneeksi
-app.post("/api/mark-as-paid", (req, res) => {
-  const clientIp = getClientIpFormatted(req);
-
-  console.log(`Merkitään IP ${clientIp} maksaneeksi manuaalisesti`);
-
-  // Merkitse IP maksetuksi
-  paidIPs.add(clientIp);
-
-  // Tarkista onko allekirjoituksia
-  const hasSignatures = signatures.has(clientIp);
-
-  // Jos ei ole allekirjoituksia, tarkista osittaiset vastaavuudet
-  if (!hasSignatures) {
-    for (const ip of signatures.keys()) {
-      if (
-        ip.includes(clientIp) ||
-        clientIp.includes(ip) ||
-        ip.split(".").slice(0, 3).join(".") ===
-          clientIp.split(".").slice(0, 3).join(".")
-      ) {
-        // Merkitse myös tämä IP maksetuksi
-        paidIPs.add(ip);
-        console.log(`Merkitty myös samankaltainen IP ${ip} maksaneeksi`);
-        break;
-      }
-    }
-  }
-
-  res.json({
-    success: true,
-    message: "IP merkitty maksaneeksi",
-    hasSignatures: signatures.has(clientIp),
-    hasPaid: true,
-  });
 });
 
 export default app;

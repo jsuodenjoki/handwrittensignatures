@@ -690,7 +690,6 @@
               name,
               images: data.images,
               createdAt: new Date().toISOString(),
-              color: color,
             })
           );
 
@@ -848,7 +847,6 @@
             body: JSON.stringify({
               name: data.name,
               images: data.images,
-              color: data.color,
             }),
           });
 
@@ -921,39 +919,7 @@
 
       // Lataa allekirjoitukset
       function downloadSignatures() {
-        // Tarkista ensin, että käyttäjä on merkitty maksetuksi
-        fetch(`${API_URL}/api/check-signatures`)
-          .then((response) => response.json())
-          .then((data) => {
-            if (data.hasPaid && data.hasSignatures) {
-              window.location.href = `${API_URL}/api/download-signatures`;
-            } else {
-              console.log("Odotetaan maksun vahvistusta...");
-
-              // Jos käyttäjä on aloittanut maksuprosessin, merkitse hänet maksetuksi
-              if (localStorage.getItem("payment_initiated") === "true") {
-                fetch(`${API_URL}/api/mark-as-paid`, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                })
-                  .then((response) => response.json())
-                  .then((data) => {
-                    console.log("Maksun tila merkitty manuaalisesti:", data);
-
-                    // Yritä ladata uudelleen
-                    setTimeout(() => {
-                      window.location.href = `${API_URL}/api/download-signatures`;
-                    }, 500);
-                  });
-              } else {
-                statusMessage.textContent =
-                  "Maksua ei ole vahvistettu. Yritä uudelleen.";
-                statusMessage.style.color = "#f44336"; // Punainen väri
-              }
-            }
-          });
+        window.location.href = `${API_URL}/api/download-signatures`;
       }
 
       // Osta-painikkeen toiminnallisuus
@@ -963,10 +929,6 @@
             method: "POST",
           });
           const data = await response.json();
-
-          // Tallennetaan tieto, että käyttäjä on aloittanut maksuprosessin
-          localStorage.setItem("payment_initiated", "true");
-
           window.location.href = data.url;
 
           // Poista blur-efekti maksun jälkeen
@@ -1052,44 +1014,29 @@
         ) {
           console.log("✅ Maksu onnistui, tarkistetaan tila...");
 
-          // Hae session_id URL-parametreista
-          const sessionId = new URLSearchParams(window.location.search).get(
-            "session_id"
-          );
+          // Tarkista tila heti ja sitten 2 sekunnin välein
+          checkSignatureStatus();
 
-          if (sessionId) {
-            console.log("Session ID löydetty:", sessionId);
-
-            // Merkitse käyttäjä maksetuksi ennen lataamista
-            fetch(`${API_URL}/api/mark-as-paid`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-            })
-              .then((response) => response.json())
-              .then((data) => {
-                console.log("Maksun tila merkitty:", data);
-
-                // Odota hetki ennen lataamista
-                setTimeout(() => {
-                  statusMessage.textContent =
-                    "Maksu onnistui! Allekirjoitukset ladataan...";
-                  statusMessage.style.color = "#4CAF50"; // Vihreä väri
-
-                  // Lataa allekirjoitukset automaattisesti
-                  downloadSignatures();
-                  emailContainer.style.display = "block";
-                }, 1000);
+          const checkInterval = setInterval(() => {
+            checkSignatureStatus()
+              .then((status) => {
+                if (status.canDownload) {
+                  clearInterval(checkInterval);
+                  console.log("✅ Allekirjoitukset valmiina ladattavaksi!");
+                  // Aloita lataus automaattisesti
+                  window.location.href = "/api/download-signatures";
+                }
               })
-              .catch((error) => {
-                console.error("Virhe maksun merkitsemisessä:", error);
-                statusMessage.textContent = "Virhe maksun käsittelyssä.";
+              .catch((err) => {
+                console.error("Virhe tilan tarkistuksessa:", err);
               });
-          } else {
-            // Jos session_id puuttuu, käytä normaalia tarkistusta
-            checkStatus(true);
-          }
+          }, 2000);
+
+          // Lopeta tarkistus 30 sekunnin jälkeen
+          setTimeout(() => {
+            clearInterval(checkInterval);
+            console.log("⚠️ Maksun tarkistus aikakatkaistiin");
+          }, 30000);
         } else if (
           new URLSearchParams(window.location.search).get("canceled") === "true"
         ) {
