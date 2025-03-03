@@ -678,12 +678,15 @@
         ).value;
         const sessionId = getOrCreateSessionId();
 
+        console.log("Luodaan allekirjoitukset:", { name, color, sessionId });
+
         if (!name) {
           alert("Syötä nimesi ensin!");
           return;
         }
 
         try {
+          console.log("Lähetetään pyyntö palvelimelle...");
           const response = await fetch(`${API_URL}/api/create-signatures`, {
             method: "POST",
             headers: {
@@ -692,6 +695,8 @@
             body: JSON.stringify({ name, color, sessionId }),
           });
 
+          console.log("Vastaus saatu:", response.status);
+
           if (!response.ok) {
             throw new Error(
               `Virhe allekirjoituksen luonnissa: ${response.status}`
@@ -699,6 +704,7 @@
           }
 
           const data = await response.json();
+          console.log("Allekirjoitukset luotu:", data);
 
           // Näytä allekirjoitukset
           signaturesContainer.innerHTML = "";
@@ -1032,6 +1038,22 @@
       // Tarkista tila säännöllisesti
       setInterval(checkStatus, 2000);
       checkStatus();
+
+      // Luo allekirjoitukset -napin toiminnallisuus
+      generateSignaturesButton.addEventListener("click", async () => {
+        console.log("Nappia painettu");
+        await createSignatures();
+      });
+
+      // Tarkista, että nämä elementit löytyvät
+      console.log("Elementit:", {
+        generateSignaturesButton: document.getElementById(
+          "generate-signatures"
+        ),
+        nameInput: document.getElementById("name-input"),
+        colorInputs: document.querySelectorAll('input[name="color"]'),
+        signaturesContainer: document.getElementById("signatures-container"),
+      });
     </script>
   </body>
 </html>

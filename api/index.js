@@ -215,6 +215,9 @@ app.get("/api/check-signatures", (req, res) => {
 
 // Allekirjoitusten luonti
 app.post("/api/create-signatures", (req, res) => {
+  console.log("Vastaanotettu pyyntö /api/create-signatures");
+  console.log("Request body:", req.body);
+
   const { name, color, sessionId } = req.body;
   const clientIp = getClientIpFormatted(req);
 
