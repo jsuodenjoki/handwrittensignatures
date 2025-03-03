@@ -654,12 +654,29 @@
         });
       }
 
+      // Lisää funktio session ID:n luomiseen ja hakemiseen
+      function getOrCreateSessionId() {
+        let sessionId = localStorage.getItem("signatureSessionId");
+
+        if (!sessionId) {
+          // Luo uusi UUID
+          sessionId =
+            "sid-" +
+            Math.random().toString(36).substring(2, 15) +
+            Math.random().toString(36).substring(2, 15);
+          localStorage.setItem("signatureSessionId", sessionId);
+        }
+
+        return sessionId;
+      }
+
       // Luo allekirjoitukset
       async function createSignatures() {
         const name = nameInput.value.trim();
         const color = document.querySelector(
           'input[name="color"]:checked'
         ).value;
+        const sessionId = getOrCreateSessionId();
 
         if (!name) {
           alert("Syötä nimesi ensin!");
@@ -672,7 +689,7 @@
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ name, color }),
+            body: JSON.stringify({ name, color, sessionId }),
           });
 
           if (!response.ok) {
@@ -778,53 +795,21 @@
           });
       }
 
-      // Funktio allekirjoitusten lähettämiseksi takaisin palvelimelle
-      async function sendSignaturesToServer(data) {
-        try {
-          const response = await fetch(`${API_URL}/api/restore-signatures`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              name: data.name,
-              images: data.images,
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          console.log("Allekirjoitukset palautettu palvelimelle onnistuneesti");
-
-          // Tarkista tila uudelleen
-          checkStatus();
-        } catch (error) {
-          console.error(
-            "Virhe allekirjoitusten palauttamisessa palvelimelle:",
-            error
-          );
-        }
-      }
-
-      // Luo allekirjoitukset
-      generateSignaturesButton.addEventListener("click", async () => {
-        await createSignatures();
-      });
-
-      // Lisää globaali lippu latauksen seurantaan
-      let downloadStarted = false;
-
       // Tarkista tila
-      function checkStatus(autoDownload = true, sessionId = null) {
-        // Jos lataus on jo käynnissä, älä tee mitään
-        if (downloadStarted) return;
+      function checkStatus(autoDownload = true) {
+        // Hae session ID URL-parametreista tai paikallisesta tallennustilasta
+        const urlSessionId = getQueryParam("session_id");
+        const localSessionId = getOrCreateSessionId();
 
-        fetch(`${API_URL}/api/check-signatures`)
+        // Käytä URL:n session ID:tä, jos se on saatavilla (maksun jälkeen)
+        const sessionId = urlSessionId || localSessionId;
+
+        console.log("Tarkistetaan tila, sessionId:", sessionId);
+
+        fetch(`${API_URL}/api/check-signatures?session_id=${sessionId}`)
           .then((response) => response.json())
           .then((data) => {
-            console.log("Tila päivitetty:", data);
+            console.log("Tila päivitetty:", data, "sessionId:", sessionId);
 
             if (data.hasSignatures) {
               if (data.hasPaid && data.canDownload) {
@@ -840,7 +825,7 @@
 
                   // Viive ennen latausta, jotta käyttäjä näkee viestin
                   setTimeout(() => {
-                    downloadSignatures(sessionId);
+                    downloadSignatures();
                     emailContainer.style.display = "block";
                   }, 1000);
                 }
@@ -865,10 +850,12 @@
       }
 
       // Lataa allekirjoitukset
-      function downloadSignatures(sessionId = null) {
-        const downloadUrl = sessionId
-          ? `${API_URL}/api/download-signatures?session_id=${sessionId}`
-          : `${API_URL}/api/download-signatures`;
+      function downloadSignatures() {
+        const urlSessionId = getQueryParam("session_id");
+        const localSessionId = getOrCreateSessionId();
+        const sessionId = urlSessionId || localSessionId;
+
+        const downloadUrl = `${API_URL}/api/download-signatures?session_id=${sessionId}`;
 
         console.log("Lataus URL:", downloadUrl);
         window.location.href = downloadUrl;
@@ -876,9 +863,15 @@
 
       // Osta-painikkeen toiminnallisuus
       buyButton.addEventListener("click", async () => {
+        const sessionId = getOrCreateSessionId();
+
         try {
           const response = await fetch(`${API_URL}/api/create-payment`, {
             method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ sessionId }),
           });
           const data = await response.json();
           window.location.href = data.url;
