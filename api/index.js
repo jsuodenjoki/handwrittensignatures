@@ -400,14 +400,15 @@ app.post("/api/create-payment", async (req, res) => {
         },
       ],
       mode: "payment",
-      success_url: `${process.env.FRONTEND_URL}?success=true`,
+      success_url: `${process.env.FRONTEND_URL}?success=true&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.FRONTEND_URL}?canceled=true`,
       metadata: {
         clientIp,
+        sessionId: "{CHECKOUT_SESSION_ID}",
       },
     });
 
-    res.json({ url: session.url });
+    res.json({ url: session.url, sessionId: session.id });
   } catch (error) {
     console.error("Virhe maksun luonnissa:", error);
     res.status(500).json({ error: "Virhe maksun käsittelyssä" });
@@ -444,6 +445,7 @@ app.post(
       ) {
         const session = event.data.object;
         const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
+        const sessionId = session.id;
 
         console.log("Etsitään asiakkaan IP:", clientIp);
 
@@ -602,60 +604,6 @@ app.post("/api/restore-signatures", (req, res) => {
   });
 
   res.json({ success: true });
-});
-
-// Lisätään uusi reitti maksun tarkistukseen
-app.get("/api/check-payment/:sessionId", async (req, res) => {
-  try {
-    const { sessionId } = req.params;
-    const clientIp = getClientIpFormatted(req);
-
-    console.log(
-      `Tarkistetaan maksun tila sessionId:lle ${sessionId}, IP: ${clientIp}`
-    );
-
-    // Tarkista ensin, onko käyttäjä jo merkitty maksaneeksi
-    if (paidIPs.has(clientIp)) {
-      console.log(`IP ${clientIp} on jo merkitty maksaneeksi`);
-      return res.json({ success: true, status: "paid" });
-    }
-
-    // Tarkista osittaiset vastaavuudet
-    for (const ip of paidIPs) {
-      if (
-        ip.includes(clientIp) ||
-        clientIp.includes(ip) ||
-        ip.split(".").slice(0, 3).join(".") ===
-          clientIp.split(".").slice(0, 3).join(".")
-      ) {
-        console.log(`IP ${clientIp} vastaa osittain maksettua IP:tä ${ip}`);
-        paidIPs.add(clientIp); // Lisää tämä IP myös maksettuihin
-        return res.json({ success: true, status: "paid" });
-      }
-    }
-
-    // Jos ei löydy paikallisesti, tarkista Stripe API:sta
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-
-    if (session.payment_status === "paid") {
-      console.log(
-        `Maksu vahvistettu Stripe API:sta sessionId:lle ${sessionId}`
-      );
-
-      // Merkitse IP maksetuksi
-      paidIPs.add(clientIp);
-      console.log(`IP ${clientIp} merkitty maksetuksi Stripe API:n kautta`);
-
-      return res.json({ success: true, status: "paid" });
-    }
-
-    return res.json({ success: true, status: session.payment_status });
-  } catch (error) {
-    console.error("Virhe maksun tarkistuksessa:", error);
-    return res
-      .status(500)
-      .json({ success: false, error: "Virhe maksun tarkistuksessa" });
-  }
 });
 
 export default app;
