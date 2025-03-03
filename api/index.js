@@ -223,30 +223,54 @@ app.post("/api/create-signatures", (req, res) => {
 
   const signatureImages = [];
 
+  // Luo allekirjoitukset kaikilla fonteilla
   for (const fontStyle of signatureFonts) {
     const signatureImage = createSignature(name, fontStyle, color);
     signatureImages.push(signatureImage);
   }
 
   const clientIp = getClientIpFormatted(req);
+
+  // Tarkistetaan, onko käyttäjällä jo allekirjoituksia
+  const hasExistingSignatures = signatures.has(clientIp);
+
+  if (hasExistingSignatures) {
+    console.log(`Poistetaan vanhat allekirjoitukset IP:ltä ${clientIp}`);
+    signatures.delete(clientIp);
+
+    // Jos käyttäjä on maksanut, poistetaan myös maksutila
+    if (paidIPs.has(clientIp)) {
+      console.log(
+        `Poistetaan maksutila IP:ltä ${clientIp}, koska luodaan uudet allekirjoitukset`
+      );
+      paidIPs.delete(clientIp);
+    }
+  }
+
   console.log(
-    `Tallennetaan allekirjoitukset IP:lle ${clientIp}, nimi: ${name}`
+    `Tallennetaan uudet allekirjoitukset IP:lle ${clientIp}, nimi: ${name}, väri: ${color}`
   );
 
+  // Tallennetaan uudet allekirjoitukset ja väri
   signatures.set(clientIp, {
     name,
     images: signatureImages,
+    color: color || "blue", // Tallennetaan väri
     createdAt: new Date().toISOString(),
   });
 
   console.log("Kaikki tallennetut allekirjoitukset:");
   signatures.forEach((value, key) => {
     console.log(
-      `IP: ${key}, Nimi: ${value.name}, Kuvia: ${value.images.length}`
+      `IP: ${key}, Nimi: ${value.name}, Väri: ${value.color}, Kuvia: ${value.images.length}`
     );
   });
 
-  res.json({ images: signatureImages });
+  res.json({
+    images: signatureImages,
+    wasReplaced: hasExistingSignatures,
+    requiresNewPayment: hasExistingSignatures && paidIPs.has(clientIp),
+  });
 });
 
 // Allekirjoitusten haku
@@ -327,6 +351,10 @@ app.get("/api/download-signatures", (req, res) => {
 
   const userSignatures = signatures.get(signatureIp);
 
+  // Käytä käyttäjän valitsemaa väriä tai oletuksena mustaa
+  const color = userSignatures.color || "blue";
+  console.log(`Käytetään väriä: ${color}`);
+
   // Luo ZIP-tiedosto
   res.setHeader("Content-Type", "application/zip");
   res.setHeader(
@@ -344,12 +372,12 @@ app.get("/api/download-signatures", (req, res) => {
 
   archive.pipe(res);
 
-  // Lisää kuvat ilman vesileimaa
+  // Lisää kuvat ilman vesileimaa käyttäen käyttäjän valitsemaa väriä
   signatureFonts.forEach((fontStyle, index) => {
     const signatureImage = createSignatureWithoutWatermark(
       userSignatures.name,
       fontStyle,
-      "black"
+      color // Käytä käyttäjän valitsemaa väriä
     );
     const imgBuffer = Buffer.from(
       signatureImage.replace(/^data:image\/png;base64,/, ""),
@@ -361,6 +389,7 @@ app.get("/api/download-signatures", (req, res) => {
   // Lisää README-tiedosto
   const readme = `Allekirjoitukset luotu: ${new Date().toLocaleString("fi-FI")}
 Nimi: ${userSignatures.name}
+Väri: ${color}
 Tiedostoja: ${signatureFonts.length} kpl
 
 Kiitos että käytit palveluamme!`;
@@ -369,7 +398,6 @@ Kiitos että käytit palveluamme!`;
 
   archive.finalize();
 
-  // Älä poista allekirjoituksia tai maksutilaa, jotta käyttäjä voi ladata ne uudelleen tarvittaessa
   console.log(`Allekirjoitukset ladattu onnistuneesti IP:lle ${clientIp}`);
 });
 
