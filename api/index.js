@@ -154,11 +154,6 @@ function createSignature(name, fontStyle, color = "black") {
   return canvas.toDataURL("image/png");
 }
 
-// Luodaan yhdistetty tunniste IP:stä ja session ID:stä
-function createIdentifier(clientIp, sessionId) {
-  return sessionId ? `${sessionId}:${clientIp}` : clientIp;
-}
-
 //7. API REITIT
 
 // IP-osoitteen hakureitti
@@ -168,43 +163,34 @@ app.get("/api/get-client-ip", (req, res) => {
 
 // Allekirjoitusten tilan tarkistus
 app.get("/api/check-signatures", (req, res) => {
-  const clientIp = getClientIpFormatted(req);
-  const sessionId = req.query.session_id;
+  // Käytä joko URL-parametria tai fallback IP-osoitteeseen
+  const clientIp = req.query.clientIp || getClientIpFormatted(req);
+  const hasSignatures = signatures.has(clientIp);
 
-  // Luo yhdistetty tunniste
-  const identifier = createIdentifier(clientIp, sessionId);
+  // Tarkistetaan myös osittaiset IP-vastaavuudet
+  let hasPaid = paidIPs.has(clientIp);
 
-  console.log(`Tarkistetaan tila tunnisteelle ${identifier}`);
-  console.log("Kaikki tallennetut tunnisteet:", Array.from(signatures.keys()));
-  console.log("Kaikki maksetut tunnisteet:", Array.from(paidIPs));
-
-  // Tarkista onko täsmällistä vastaavuutta
-  let hasSignatures = signatures.has(identifier);
-  let hasPaid = paidIPs.has(identifier) || paidIPs.has(sessionId);
-
-  // Jos ei löydy täsmällistä vastaavuutta, etsi osittaisia vastaavuuksia
-  if (!hasSignatures) {
-    for (const key of signatures.keys()) {
-      // Tarkista sisältääkö avain session ID:n tai IP:n
-      if ((sessionId && key.includes(sessionId)) || key.includes(clientIp)) {
-        hasSignatures = true;
-        console.log(
-          `Löydettiin allekirjoitukset osittaisella vastaavuudella: ${key}`
-        );
+  if (!hasPaid) {
+    // Tarkistetaan osittaiset vastaavuudet
+    for (const ip of paidIPs) {
+      if (
+        ip.includes(clientIp) ||
+        clientIp.includes(ip) ||
+        ip.split(".").slice(0, 3).join(".") ===
+          clientIp.split(".").slice(0, 3).join(".")
+      ) {
+        hasPaid = true;
+        console.log(`IP ${clientIp} vastaa osittain maksettua IP:tä ${ip}`);
+        // Lisätään tämä IP myös maksettuihin, jotta jatkossa tarkistus on nopeampi
+        paidIPs.add(clientIp);
         break;
       }
     }
   }
 
-  // Tarkista maksu
-  if (!hasPaid && sessionId) {
-    // Tarkista onko session ID maksettu
-    hasPaid = paidIPs.has(sessionId);
-  }
-
-  console.log(`Allekirjoitukset löytyvät: ${hasSignatures}`);
-  console.log(`Maksu löytyy: ${hasPaid}`);
-  console.log(`Voidaanko ladata: ${hasSignatures && hasPaid}`);
+  console.log(
+    `Tarkistetaan tila IP:lle ${clientIp}: hasSignatures=${hasSignatures}, hasPaid=${hasPaid}`
+  );
 
   res.json({
     hasSignatures,
@@ -215,52 +201,47 @@ app.get("/api/check-signatures", (req, res) => {
 
 // Allekirjoitusten luonti
 app.post("/api/create-signatures", (req, res) => {
-  console.log("Vastaanotettu pyyntö /api/create-signatures");
-  console.log("Request body:", req.body);
-
-  const { name, color, sessionId } = req.body;
-  const clientIp = getClientIpFormatted(req);
-
-  // Luo yhdistetty tunniste
-  const identifier = createIdentifier(clientIp, sessionId);
-
-  console.log(
-    `Luodaan allekirjoitukset tunnisteelle ${identifier}, nimi: ${name}, väri: ${color}`
-  );
+  const { name, color, clientIp } = req.body;
+  console.log(`Luodaan allekirjoitukset: nimi=${name}, väri=${color}`);
 
   if (!name) {
     return res.status(400).json({ error: "Nimi puuttuu" });
   }
 
-  const images = [];
+  const signatureImages = [];
 
-  // Luo allekirjoitukset eri fonteilla
-  signatureFonts.forEach((fontStyle) => {
+  for (const fontStyle of signatureFonts) {
     const signatureImage = createSignature(name, fontStyle, color);
-    images.push(signatureImage);
-  });
+    signatureImages.push(signatureImage);
+  }
 
-  // Tallenna allekirjoitukset yhdistetyllä tunnisteella
-  signatures.set(identifier, {
+  // Käytä joko pyynnössä lähetettyä clientIp:tä tai fallback IP-osoitteeseen
+  const ipToUse = clientIp || getClientIpFormatted(req);
+  console.log(
+    `Tallennetaan allekirjoitukset IP:lle ${ipToUse}, nimi: ${name}, väri: ${color}`
+  );
+
+  signatures.set(ipToUse, {
     name,
-    color,
-    images,
-    sessionId,
-    clientIp,
+    images: signatureImages,
+    color: color,
     createdAt: new Date().toISOString(),
   });
 
-  console.log(`Allekirjoitukset tallennettu tunnisteelle ${identifier}`);
-  console.log(
-    `Kaikki tallennetut tunnisteet: ${Array.from(signatures.keys())}`
-  );
+  console.log("Kaikki tallennetut allekirjoitukset:");
+  signatures.forEach((value, key) => {
+    console.log(
+      `IP: ${key}, Nimi: ${value.name}, Väri: ${value.color}, Kuvia: ${value.images.length}`
+    );
+  });
 
-  res.json({ images });
+  res.json({ images: signatureImages });
 });
 
 // Allekirjoitusten hakeminen
 app.get("/api/get-signatures", (req, res) => {
-  const clientIp = getClientIpFormatted(req);
+  // Käytä joko URL-parametria tai fallback IP-osoitteeseen
+  const clientIp = req.query.clientIp || getClientIpFormatted(req);
   console.log(`Haetaan allekirjoituksia IP:lle ${clientIp}`);
   console.log(
     `Kaikki tallennetut allekirjoitukset: ${Array.from(signatures.keys())}`
@@ -291,45 +272,57 @@ app.get("/api/get-signatures", (req, res) => {
 
 // Allekirjoitusten lataus
 app.get("/api/download-signatures", (req, res) => {
-  const clientIp = getClientIpFormatted(req);
-  const sessionId = req.query.session_id;
-
-  // Luo yhdistetty tunniste
-  const identifier = createIdentifier(clientIp, sessionId);
-
-  console.log(`Lataus pyydetty tunnisteelle ${identifier}`);
+  // Käytä joko URL-parametria tai fallback IP-osoitteeseen
+  const clientIp = req.query.clientIp || getClientIpFormatted(req);
 
   // Tarkistetaan ensin täsmällinen vastaavuus
-  let hasSignatures = signatures.has(identifier);
-  let hasPaid = paidIPs.has(identifier) || paidIPs.has(sessionId);
-  let signatureKey = identifier;
+  let hasSignatures = signatures.has(clientIp);
+  let hasPaid = paidIPs.has(clientIp);
+  let signatureIp = clientIp;
 
-  // Jos ei löydy täsmällistä vastaavuutta, etsi osittaisia vastaavuuksia
-  if (!hasSignatures) {
-    for (const key of signatures.keys()) {
-      // Tarkista sisältääkö avain session ID:n tai IP:n
-      if ((sessionId && key.includes(sessionId)) || key.includes(clientIp)) {
-        hasSignatures = true;
-        signatureKey = key;
-        console.log(
-          `Löydettiin allekirjoitukset osittaisella vastaavuudella: ${key}`
-        );
-        break;
+  // Jos ei löydy täsmällistä vastaavuutta, tarkistetaan osittaiset vastaavuudet
+  if (!hasSignatures || !hasPaid) {
+    console.log("Etsitään osittaisia IP-vastaavuuksia latausta varten...");
+
+    // Tarkistetaan allekirjoitukset
+    if (!hasSignatures) {
+      for (const ip of signatures.keys()) {
+        if (
+          ip.includes(clientIp) ||
+          clientIp.includes(ip) ||
+          ip.split(".").slice(0, 3).join(".") ===
+            clientIp.split(".").slice(0, 3).join(".")
+        ) {
+          hasSignatures = true;
+          signatureIp = ip; // Tallennetaan löydetty IP
+          console.log(
+            `Löydettiin allekirjoitukset samankaltaiselle IP:lle: ${ip}`
+          );
+          break;
+        }
+      }
+    }
+
+    // Tarkistetaan maksutila
+    if (!hasPaid) {
+      for (const ip of paidIPs) {
+        if (
+          ip.includes(clientIp) ||
+          clientIp.includes(ip) ||
+          ip.split(".").slice(0, 3).join(".") ===
+            clientIp.split(".").slice(0, 3).join(".")
+        ) {
+          hasPaid = true;
+          console.log(`Löydettiin maksutila samankaltaiselle IP:lle: ${ip}`);
+          break;
+        }
       }
     }
   }
 
-  // Tarkista maksu
-  if (!hasPaid && sessionId) {
-    // Tarkista onko session ID maksettu
-    hasPaid = paidIPs.has(sessionId);
-  }
-
   console.log(
-    `Allekirjoitukset löytyvät: ${hasSignatures}, avain: ${signatureKey}`
+    `Lataus IP:lle ${clientIp}: hasSignatures=${hasSignatures}, hasPaid=${hasPaid}`
   );
-  console.log(`Maksu löytyy: ${hasPaid}`);
-  console.log(`Voidaanko ladata: ${hasSignatures && hasPaid}`);
 
   if (!hasSignatures || !hasPaid) {
     return res
@@ -337,7 +330,7 @@ app.get("/api/download-signatures", (req, res) => {
       .json({ error: "Ei oikeutta ladata allekirjoituksia" });
   }
 
-  const userSignatures = signatures.get(signatureKey);
+  const userSignatures = signatures.get(signatureIp);
 
   // Luo ZIP-tiedosto
   res.setHeader("Content-Type", "application/zip");
@@ -394,13 +387,8 @@ Kiitos että käytit palveluamme!`;
 // Stripe-maksun luonti
 app.post("/api/create-payment", async (req, res) => {
   try {
-    const clientIp = getClientIpFormatted(req);
-    const { sessionId } = req.body;
-
-    // Luo yhdistetty tunniste
-    const identifier = createIdentifier(clientIp, sessionId);
-
-    console.log(`Luodaan maksu tunnisteelle ${identifier}`);
+    // Käytä joko pyynnössä lähetettyä clientIp:tä tai fallback IP-osoitteeseen
+    const clientIp = req.body.clientIp || getClientIpFormatted(req);
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -409,28 +397,25 @@ app.post("/api/create-payment", async (req, res) => {
           price_data: {
             currency: "eur",
             product_data: {
-              name: "Allekirjoitukset",
-              description: "Lataa allekirjoitukset ilman vesileimaa",
+              name: "Allekirjoitusten luonti",
             },
-            unit_amount: 100, // 5 EUR
+            unit_amount: 100,
           },
           quantity: 1,
         },
       ],
       mode: "payment",
-      success_url: `${process.env.FRONTEND_URL}?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${process.env.FRONTEND_URL}?success=true`,
       cancel_url: `${process.env.FRONTEND_URL}?canceled=true`,
       metadata: {
         clientIp,
-        sessionId,
-        identifier,
       },
     });
 
     res.json({ url: session.url });
   } catch (error) {
     console.error("Virhe maksun luonnissa:", error);
-    res.status(500).json({ error: "Virhe maksun luonnissa" });
+    res.status(500).json({ error: "Virhe maksun käsittelyssä" });
   }
 });
 
@@ -449,6 +434,11 @@ app.post(
       );
 
       console.log("Webhook-tapahtuma vastaanotettu:", event.type);
+      console.log(
+        "Kaikki tallennetut allekirjoitukset:",
+        Array.from(signatures.keys())
+      );
+      console.log("Kaikki maksetut IP:t:", Array.from(paidIPs));
 
       if (
         [
@@ -458,29 +448,52 @@ app.post(
         ].includes(event.type)
       ) {
         const session = event.data.object;
-        const stripeSessionId = session.id;
         const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
-        const sessionId = session.metadata?.sessionId?.trim();
-        const identifier = session.metadata?.identifier?.trim();
 
-        console.log("Stripe Session ID:", stripeSessionId);
-        console.log("Client IP:", clientIp);
-        console.log("Session ID:", sessionId);
-        console.log("Identifier:", identifier);
+        console.log("Etsitään asiakkaan IP:", clientIp);
 
-        // Tallenna kaikki mahdolliset tunnisteet maksetuksi
-        paidIPs.add(stripeSessionId); // Stripe session ID
+        if (signatures.has(clientIp)) {
+          paidIPs.add(clientIp);
+          console.log("✅ Maksu merkitty onnistuneeksi IP:lle:", clientIp);
+        } else {
+          // Yritetään löytää läheinen vastaavuus (joskus IP-osoitteet voivat vaihdella hieman)
+          let found = false;
+          for (const ip of signatures.keys()) {
+            // Tarkistetaan, sisältääkö yksi IP toisen tai onko niillä yhteinen etuliite
+            if (
+              ip.includes(clientIp) ||
+              clientIp.includes(ip) ||
+              ip.split(".").slice(0, 3).join(".") ===
+                clientIp.split(".").slice(0, 3).join(".")
+            ) {
+              paidIPs.add(ip);
+              console.log(
+                "✅ Maksu merkitty onnistuneeksi samankaltaiselle IP:lle:",
+                ip,
+                "(alkuperäinen:",
+                clientIp,
+                ")"
+              );
+              found = true;
+              break;
+            }
+          }
 
-        if (identifier) {
-          paidIPs.add(identifier); // Yhdistetty tunniste
+          if (!found) {
+            console.log(
+              "⚠️ Varoitus: Allekirjoituksia ei löytynyt IP:lle:",
+              clientIp
+            );
+            console.log(
+              "Saatavilla olevat IP:t:",
+              Array.from(signatures.keys())
+            );
+
+            // Tallennetaan IP joka tapauksessa maksetuksi
+            paidIPs.add(clientIp);
+            console.log("IP merkitty maksetuksi joka tapauksessa:", clientIp);
+          }
         }
-
-        if (sessionId) {
-          paidIPs.add(sessionId); // Käyttäjän session ID
-        }
-
-        console.log("✅ Maksu merkitty onnistuneeksi");
-        console.log("Kaikki maksetut tunnisteet:", Array.from(paidIPs));
       }
 
       res.json({ received: true });
@@ -494,10 +507,11 @@ app.post(
 // Sähköpostin lähetys
 app.post("/api/send-email", async (req, res) => {
   try {
-    const { email } = req.body;
-    const clientIp = getClientIpFormatted(req);
+    const { email, clientIp } = req.body;
+    // Käytä joko pyynnössä lähetettyä clientIp:tä tai fallback IP-osoitteeseen
+    const ipToUse = clientIp || getClientIpFormatted(req);
 
-    if (!email || !signatures.has(clientIp) || !paidIPs.has(clientIp)) {
+    if (!email || !signatures.has(ipToUse) || !paidIPs.has(ipToUse)) {
       return res.status(400).json({
         error: "Virheellinen pyyntö tai ei oikeutta lähettää sähköpostia",
       });

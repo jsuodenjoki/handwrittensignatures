@@ -429,6 +429,29 @@
         "Tiina Järvinen",
       ];
 
+      // Tallenna käyttäjän IP-osoite localStorageen
+      async function saveClientIp() {
+        try {
+          const response = await fetch(`${API_URL}/api/get-client-ip`);
+          const clientIp = await response.text();
+          localStorage.setItem("clientIp", clientIp);
+          console.log("IP tallennettu localStorageen:", clientIp);
+          return clientIp;
+        } catch (error) {
+          console.error("Virhe IP:n tallennuksessa:", error);
+          return null;
+        }
+      }
+
+      // Hae tallennettu IP-osoite tai hae uusi
+      async function getClientIp() {
+        let clientIp = localStorage.getItem("clientIp");
+        if (!clientIp) {
+          clientIp = await saveClientIp();
+        }
+        return clientIp;
+      }
+
       // Luo allekirjoitukset karuselliin
       async function initializeCarousel() {
         // Tyhjennä karuselli
@@ -436,6 +459,9 @@
 
         // Odota että fontit on ladattu
         await document.fonts.ready;
+
+        // Varmista että käyttäjän IP on tallennettu
+        await getClientIp();
 
         console.log("Alustetaan karuselli käyttäen backend-reittiä");
 
@@ -654,31 +680,13 @@
         });
       }
 
-      // Lisää funktio session ID:n luomiseen ja hakemiseen
-      function getOrCreateSessionId() {
-        let sessionId = localStorage.getItem("signatureSessionId");
-
-        if (!sessionId) {
-          // Luo uusi UUID
-          sessionId =
-            "sid-" +
-            Math.random().toString(36).substring(2, 15) +
-            Math.random().toString(36).substring(2, 15);
-          localStorage.setItem("signatureSessionId", sessionId);
-        }
-
-        return sessionId;
-      }
-
       // Luo allekirjoitukset
       async function createSignatures() {
         const name = nameInput.value.trim();
         const color = document.querySelector(
           'input[name="color"]:checked'
         ).value;
-        const sessionId = getOrCreateSessionId();
-
-        console.log("Luodaan allekirjoitukset:", { name, color, sessionId });
+        const clientIp = await getClientIp();
 
         if (!name) {
           alert("Syötä nimesi ensin!");
@@ -686,16 +694,13 @@
         }
 
         try {
-          console.log("Lähetetään pyyntö palvelimelle...");
           const response = await fetch(`${API_URL}/api/create-signatures`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ name, color, sessionId }),
+            body: JSON.stringify({ name, color, clientIp }),
           });
-
-          console.log("Vastaus saatu:", response.status);
 
           if (!response.ok) {
             throw new Error(
@@ -704,7 +709,6 @@
           }
 
           const data = await response.json();
-          console.log("Allekirjoitukset luotu:", data);
 
           // Näytä allekirjoitukset
           signaturesContainer.innerHTML = "";
@@ -734,9 +738,11 @@
       }
 
       // Tarkista onko käyttäjällä jo allekirjoituksia
-      function checkExistingSignatures() {
+      async function checkExistingSignatures() {
+        const clientIp = await getClientIp();
+
         // Jos paikallisesta tallennustilasta ei löydy, tarkista palvelimelta
-        fetch(`${API_URL}/api/get-signatures`)
+        fetch(`${API_URL}/api/get-signatures?clientIp=${clientIp}`)
           .then((response) => {
             if (response.ok) return response.json();
             throw new Error("Ei allekirjoituksia");
@@ -802,20 +808,13 @@
       }
 
       // Tarkista tila
-      function checkStatus(autoDownload = true) {
-        // Hae session ID URL-parametreista tai paikallisesta tallennustilasta
-        const urlSessionId = getQueryParam("session_id");
-        const localSessionId = getOrCreateSessionId();
+      async function checkStatus(autoDownload = true) {
+        const clientIp = await getClientIp();
 
-        // Käytä URL:n session ID:tä, jos se on saatavilla (maksun jälkeen)
-        const sessionId = urlSessionId || localSessionId;
-
-        console.log("Tarkistetaan tila, sessionId:", sessionId);
-
-        fetch(`${API_URL}/api/check-signatures?session_id=${sessionId}`)
+        fetch(`${API_URL}/api/check-signatures?clientIp=${clientIp}`)
           .then((response) => response.json())
           .then((data) => {
-            console.log("Tila päivitetty:", data, "sessionId:", sessionId);
+            console.log("Tila päivitetty:", data);
 
             if (data.hasSignatures) {
               if (data.hasPaid && data.canDownload) {
@@ -825,10 +824,7 @@
                 statusMessage.style.color = "#4CAF50"; // Vihreä väri
                 buyButton.style.display = "none";
 
-                if (autoDownload && !downloadStarted) {
-                  // Aseta lippu estämään useita latauksia
-                  downloadStarted = true;
-
+                if (autoDownload) {
                   // Viive ennen latausta, jotta käyttäjä näkee viestin
                   setTimeout(() => {
                     downloadSignatures();
@@ -856,28 +852,21 @@
       }
 
       // Lataa allekirjoitukset
-      function downloadSignatures() {
-        const urlSessionId = getQueryParam("session_id");
-        const localSessionId = getOrCreateSessionId();
-        const sessionId = urlSessionId || localSessionId;
-
-        const downloadUrl = `${API_URL}/api/download-signatures?session_id=${sessionId}`;
-
-        console.log("Lataus URL:", downloadUrl);
-        window.location.href = downloadUrl;
+      async function downloadSignatures() {
+        const clientIp = await getClientIp();
+        window.location.href = `${API_URL}/api/download-signatures?clientIp=${clientIp}`;
       }
 
       // Osta-painikkeen toiminnallisuus
       buyButton.addEventListener("click", async () => {
-        const sessionId = getOrCreateSessionId();
-
         try {
+          const clientIp = await getClientIp();
           const response = await fetch(`${API_URL}/api/create-payment`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ sessionId }),
+            body: JSON.stringify({ clientIp }),
           });
           const data = await response.json();
           window.location.href = data.url;
@@ -890,6 +879,7 @@
       // Sähköpostin lähetys
       sendEmailButton.addEventListener("click", async () => {
         const email = emailInput.value.trim();
+        const clientIp = await getClientIp();
 
         if (!email) {
           alert("Syötä sähköpostiosoite ensin!");
@@ -902,7 +892,7 @@
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ email }),
+            body: JSON.stringify({ email, clientIp }),
           });
 
           const data = await response.json();
@@ -988,33 +978,14 @@
       }
 
       // Käynnistä fonttien lataus ja alustus
-      loadFontsAndInitialize();
-
-      // Tarkista fonttitiedostojen saatavuus
-      async function checkFontAvailability() {
-        const fontPaths = [
-          "./fonts/omafontti1.ttf",
-          "/fonts/omafontti1.ttf",
-          "../public/fonts/omafontti1.ttf",
-        ];
-
-        for (const path of fontPaths) {
-          try {
-            const response = await fetch(path, { method: "HEAD" });
-            console.log(
-              `Fonttitiedoston tarkistus (${path}): ${response.status}`
-            );
-          } catch (error) {
-            console.error(
-              `Virhe fonttitiedoston tarkistuksessa (${path}):`,
-              error
-            );
-          }
-        }
+      async function initialize() {
+        // Tallenna IP-osoite heti alussa
+        await saveClientIp();
+        await loadFontsAndInitialize();
       }
 
-      // Suorita tarkistus
-      checkFontAvailability();
+      // Käynnistä sovellus
+      initialize();
 
       // Tarkista URL-parametrit sivun latautuessa
       function getQueryParam(name) {
@@ -1025,11 +996,7 @@
       // Tarkista maksun tila sivun latautuessa
       if (getQueryParam("success") === "true") {
         console.log("✅ Maksu onnistui, tarkistetaan tila...");
-        const sessionId = getQueryParam("session_id");
-        console.log("Session ID:", sessionId);
-
-        // Välitä session ID latausfunktiolle
-        checkStatus(true, sessionId);
+        checkStatus(true);
       } else if (getQueryParam("canceled") === "true") {
         console.log("❌ Maksu peruutettu.");
         statusMessage.textContent = "Maksu peruutettiin.";
@@ -1038,22 +1005,6 @@
       // Tarkista tila säännöllisesti
       setInterval(checkStatus, 2000);
       checkStatus();
-
-      // Luo allekirjoitukset -napin toiminnallisuus
-      generateSignaturesButton.addEventListener("click", async () => {
-        console.log("Nappia painettu");
-        await createSignatures();
-      });
-
-      // Tarkista, että nämä elementit löytyvät
-      console.log("Elementit:", {
-        generateSignaturesButton: document.getElementById(
-          "generate-signatures"
-        ),
-        nameInput: document.getElementById("name-input"),
-        colorInputs: document.querySelectorAll('input[name="color"]'),
-        signaturesContainer: document.getElementById("signatures-container"),
-      });
     </script>
   </body>
 </html>
