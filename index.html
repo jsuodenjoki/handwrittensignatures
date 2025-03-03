@@ -813,8 +813,14 @@
         await createSignatures();
       });
 
+      // Lisää globaali lippu latauksen seurantaan
+      let downloadStarted = false;
+
       // Tarkista tila
       function checkStatus(autoDownload = true) {
+        // Jos lataus on jo käynnissä, älä tee mitään
+        if (downloadStarted) return;
+
         fetch(`${API_URL}/api/check-signatures`)
           .then((response) => response.json())
           .then((data) => {
@@ -828,7 +834,10 @@
                 statusMessage.style.color = "#4CAF50"; // Vihreä väri
                 buyButton.style.display = "none";
 
-                if (autoDownload) {
+                if (autoDownload && !downloadStarted) {
+                  // Aseta lippu estämään useita latauksia
+                  downloadStarted = true;
+
                   // Viive ennen latausta, jotta käyttäjä näkee viestin
                   setTimeout(() => {
                     downloadSignatures();
