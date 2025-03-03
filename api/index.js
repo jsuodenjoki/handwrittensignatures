@@ -409,7 +409,7 @@ app.post("/api/create-payment", async (req, res) => {
               name: "Allekirjoitukset",
               description: "Lataa allekirjoitukset ilman vesileimaa",
             },
-            unit_amount: 500, // 5 EUR
+            unit_amount: 100, // 5 EUR
           },
           quantity: 1,
         },
