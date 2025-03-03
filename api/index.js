@@ -17,7 +17,7 @@ const paidIPs = new Set();
 //3. MIDDLEWARE MÄÄRITTELYT
 app.use(cors());
 app.use("/api/webhook", express.raw({ type: "application/json" }));
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
 
 //4. IP-OSOITTEEN KÄSITTELYFUNKTIOT
 function getClientIp(req) {
