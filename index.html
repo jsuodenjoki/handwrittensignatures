@@ -1213,14 +1213,23 @@
 
         // Pieni viive ennen ohjausta etusivulle
         setTimeout(() => {
-          // Ohjaa käyttäjä etusivulle
+          // Ohjaa käyttäjä etusivulle ja pakota sivu latautumaan uudelleen
           window.location.href =
-            window.location.origin + window.location.pathname;
+            window.location.origin + window.location.pathname + "?reset=true";
         }, 1500);
       }
 
       // Lisää tapahtumankäsittelijä "Luo lisää allekirjoituksia" -napille
       resetButton.addEventListener("click", resetAllData);
+
+      // Tarkista onko sivu ladattu resetoinnin jälkeen
+      if (getQueryParam("reset") === "true") {
+        console.log("Sivu ladattu resetoinnin jälkeen");
+        // Poista reset-parametri URL:sta ilman sivun uudelleenlatausta
+        const url = new URL(window.location);
+        url.searchParams.delete("reset");
+        window.history.replaceState({}, document.title, url);
+      }
     </script>
   </body>
 </html>
