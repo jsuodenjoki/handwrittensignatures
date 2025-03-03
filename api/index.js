@@ -431,7 +431,7 @@ app.post(
         ].includes(event.type)
       ) {
         const session = event.data.object;
-        const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
+        const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN"; // Hae IP Stripestä
 
         console.log(
           "Kaikki tallennetut allekirjoitukset:",
@@ -443,10 +443,10 @@ app.post(
           paidIPs.add(clientIp);
           console.log("✅ Maksu merkitty onnistuneeksi IP:lle:", clientIp);
         } else {
-          // Yritetään löytää läheinen vastaavuus (joskus IP-osoitteet voivat vaihdella hieman)
+          // Yritä löytää samankaltainen IP (joskus IP-osoitteet voivat vaihdella hieman)
           let found = false;
           for (const ip of signatures.keys()) {
-            // Tarkistetaan, sisältääkö yksi IP toisen tai onko niillä yhteinen etuliite
+            // Tarkista, sisältääkö yksi IP toisen tai onko niillä yhteinen etuliite
             if (
               ip.includes(clientIp) ||
               clientIp.includes(ip) ||
@@ -475,10 +475,6 @@ app.post(
               "Saatavilla olevat IP:t:",
               Array.from(signatures.keys())
             );
-
-            // Tallennetaan IP joka tapauksessa maksetuksi
-            paidIPs.add(clientIp);
-            console.log("IP merkitty maksetuksi joka tapauksessa:", clientIp);
           }
         }
       }
