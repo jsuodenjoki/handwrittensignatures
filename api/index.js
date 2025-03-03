@@ -166,31 +166,23 @@ app.get("/api/check-signatures", (req, res) => {
   const clientIp = getClientIpFormatted(req);
   const hasSignatures = signatures.has(clientIp);
 
-  // Hae session ID URL:sta, jos se on annettu
-  const urlSessionId = req.query.session_id;
+  // Tarkistetaan myös osittaiset IP-vastaavuudet
+  let hasPaid = paidIPs.has(clientIp);
 
-  // Tarkista, onko URL:n session ID maksettu
-  let hasPaid = urlSessionId ? paidIPs.has(urlSessionId) : false;
-
-  // Jos URL:n session ID:tä ei ole annettu tai se ei ole maksettu, tarkista IP-osoite
   if (!hasPaid) {
-    hasPaid = paidIPs.has(clientIp);
-
     // Tarkistetaan osittaiset vastaavuudet
-    if (!hasPaid) {
-      for (const ip of paidIPs) {
-        if (
-          ip.includes(clientIp) ||
-          clientIp.includes(ip) ||
-          ip.split(".").slice(0, 3).join(".") ===
-            clientIp.split(".").slice(0, 3).join(".")
-        ) {
-          hasPaid = true;
-          console.log(`IP ${clientIp} vastaa osittain maksettua IP:tä ${ip}`);
-          // Lisätään tämä IP myös maksettuihin, jotta jatkossa tarkistus on nopeampi
-          paidIPs.add(clientIp);
-          break;
-        }
+    for (const ip of paidIPs) {
+      if (
+        ip.includes(clientIp) ||
+        clientIp.includes(ip) ||
+        ip.split(".").slice(0, 3).join(".") ===
+          clientIp.split(".").slice(0, 3).join(".")
+      ) {
+        hasPaid = true;
+        console.log(`IP ${clientIp} vastaa osittain maksettua IP:tä ${ip}`);
+        // Lisätään tämä IP myös maksettuihin, jotta jatkossa tarkistus on nopeampi
+        paidIPs.add(clientIp);
+        break;
       }
     }
   }
@@ -278,12 +270,11 @@ app.get("/api/get-signatures", (req, res) => {
 // Allekirjoitusten lataus
 app.get("/api/download-signatures", (req, res) => {
   const clientIp = getClientIpFormatted(req);
-
-  const urlSessionId = req.query.session_id;
+  const sessionId = req.query.session_id;
 
   // Tarkistetaan ensin täsmällinen vastaavuus
   let hasSignatures = signatures.has(clientIp);
-  let hasPaid = urlSessionId ? paidIPs.has(urlSessionId) : false;
+  let hasPaid = paidIPs.has(sessionId);
   let signatureIp = clientIp;
 
   // Jos ei löydy täsmällistä vastaavuutta, tarkistetaan osittaiset vastaavuudet
@@ -313,7 +304,7 @@ app.get("/api/download-signatures", (req, res) => {
     if (!hasPaid) {
       for (const ip of paidIPs) {
         if (
-          ip.includes(clientIp) ||
+          ip.includes(sessionId) ||
           clientIp.includes(ip) ||
           ip.split(".").slice(0, 3).join(".") ===
             clientIp.split(".").slice(0, 3).join(".")
@@ -394,6 +385,7 @@ Kiitos että käytit palveluamme!`;
 app.post("/api/create-payment", async (req, res) => {
   try {
     const clientIp = getClientIpFormatted(req);
+    console.log(`Luodaan maksu IP:lle ${clientIp}`);
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -402,26 +394,26 @@ app.post("/api/create-payment", async (req, res) => {
           price_data: {
             currency: "eur",
             product_data: {
-              name: "Allekirjoitusten luonti",
+              name: "Allekirjoitukset",
+              description: "Lataa allekirjoitukset ilman vesileimaa",
             },
-            unit_amount: 100,
+            unit_amount: 500, // 5 EUR
           },
           quantity: 1,
         },
       ],
       mode: "payment",
-      success_url: `${process.env.FRONTEND_URL}?success=true`,
+      success_url: `${process.env.FRONTEND_URL}?success=true&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.FRONTEND_URL}?canceled=true`,
       metadata: {
         clientIp,
-        sessionId: "{CHECKOUT_SESSION_ID}",
       },
     });
 
     res.json({ url: session.url });
   } catch (error) {
     console.error("Virhe maksun luonnissa:", error);
-    res.status(500).json({ error: "Virhe maksun käsittelyssä" });
+    res.status(500).json({ error: "Virhe maksun luonnissa" });
   }
 });
 
@@ -454,17 +446,59 @@ app.post(
         ].includes(event.type)
       ) {
         const session = event.data.object;
-        const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
         const sessionId = session.id;
+        const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
 
         console.log("Etsitään asiakkaan IP:", clientIp);
+        console.log("Session ID:", sessionId);
 
-        // Lisää session ID maksetuksi
-        paidIPs.add(sessionId);
-        console.log(
-          "✅ Maksu merkitty onnistuneeksi session ID:lle:",
-          sessionId
-        );
+        if (signatures.has(clientIp)) {
+          paidIPs.add(sessionId); // Tallenna session ID
+          console.log("✅ Maksu merkitty onnistuneeksi IP:lle:", clientIp);
+          console.log("Session ID tallennettu:", sessionId);
+        } else {
+          // Yritetään löytää läheinen vastaavuus (joskus IP-osoitteet voivat vaihdella hieman)
+          let found = false;
+          for (const ip of signatures.keys()) {
+            // Tarkistetaan, sisältääkö yksi IP toisen tai onko niillä yhteinen etuliite
+            if (
+              ip.includes(clientIp) ||
+              clientIp.includes(ip) ||
+              ip.split(".").slice(0, 3).join(".") ===
+                clientIp.split(".").slice(0, 3).join(".")
+            ) {
+              paidIPs.add(sessionId); // Tallenna session ID
+              console.log(
+                "✅ Maksu merkitty onnistuneeksi samankaltaiselle IP:lle:",
+                ip,
+                "(alkuperäinen:",
+                clientIp,
+                ")"
+              );
+              console.log("Session ID tallennettu:", sessionId);
+              found = true;
+              break;
+            }
+          }
+
+          if (!found) {
+            console.log(
+              "⚠️ Varoitus: Allekirjoituksia ei löytynyt IP:lle:",
+              clientIp
+            );
+            console.log(
+              "Saatavilla olevat IP:t:",
+              Array.from(signatures.keys())
+            );
+
+            // Tallennetaan IP joka tapauksessa maksetuksi
+            paidIPs.add(sessionId); // Tallenna session ID
+            console.log(
+              "Session ID merkitty maksetuksi joka tapauksessa:",
+              sessionId
+            );
+          }
+        }
       }
 
       res.json({ received: true });
@@ -578,6 +612,60 @@ app.post("/api/restore-signatures", (req, res) => {
   });
 
   res.json({ success: true });
+});
+
+// Lisätään uusi reitti maksun tarkistukseen
+app.get("/api/check-payment/:sessionId", async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const clientIp = getClientIpFormatted(req);
+
+    console.log(
+      `Tarkistetaan maksun tila sessionId:lle ${sessionId}, IP: ${clientIp}`
+    );
+
+    // Tarkista ensin, onko käyttäjä jo merkitty maksaneeksi
+    if (paidIPs.has(clientIp)) {
+      console.log(`IP ${clientIp} on jo merkitty maksaneeksi`);
+      return res.json({ success: true, status: "paid" });
+    }
+
+    // Tarkista osittaiset vastaavuudet
+    for (const ip of paidIPs) {
+      if (
+        ip.includes(clientIp) ||
+        clientIp.includes(ip) ||
+        ip.split(".").slice(0, 3).join(".") ===
+          clientIp.split(".").slice(0, 3).join(".")
+      ) {
+        console.log(`IP ${clientIp} vastaa osittain maksettua IP:tä ${ip}`);
+        paidIPs.add(clientIp); // Lisää tämä IP myös maksettuihin
+        return res.json({ success: true, status: "paid" });
+      }
+    }
+
+    // Jos ei löydy paikallisesti, tarkista Stripe API:sta
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (session.payment_status === "paid") {
+      console.log(
+        `Maksu vahvistettu Stripe API:sta sessionId:lle ${sessionId}`
+      );
+
+      // Merkitse IP maksetuksi
+      paidIPs.add(clientIp);
+      console.log(`IP ${clientIp} merkitty maksetuksi Stripe API:n kautta`);
+
+      return res.json({ success: true, status: "paid" });
+    }
+
+    return res.json({ success: true, status: session.payment_status });
+  } catch (error) {
+    console.error("Virhe maksun tarkistuksessa:", error);
+    return res
+      .status(500)
+      .json({ success: false, error: "Virhe maksun tarkistuksessa" });
+  }
 });
 
 export default app;
