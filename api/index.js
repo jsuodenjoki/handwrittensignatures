@@ -381,7 +381,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
               name: "Allekirjoitukset",
               description: `Allekirjoitukset nimelle: ${name}`,
             },
-            unit_amount: 500, // 5€ sentteinä
+            unit_amount: 100, // 1€ sentteinä
           },
           quantity: 1,
         },
