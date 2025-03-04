@@ -201,7 +201,7 @@ app.get("/api/check-signatures", (req, res) => {
 
 // Allekirjoitusten luonti
 app.post("/api/create-signatures", (req, res) => {
-  const { name, color, clientIp } = req.body;
+  const { name, color } = req.body;
   console.log(`Luodaan allekirjoitukset: nimi=${name}, väri=${color}`);
 
   if (!name) {
@@ -215,26 +215,7 @@ app.post("/api/create-signatures", (req, res) => {
     signatureImages.push(signatureImage);
   }
 
-  // Käytä joko pyynnössä lähetettyä clientIp:tä tai fallback IP-osoitteeseen
-  const ipToUse = clientIp || getClientIpFormatted(req);
-  console.log(
-    `Tallennetaan allekirjoitukset IP:lle ${ipToUse}, nimi: ${name}, väri: ${color}`
-  );
-
-  signatures.set(ipToUse, {
-    name,
-    images: signatureImages,
-    color: color,
-    createdAt: new Date().toISOString(),
-  });
-
-  console.log("Kaikki tallennetut allekirjoitukset:");
-  signatures.forEach((value, key) => {
-    console.log(
-      `IP: ${key}, Nimi: ${value.name}, Väri: ${value.color}, Kuvia: ${value.images.length}`
-    );
-  });
-
+  // Palauta kuvat suoraan ilman tallennusta
   res.json({ images: signatureImages });
 });
 
@@ -384,12 +365,12 @@ Kiitos että käytit palveluamme!`;
   console.log(`Allekirjoitukset ladattu onnistuneesti IP:lle ${clientIp}`);
 });
 
-// Stripe-maksun luonti
-app.post("/api/create-payment", async (req, res) => {
+// Stripe checkout session luonti
+app.post("/api/create-checkout-session", async (req, res) => {
   try {
-    // Käytä joko pyynnössä lähetettyä clientIp:tä tai fallback IP-osoitteeseen
-    const clientIp = req.body.clientIp || getClientIpFormatted(req);
+    const { name } = req.body;
 
+    // Luo Stripe checkout session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
@@ -397,103 +378,39 @@ app.post("/api/create-payment", async (req, res) => {
           price_data: {
             currency: "eur",
             product_data: {
-              name: "Allekirjoitusten luonti",
+              name: "Allekirjoitukset",
+              description: `Allekirjoitukset nimelle: ${name}`,
             },
-            unit_amount: 100,
+            unit_amount: 500, // 5€ sentteinä
           },
           quantity: 1,
         },
       ],
       mode: "payment",
-      success_url: `${process.env.FRONTEND_URL}?success=true`,
-      cancel_url: `${process.env.FRONTEND_URL}?canceled=true`,
-      metadata: {
-        clientIp,
-      },
+      success_url: `${req.headers.origin}?success=true`,
+      cancel_url: `${req.headers.origin}?canceled=true`,
     });
 
     res.json({ url: session.url });
   } catch (error) {
-    console.error("Virhe maksun luonnissa:", error);
-    res.status(500).json({ error: "Virhe maksun käsittelyssä" });
+    console.error("Virhe checkout-session luonnissa:", error);
+    res.status(500).json({ error: "Virhe checkout-session luonnissa" });
   }
 });
-
-// Stripe webhook käsittely
-app.post(
-  "/api/webhook",
-  express.raw({ type: "application/json" }),
-  async (req, res) => {
-    const sig = req.headers["stripe-signature"];
-
-    try {
-      const event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-
-      console.log("Webhook-tapahtuma vastaanotettu:", event.type);
-      console.log(
-        "Kaikki tallennetut allekirjoitukset:",
-        Array.from(signatures.keys())
-      );
-      console.log("Kaikki maksetut IP:t:", Array.from(paidIPs));
-
-      if (
-        [
-          "checkout.session.completed",
-          "payment_intent.succeeded",
-          "charge.succeeded",
-        ].includes(event.type)
-      ) {
-        const session = event.data.object;
-        const clientIp = session.metadata?.clientIp?.trim() || "UNKNOWN";
-
-        console.log("Etsitään asiakkaan IP:", clientIp);
-
-        // Merkitse IP maksetuksi
-        if (clientIp !== "UNKNOWN") {
-          paidIPs.add(clientIp);
-          console.log("✅ Maksu merkitty onnistuneeksi IP:lle:", clientIp);
-
-          // Varmista että allekirjoitukset löytyvät tälle IP:lle
-          if (!signatures.has(clientIp)) {
-            // Etsi allekirjoitukset muista IP-osoitteista
-            for (const [ip, data] of signatures.entries()) {
-              // Kopioi allekirjoitukset tälle IP:lle
-              signatures.set(clientIp, data);
-              console.log(
-                `Kopioitu allekirjoitukset IP:ltä ${ip} IP:lle ${clientIp}`
-              );
-              break;
-            }
-          }
-        } else {
-          console.log("⚠️ Varoitus: Asiakkaan IP tuntematon");
-        }
-      }
-
-      res.json({ received: true });
-    } catch (err) {
-      console.error("Webhook-virhe:", err.message);
-      return res.status(400).send(`Webhook-virhe: ${err.message}`);
-    }
-  }
-);
 
 // Sähköpostin lähetys
 app.post("/api/send-email", async (req, res) => {
   try {
-    const { email, clientIp } = req.body;
-    // Käytä joko pyynnössä lähetettyä clientIp:tä tai fallback IP-osoitteeseen
-    const ipToUse = clientIp || getClientIpFormatted(req);
+    const { email } = req.body;
 
-    if (!email || !signatures.has(ipToUse) || !paidIPs.has(ipToUse)) {
+    if (!email) {
       return res.status(400).json({
-        error: "Virheellinen pyyntö tai ei oikeutta lähettää sähköpostia",
+        error: "Sähköpostiosoite puuttuu",
       });
     }
+
+    // Tässä voit toteuttaa sähköpostin lähetyksen
+    // Koska tiedot ovat nyt localStoragessa, ei tarvitse tarkistaa palvelimelta
 
     res.json({ success: true, message: "Sähköposti lähetetty onnistuneesti" });
   } catch (error) {
@@ -640,6 +557,29 @@ app.get("/api/check-payment/:sessionId", async (req, res) => {
       .status(500)
       .json({ success: false, error: "Virhe maksun tarkistuksessa" });
   }
+});
+
+// Reset user data
+app.post("/api/reset-user-data", (req, res) => {
+  const { clientIp } = req.body;
+
+  if (!clientIp) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Client IP puuttuu." });
+  }
+
+  // Poista tiedot serverin Mapista ja Setistä
+  if (signatures.has(clientIp)) {
+    signatures.delete(clientIp);
+  }
+
+  if (paidIPs.has(clientIp)) {
+    paidIPs.delete(clientIp);
+  }
+
+  console.log(`Poistettu tiedot IP-osoitteelle: ${clientIp}`);
+  res.json({ success: true, message: "Käyttäjän tiedot poistettu." });
 });
 
 export default app;

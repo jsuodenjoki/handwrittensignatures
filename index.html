@@ -719,13 +719,31 @@
         });
       }
 
-      // Luo allekirjoitukset
+      // Tallenna allekirjoitukset localStorageen
+      function saveSignaturesToLocal(name, images, color) {
+        const signatureData = {
+          name,
+          images,
+          color,
+          createdAt: new Date().toISOString(),
+        };
+
+        localStorage.setItem("signatures", JSON.stringify(signatureData));
+        console.log("Allekirjoitukset tallennettu localStorageen");
+      }
+
+      // Hae allekirjoitukset localStoragesta
+      function getSignaturesFromLocal() {
+        const data = localStorage.getItem("signatures");
+        return data ? JSON.parse(data) : null;
+      }
+
+      // Muokataan createSignatures-funktiota
       async function createSignatures() {
         const name = nameInput.value.trim();
         const color = document.querySelector(
           'input[name="color"]:checked'
         ).value;
-        const clientIp = await getClientIp();
 
         if (!name) {
           alert("Syötä nimesi ensin!");
@@ -738,7 +756,7 @@
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ name, color, clientIp }),
+            body: JSON.stringify({ name, color }),
           });
 
           if (!response.ok) {
@@ -748,6 +766,9 @@
           }
 
           const data = await response.json();
+
+          // Tallenna allekirjoitukset localStorageen
+          saveSignaturesToLocal(name, data.images, color);
 
           // Näytä allekirjoitukset
           signaturesContainer.innerHTML = "";
@@ -769,6 +790,9 @@
           // Näytä viesti
           statusMessage.textContent = "Allekirjoitukset luotu onnistuneesti!";
           statusMessage.style.color = "#4CAF50"; // Vihreä väri
+
+          // Tarkista tila
+          checkStatus();
         } catch (error) {
           console.error("Virhe allekirjoitusten luonnissa:", error);
           statusMessage.textContent = "Virhe allekirjoitusten luonnissa.";
@@ -776,219 +800,247 @@
         }
       }
 
-      // Lisää tapahtumankäsittelijä painikkeelle
-      generateSignaturesButton.addEventListener("click", async () => {
-        await createSignatures();
-      });
-
-      // Tarkista onko käyttäjällä jo allekirjoituksia
-      async function checkExistingSignatures() {
-        const clientIp = await getClientIp();
-
-        // Jos paikallisesta tallennustilasta ei löydy, tarkista palvelimelta
-        fetch(`${API_URL}/api/get-signatures?clientIp=${clientIp}`)
-          .then((response) => {
-            if (response.ok) return response.json();
-            throw new Error("Ei allekirjoituksia");
-          })
-          .then((data) => {
-            // Tarkista, että data on oikeassa muodossa ja sisältää kuvia
-            if (
-              data &&
-              data.images &&
-              Array.isArray(data.images) &&
-              data.images.length > 0 &&
-              data.name // Varmista että nimikentässä on arvo
-            ) {
-              console.log("Löydettiin aiemmat allekirjoitukset:", data);
-
-              // Näytä tallennetut allekirjoitukset
-              signaturesContainer.innerHTML = "";
-              data.images.forEach((imageData) => {
-                const signatureItem = document.createElement("div");
-                signatureItem.className = "signature-item";
-
-                const img = document.createElement("img");
-                img.src = imageData;
-                img.alt = `${data.name} allekirjoitus`;
-
-                signatureItem.appendChild(img);
-                signaturesContainer.appendChild(signatureItem);
-              });
-
-              // Aseta nimi kenttään, mutta vain jos kenttä on tyhjä
-              if (nameInput.value.trim() === "" && data.name) {
-                nameInput.value = data.name;
-              }
-
-              // Näytä selkeä viesti käyttäjälle
-              statusMessage.textContent = `Aiemmin luodut allekirjoitukset (${data.name}) ladattu.`;
-              statusMessage.style.color = "#4CAF50"; // Vihreä väri
-
-              // Näytä ostonappi
-              buyButton.style.display = "inline-block";
-            } else {
-              console.log(
-                "Ei aiempia allekirjoituksia tai data on virheellinen:",
-                data
-              );
-              // Tyhjennä allekirjoituskontti
-              signaturesContainer.innerHTML = "";
-              // Piilota ostonappi
-              buyButton.style.display = "none";
-              // Tyhjennä statusviesti
-              statusMessage.textContent = "";
-            }
-          })
-          .catch((error) => {
-            console.log("Ei aiempia allekirjoituksia:", error);
-            // Tyhjennä allekirjoituskontti
-            signaturesContainer.innerHTML = "";
-            // Piilota ostonappi
-            buyButton.style.display = "none";
-            // Tyhjennä statusviesti
-            statusMessage.textContent = "";
-          });
-      }
-
       // Tarkista tila
       async function checkStatus(autoDownload = true) {
-        // Varmista että IP on haettu ennen tilan tarkistusta
-        const clientIp = await getClientIp();
-        console.log("Tarkistetaan tila IP:lle:", clientIp);
+        // Tarkista localStoragesta
+        const signatures = getSignaturesFromLocal();
+        const hasPaid = getPaymentStatus();
+
+        const data = {
+          hasSignatures: !!signatures,
+          hasPaid: hasPaid,
+          canDownload: !!signatures && hasPaid,
+        };
+
+        console.log("Tila päivitetty:", data);
+
+        if (data.hasSignatures) {
+          if (data.hasPaid && data.canDownload) {
+            console.log("Maksu vahvistettu, allekirjoitukset ladattavissa");
+            statusMessage.textContent =
+              "Maksu onnistui! Allekirjoitukset ladattavissa.";
+            statusMessage.style.color = "#4CAF50"; // Vihreä väri
+            buyButton.style.display = "none";
+
+            // Näytä "Lataa uudelleen" -nappi
+            downloadAgainContainer.style.display = "block";
+
+            // Näytä sähköpostikenttä
+            emailContainer.style.display = "block";
+
+            // Näytä reset-container ja käynnistä ajastin
+            resetContainer.style.display = "block";
+
+            // Käynnistä ajastin vain jos sitä ei ole jo käynnistetty
+            if (!resetTimerInterval) {
+              resetTimeLeft = 180; // 3 minuuttia
+              updateResetTimer(); // Päivitä heti kerran
+              resetTimerInterval = setInterval(updateResetTimer, 1000);
+            }
+
+            // Tarkista onko automaattinen lataus jo suoritettu
+            const hasAutoDownloaded = localStorage.getItem("hasAutoDownloaded");
+
+            if (autoDownload && !hasAutoDownloaded) {
+              // Merkitse automaattinen lataus suoritetuksi
+              localStorage.setItem("hasAutoDownloaded", "true");
+
+              // Viive ennen latausta, jotta käyttäjä näkee viestin
+              setTimeout(() => {
+                downloadSignatures();
+              }, 1000);
+            }
+          } else {
+            // Näytä viesti vain jos käyttäjä on luonut allekirjoitukset
+            if (signaturesContainer.innerHTML.trim() !== "") {
+              statusMessage.textContent = "Allekirjoitukset luotu!";
+              statusMessage.style.color = "#6e8efb"; // Sininen väri
+              buyButton.style.display = "inline-block";
+
+              // Piilota "Lataa uudelleen" -nappi ja reset-container
+              downloadAgainContainer.style.display = "none";
+              resetContainer.style.display = "none";
+
+              // Pysäytä ajastin
+              if (resetTimerInterval) {
+                clearInterval(resetTimerInterval);
+                resetTimerInterval = null;
+              }
+            }
+          }
+        } else {
+          // Ei allekirjoituksia, piilota ostonappi
+          buyButton.style.display = "none";
+          statusMessage.textContent = "";
+
+          // Piilota "Lataa uudelleen" -nappi ja reset-container
+          downloadAgainContainer.style.display = "none";
+          resetContainer.style.display = "none";
+
+          // Pysäytä ajastin
+          if (resetTimerInterval) {
+            clearInterval(resetTimerInterval);
+            resetTimerInterval = null;
+          }
+        }
+      }
+
+      // Muokataan downloadSignatures-funktiota
+      async function downloadSignatures() {
+        try {
+          const signatures = getSignaturesFromLocal();
+
+          if (!signatures || !signatures.images || !signatures.images.length) {
+            throw new Error("Allekirjoituksia ei löytynyt");
+          }
+
+          // Luo ZIP-tiedosto
+          const zip = new JSZip();
+
+          // Lisää kuvat ZIP-tiedostoon
+          signatures.images.forEach((imageData, index) => {
+            // Poista data:image/png;base64, -etuliite
+            const base64Data = imageData.replace(
+              /^data:image\/png;base64,/,
+              ""
+            );
+            zip.file(`allekirjoitus_${index + 1}.png`, base64Data, {
+              base64: true,
+            });
+          });
+
+          // Generoi ZIP-tiedosto
+          const zipBlob = await zip.generateAsync({ type: "blob" });
+
+          // Luo latauslinkki
+          const downloadLink = document.createElement("a");
+          downloadLink.href = URL.createObjectURL(zipBlob);
+          downloadLink.download = `allekirjoitukset_${signatures.name.replace(
+            /\s+/g,
+            "_"
+          )}.zip`;
+
+          // Simuloi klikkausta
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          document.body.removeChild(downloadLink);
+
+          console.log("Allekirjoitukset ladattu onnistuneesti");
+        } catch (error) {
+          console.error("Virhe allekirjoitusten latauksessa:", error);
+          alert("Virhe allekirjoitusten latauksessa.");
+        }
+      }
+
+      // Muokataan checkExistingSignatures-funktiota
+      function checkExistingSignatures() {
+        const signatures = getSignaturesFromLocal();
+
+        if (signatures && signatures.images && signatures.images.length > 0) {
+          console.log("Löydettiin aiemmat allekirjoitukset:", signatures);
+
+          // Näytä allekirjoitukset
+          signaturesContainer.innerHTML = "";
+          signatures.images.forEach((imageData) => {
+            const signatureItem = document.createElement("div");
+            signatureItem.className = "signature-item";
+
+            const img = document.createElement("img");
+            img.src = imageData;
+            img.alt = `${signatures.name} allekirjoitus`;
+
+            signatureItem.appendChild(img);
+            signaturesContainer.appendChild(signatureItem);
+          });
+
+          // Täytä nimi-kenttä
+          nameInput.value = signatures.name;
+
+          // Tarkista tila uudelleen
+          checkStatus();
+
+          return true;
+        }
+
+        return false;
+      }
+
+      // Muokataan resetAllData-funktiota
+      async function resetAllData() {
+        // Tyhjennä localStorage
+        localStorage.removeItem("clientIp");
+        localStorage.removeItem("hasAutoDownloaded");
+        localStorage.removeItem("hasPaid");
+        localStorage.removeItem("signatures");
+
+        // Tyhjennä allekirjoitukset
+        signaturesContainer.innerHTML = "";
+
+        // Tyhjennä nimi
+        nameInput.value = "";
+
+        // Piilota napit ja viestit
+        buyButton.style.display = "none";
+        downloadAgainContainer.style.display = "none";
+        emailContainer.style.display = "none";
+        resetContainer.style.display = "none";
+
+        // Näytä viesti
+        statusMessage.textContent = "Tiedot poistettu. Ohjataan etusivulle...";
+        statusMessage.style.color = "#4CAF50"; // Vihreä väri
+
+        // Pysäytä ajastin
+        if (resetTimerInterval) {
+          clearInterval(resetTimerInterval);
+        }
+
+        // Pieni viive ennen ohjausta etusivulle
+        setTimeout(() => {
+          // Ohjaa käyttäjä etusivulle ja pakota sivu latautumaan uudelleen
+          window.location.href =
+            window.location.origin + window.location.pathname + "?reset=true";
+        }, 1500);
+      }
+
+      // Muokataan createCheckoutSession-funktiota
+      async function createCheckoutSession() {
+        const signatures = getSignaturesFromLocal();
+
+        if (!signatures) {
+          alert("Luo allekirjoitukset ensin!");
+          return;
+        }
 
         try {
           const response = await fetch(
-            `${API_URL}/api/check-signatures?clientIp=${clientIp}`
+            `${API_URL}/api/create-checkout-session`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                name: signatures.name,
+              }),
+            }
           );
+
           const data = await response.json();
 
-          // Tarkista localStoragesta maksutila ja yhdistä se palvelimen tietoihin
-          const localPaymentStatus = getPaymentStatus();
-
-          // Jos joko palvelin tai localStorage sanoo että on maksettu, käsitellään maksettuna
-          if (localPaymentStatus && !data.hasPaid) {
-            console.log(
-              "Maksutila löytyi localStoragesta mutta ei palvelimelta, käytetään localStoragen tietoa"
-            );
-            data.hasPaid = true;
-            data.canDownload = data.hasSignatures && data.hasPaid;
-          }
-
-          // Tallenna maksutila localStorageen jos se on muuttunut
-          if (data.hasPaid) {
-            savePaymentStatus(true);
-          }
-
-          console.log("Tila päivitetty:", data);
-
-          if (data.hasSignatures) {
-            if (data.hasPaid && data.canDownload) {
-              console.log("Maksu vahvistettu, allekirjoitukset ladattavissa");
-              statusMessage.textContent =
-                "Maksu onnistui! Allekirjoitukset ladattavissa.";
-              statusMessage.style.color = "#4CAF50"; // Vihreä väri
-              buyButton.style.display = "none";
-
-              // Näytä "Lataa uudelleen" -nappi
-              downloadAgainContainer.style.display = "block";
-
-              // Näytä sähköpostikenttä
-              emailContainer.style.display = "block";
-
-              // Näytä reset-container ja käynnistä ajastin
-              resetContainer.style.display = "block";
-
-              // Käynnistä ajastin vain jos sitä ei ole jo käynnistetty
-              if (!resetTimerInterval) {
-                resetTimeLeft = 180; // 3 minuuttia
-                updateResetTimer(); // Päivitä heti kerran
-                resetTimerInterval = setInterval(updateResetTimer, 1000);
-              }
-
-              // Tarkista onko automaattinen lataus jo suoritettu
-              const hasAutoDownloaded =
-                localStorage.getItem("hasAutoDownloaded");
-
-              if (autoDownload && !hasAutoDownloaded) {
-                // Merkitse automaattinen lataus suoritetuksi
-                localStorage.setItem("hasAutoDownloaded", "true");
-
-                // Viive ennen latausta, jotta käyttäjä näkee viestin
-                setTimeout(() => {
-                  downloadSignatures();
-                }, 1000);
-              }
-            } else {
-              // Näytä viesti vain jos käyttäjä on luonut allekirjoitukset
-              if (signaturesContainer.innerHTML.trim() !== "") {
-                statusMessage.textContent = "Allekirjoitukset luotu!";
-                statusMessage.style.color = "#6e8efb"; // Sininen väri
-                buyButton.style.display = "inline-block";
-
-                // Piilota "Lataa uudelleen" -nappi ja reset-container
-                downloadAgainContainer.style.display = "none";
-                resetContainer.style.display = "none";
-
-                // Pysäytä ajastin
-                if (resetTimerInterval) {
-                  clearInterval(resetTimerInterval);
-                  resetTimerInterval = null;
-                }
-              }
-            }
-          } else if (data.hasPaid) {
-            // Jos maksu on suoritettu mutta allekirjoituksia ei löydy, yritä hakea ne
-            console.log(
-              "Maksu löytyy mutta allekirjoituksia ei, yritetään hakea..."
-            );
-            await checkExistingSignatures();
-            // Tarkista tila uudelleen pienen viiveen jälkeen
-            setTimeout(() => checkStatus(autoDownload), 500);
+          if (data.url) {
+            window.location.href = data.url;
           } else {
-            // Ei allekirjoituksia, piilota ostonappi
-            buyButton.style.display = "none";
-            statusMessage.textContent = "";
-
-            // Piilota "Lataa uudelleen" -nappi ja reset-container
-            downloadAgainContainer.style.display = "none";
-            resetContainer.style.display = "none";
-
-            // Pysäytä ajastin
-            if (resetTimerInterval) {
-              clearInterval(resetTimerInterval);
-              resetTimerInterval = null;
-            }
+            throw new Error("Checkout URL puuttuu vastauksesta");
           }
         } catch (error) {
-          console.error("Virhe tilan tarkistuksessa:", error);
-          statusMessage.textContent = "Virhe tilan tarkistuksessa.";
+          console.error("Virhe maksun käsittelyssä:", error);
+          alert("Virhe maksun käsittelyssä.");
         }
       }
 
-      // Lataa allekirjoitukset
-      async function downloadSignatures() {
-        const clientIp = await getClientIp();
-        window.location.href = `${API_URL}/api/download-signatures?clientIp=${clientIp}`;
-      }
-
-      // Osta-painikkeen toiminnallisuus
-      buyButton.addEventListener("click", async () => {
-        try {
-          const clientIp = await getClientIp();
-          const response = await fetch(`${API_URL}/api/create-payment`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ clientIp }),
-          });
-          const data = await response.json();
-          window.location.href = data.url;
-        } catch (error) {
-          console.error("Virhe maksun luonnissa:", error);
-          statusMessage.textContent = "Virhe maksun käsittelyssä.";
-        }
+      // Lisää tapahtumankäsittelijä painikkeelle
+      generateSignaturesButton.addEventListener("click", async () => {
+        await createSignatures();
       });
 
       // Sähköpostin lähetys
@@ -1159,64 +1211,6 @@
           resetAllData();
         }
         resetTimeLeft--;
-      }
-
-      // Funktio kaikkien tietojen tyhjentämiseen
-      async function resetAllData() {
-        // Tyhjennä localStorage
-        localStorage.removeItem("clientIp");
-        localStorage.removeItem("hasAutoDownloaded");
-        localStorage.removeItem("hasPaid");
-
-        // Tyhjennä allekirjoitukset
-        signaturesContainer.innerHTML = "";
-
-        // Tyhjennä nimi
-        nameInput.value = "";
-
-        // Piilota napit ja viestit
-        buyButton.style.display = "none";
-        downloadAgainContainer.style.display = "none";
-        emailContainer.style.display = "none";
-        resetContainer.style.display = "none";
-
-        // Näytä viesti
-        statusMessage.textContent = "Tiedot poistettu. Ohjataan etusivulle...";
-        statusMessage.style.color = "#4CAF50"; // Vihreä väri
-
-        // Pysäytä ajastin
-        if (resetTimerInterval) {
-          clearInterval(resetTimerInterval);
-        }
-
-        // Hae tallennettu clientIp (ennen kuin se poistetaan localStoragesta)
-        const clientIp = await getClientIp();
-
-        // Poista tiedot myös palvelimelta
-        try {
-          const response = await fetch(`${API_URL}/api/reset-user-data`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ clientIp }),
-          });
-
-          const data = await response.json();
-          console.log("Palvelimen palautus:", data);
-        } catch (error) {
-          console.error("Virhe palvelimen tietojen palautuksessa:", error);
-        }
-
-        // Hae uusi IP-osoite
-        await saveClientIp();
-
-        // Pieni viive ennen ohjausta etusivulle
-        setTimeout(() => {
-          // Ohjaa käyttäjä etusivulle ja pakota sivu latautumaan uudelleen
-          window.location.href =
-            window.location.origin + window.location.pathname + "?reset=true";
-        }, 1500);
       }
 
       // Lisää tapahtumankäsittelijä "Luo lisää allekirjoituksia" -napille
