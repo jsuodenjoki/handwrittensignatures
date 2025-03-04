@@ -246,26 +246,15 @@
       }
 
       .signature-carousel {
-        overflow: hidden;
-      }
-
-      .signature-carousel-inner {
         display: flex;
+        transition: transform 0.5s ease;
         gap: 30px;
         padding: 10px 100px;
-        animation: carousel 60s linear infinite;
       }
 
       .carousel-item {
         min-width: 250px;
         height: 150px;
-        flex-shrink: 0;
-        transition: opacity 0.3s ease, transform 0.3s ease;
-      }
-
-      .signature-box {
-        width: 100%;
-        height: 100%;
         background-color: rgba(255, 255, 255, 0.9);
         border-radius: 10px;
         border: 1px solid rgba(255, 255, 255, 0.2);
@@ -274,6 +263,8 @@
         justify-content: center;
         padding: 10px;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        flex-shrink: 0;
+        transition: opacity 0.3s ease, transform 0.3s ease;
       }
 
       .carousel-item img {
@@ -281,47 +272,6 @@
         height: 100%;
         object-fit: contain;
         display: block;
-      }
-
-      /* Häivytysefekti reunoilla */
-      .signature-carousel-container::before,
-      .signature-carousel-container::after {
-        content: "";
-        position: absolute;
-        top: 0;
-        width: 15%;
-        height: 100%;
-        z-index: 2;
-        pointer-events: none;
-      }
-
-      .signature-carousel-container::before {
-        left: 0;
-        background: linear-gradient(
-          to right,
-          rgba(20, 24, 44, 1),
-          rgba(20, 24, 44, 0)
-        );
-      }
-
-      .signature-carousel-container::after {
-        right: 0;
-        background: linear-gradient(
-          to left,
-          rgba(20, 24, 44, 1),
-          rgba(20, 24, 44, 0)
-        );
-      }
-
-      @keyframes carousel {
-        0% {
-          transform: translateX(0);
-        }
-        100% {
-          transform: translateX(
-            calc(-31 * (250px + 30px))
-          ); /* Kuvien määrä * (leveys + gap) */
-        }
       }
 
       @media (max-width: 1200px) {
@@ -395,262 +345,10 @@
     <h1>Allekirjoitusgeneraattori</h1>
     <p>Luo kauniita käsinkirjoitettuja allekirjoituksia helposti</p>
 
-    <!-- Korvaa nykyinen karuselli-rakenne tällä staattisella HTML-koodilla -->
+    <!-- Lisätään allekirjoituskaruselli -->
     <div class="signature-carousel-container">
       <div class="signature-carousel">
-        <div class="signature-carousel-inner">
-          <!-- Kaikki 26 kuvaa -->
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_1.png"
-                alt="Allekirjoitus 1"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_2.png"
-                alt="Allekirjoitus 2"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_3.png"
-                alt="Allekirjoitus 3"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_4.png"
-                alt="Allekirjoitus 4"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_5.png"
-                alt="Allekirjoitus 5"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_6.png"
-                alt="Allekirjoitus 6"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_7.png"
-                alt="Allekirjoitus 7"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_8.png"
-                alt="Allekirjoitus 8"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_9.png"
-                alt="Allekirjoitus 9"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_10.png"
-                alt="Allekirjoitus 10"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_11.png"
-                alt="Allekirjoitus 11"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_12.png"
-                alt="Allekirjoitus 12"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_13.png"
-                alt="Allekirjoitus 13"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_14.png"
-                alt="Allekirjoitus 14"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_15.png"
-                alt="Allekirjoitus 15"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_16.png"
-                alt="Allekirjoitus 16"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_17.png"
-                alt="Allekirjoitus 17"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_18.png"
-                alt="Allekirjoitus 18"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_19.png"
-                alt="Allekirjoitus 19"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_20.png"
-                alt="Allekirjoitus 20"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_21.png"
-                alt="Allekirjoitus 21"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_22.png"
-                alt="Allekirjoitus 22"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_23.png"
-                alt="Allekirjoitus 23"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_24.png"
-                alt="Allekirjoitus 24"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_25.png"
-                alt="Allekirjoitus 25"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_26.png"
-                alt="Allekirjoitus 26"
-              />
-            </div>
-          </div>
-
-          <!-- Toista ensimmäiset 5 kuvaa saumattoman animaation varmistamiseksi -->
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_1.png"
-                alt="Allekirjoitus 1"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_2.png"
-                alt="Allekirjoitus 2"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_3.png"
-                alt="Allekirjoitus 3"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_4.png"
-                alt="Allekirjoitus 4"
-              />
-            </div>
-          </div>
-          <div class="carousel-item">
-            <div class="signature-box">
-              <img
-                src="/signatures/handwritten_signature_generator_example_5.png"
-                alt="Allekirjoitus 5"
-              />
-            </div>
-          </div>
-        </div>
+        <!-- Karusellin sisältö täytetään JavaScriptillä -->
       </div>
     </div>
 
@@ -820,6 +518,231 @@
         console.log("Maksu vanhentunut:", expired);
 
         return expired;
+      }
+
+      // Luo allekirjoitukset karuselliin
+      async function initializeCarousel() {
+        // Tyhjennä karuselli
+        signatureCarousel.innerHTML = "";
+
+        // Odota että fontit on ladattu
+        await document.fonts.ready;
+
+        // Varmista että käyttäjän IP on tallennettu
+        await getClientIp();
+
+        console.log("Alustetaan karuselli käyttäen staattisia kuvia");
+
+        // Luo esimerkkiallekirjoitukset ja lisää ne karuselliin
+        const signatures = [];
+
+        // Käytä staattisia kuvia
+        try {
+          // Luo allekirjoitukset jokaiselle esimerkkihenkilölle
+          for (let i = 0; i < exampleNames.length; i++) {
+            const name = exampleNames[i];
+
+            // Käytä staattista kuvaa
+            const imagePath = `/signatures/handwritten_signature_generator_example_${
+              i + 1
+            }.png`;
+
+            signatures.push({
+              name,
+              image: imagePath,
+              font: "Oma Fontti",
+            });
+          }
+
+          // Jos ei saatu yhtään allekirjoitusta, näytä virheilmoitus
+          if (signatures.length === 0) {
+            const message = document.createElement("div");
+            message.className = "carousel-item";
+            message.textContent =
+              "Esimerkkiallekirjoitusten lataus epäonnistui.";
+            signatureCarousel.appendChild(message);
+            return;
+          }
+
+          console.log(`Ladattu ${signatures.length} esimerkkiallekirjoitusta`);
+
+          // Lisää allekirjoitukset karuselliin
+          for (const signature of signatures) {
+            const carouselItem = document.createElement("div");
+            carouselItem.className = "carousel-item";
+            carouselItem.dataset.name = signature.name;
+
+            // Luo div-elementti kuvan ympärille keskitystä varten
+            const imgContainer = document.createElement("div");
+            imgContainer.style.width = "100%";
+            imgContainer.style.height = "100%";
+            imgContainer.style.display = "flex";
+            imgContainer.style.alignItems = "center";
+            imgContainer.style.justifyContent = "center";
+
+            const img = document.createElement("img");
+            img.src = signature.image;
+            img.alt = `${signature.name} allekirjoitus (${signature.font})`;
+            img.style.maxWidth = "100%";
+            img.style.maxHeight = "100%";
+            img.style.objectFit = "contain";
+
+            imgContainer.appendChild(img);
+            carouselItem.appendChild(imgContainer);
+            signatureCarousel.appendChild(carouselItem);
+          }
+
+          // Lisää samat allekirjoitukset uudelleen, jotta karuselli näyttää jatkuvalta
+          for (const signature of signatures) {
+            const carouselItem = document.createElement("div");
+            carouselItem.className = "carousel-item";
+            carouselItem.dataset.name = signature.name;
+
+            // Luo div-elementti kuvan ympärille keskitystä varten
+            const imgContainer = document.createElement("div");
+            imgContainer.style.width = "100%";
+            imgContainer.style.height = "100%";
+            imgContainer.style.display = "flex";
+            imgContainer.style.alignItems = "center";
+            imgContainer.style.justifyContent = "center";
+
+            const img = document.createElement("img");
+            img.src = signature.image;
+            img.alt = `${signature.name} allekirjoitus (${signature.font})`;
+            img.style.maxWidth = "100%";
+            img.style.maxHeight = "100%";
+            img.style.objectFit = "contain";
+
+            imgContainer.appendChild(img);
+            carouselItem.appendChild(imgContainer);
+            signatureCarousel.appendChild(carouselItem);
+          }
+
+          // Käynnistä karusellin animaatio
+          startCarouselAnimation();
+        } catch (error) {
+          console.error("Virhe karusellin alustuksessa:", error);
+          const message = document.createElement("div");
+          message.className = "carousel-item";
+          message.textContent = "Virhe esimerkkiallekirjoitusten latauksessa.";
+          signatureCarousel.appendChild(message);
+        }
+      }
+
+      // Karusellin animaatio
+      let carouselPosition = 0;
+      let carouselAnimationId;
+      let isResetting = false;
+
+      function startCarouselAnimation() {
+        if (carouselAnimationId) {
+          cancelAnimationFrame(carouselAnimationId);
+        }
+
+        const items = signatureCarousel.querySelectorAll(".carousel-item");
+        const totalItems = items.length;
+        const visibleItems = 3; // Näkyvien elementtien määrä
+        const itemWidth = 280; // Elementin leveys + marginaali
+        const duration = 10000; // Koko kierroksen kesto millisekunteina
+        const step = ((itemWidth * exampleNames.length) / duration) * 16.7; // Siirtymä per frame
+        const containerWidth = document.querySelector(
+          ".signature-carousel-container"
+        ).offsetWidth;
+
+        // Aseta alkuposition niin, että ensimmäinen elementti on näkyvissä
+        carouselPosition = 0;
+
+        function animateCarousel() {
+          if (!isResetting) {
+            carouselPosition -= step;
+
+            // Kun karuselli on liikkunut tarpeeksi, valmistele paluu alkuun
+            // Tarkistetaan onko ensimmäinen "aito" elementti liikkunut pois näkyvistä
+            if (carouselPosition <= -itemWidth * exampleNames.length) {
+              isResetting = true;
+
+              // Poista transition väliaikaisesti
+              signatureCarousel.style.transition = "none";
+
+              // Aseta timeout, jotta transition-muutos ehtii vaikuttaa
+              setTimeout(() => {
+                // Nollaa positio
+                carouselPosition = 0;
+                signatureCarousel.style.transform = `translateX(${carouselPosition}px)`;
+
+                // Palauta transition pienen viiveen jälkeen
+                setTimeout(() => {
+                  signatureCarousel.style.transition = "transform 0.5s ease";
+                  isResetting = false;
+                }, 20);
+              }, 20);
+            }
+          }
+
+          // Päivitä karusellin sijainti
+          if (!isResetting) {
+            signatureCarousel.style.transform = `translateX(${carouselPosition}px)`;
+
+            // Päivitä elementtien läpinäkyvyys sijainnin perusteella
+            updateItemsOpacity(containerWidth);
+          }
+
+          carouselAnimationId = requestAnimationFrame(animateCarousel);
+        }
+
+        carouselAnimationId = requestAnimationFrame(animateCarousel);
+      }
+
+      // Päivitä elementtien läpinäkyvyys
+      function updateItemsOpacity(containerWidth) {
+        const items = signatureCarousel.querySelectorAll(".carousel-item");
+        const fadeZone = 200; // Häivytysvyöhykkeen leveys
+
+        items.forEach((item) => {
+          const rect = item.getBoundingClientRect();
+          const containerRect =
+            signatureCarousel.parentElement.getBoundingClientRect();
+
+          // Laske etäisyys vasemmasta ja oikeasta reunasta
+          const distanceFromLeft = rect.left - containerRect.left;
+          const distanceFromRight = containerRect.right - rect.right;
+
+          // Laske läpinäkyvyys etäisyyden perusteella
+          let opacity = 1;
+          let scale = 1;
+
+          if (distanceFromLeft < fadeZone) {
+            opacity = distanceFromLeft / fadeZone;
+            scale = 0.9 + 0.1 * opacity;
+          } else if (distanceFromRight < fadeZone) {
+            opacity = distanceFromRight / fadeZone;
+            scale = 0.9 + 0.1 * opacity;
+          }
+
+          // Rajoita läpinäkyvyys välille 0-1 ja aseta se
+          opacity = Math.max(0.1, Math.min(1, opacity));
+          item.style.opacity = opacity;
+          item.style.transform = `scale(${scale})`;
+        });
+      }
+
+      // Tallenna allekirjoitukset localStorageen
+      function saveSignaturesToLocal(name, images, color) {
+        const signatureData = {
+          name,
+          images,
+          color,
+          createdAt: new Date().toISOString(),
+        };
+
+        localStorage.setItem("signatures", JSON.stringify(signatureData));
+        console.log("Allekirjoitukset tallennettu localStorageen");
+      }
+
+      // Hae allekirjoitukset localStoragesta
+      function getSignaturesFromLocal() {
+        const data = localStorage.getItem("signatures");
+        return data ? JSON.parse(data) : null;
       }
 
       // Muokataan createSignatures-funktiota
