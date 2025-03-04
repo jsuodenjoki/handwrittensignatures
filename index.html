@@ -769,7 +769,18 @@
         return data ? JSON.parse(data) : null;
       }
 
-      // Muokataan createSignatures-funktiota
+      // Lisää tämä createSignatures-funktioon, juuri ennen funktiosta poistumista
+      // Aseta 10 minuutin expiration-aika allekirjoitusten luonnin jälkeen
+      function setSignatureExpiry() {
+        const expiryTime = Date.now() + 10 * 60 * 1000; // Nykyinen aika + 10 minuuttia
+        localStorage.setItem("signatureExpiry", expiryTime.toString());
+        console.log(
+          "Allekirjoitusten vanhenemisaika asetettu:",
+          new Date(expiryTime).toLocaleTimeString()
+        );
+      }
+
+      // Muokkaa createSignatures-funktiota
       async function createSignatures() {
         const name = nameInput.value.trim();
         const color = document.querySelector(
@@ -781,8 +792,13 @@
           return;
         }
 
+        // Näytä latausviesti
+        statusMessage.textContent = "Luodaan allekirjoituksia...";
+        statusMessage.style.color = "#6e8efb"; // Sininen väri
+
         try {
-          const response = await fetch(`${API_URL}/api/create-signatures`, {
+          // Luo allekirjoitukset
+          const response = await fetch("/api/create-signatures", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -790,40 +806,41 @@
             body: JSON.stringify({ name, color }),
           });
 
-          if (!response.ok) {
-            throw new Error(
-              `Virhe allekirjoituksen luonnissa: ${response.status}`
-            );
-          }
-
           const data = await response.json();
 
-          // Tallenna allekirjoitukset localStorageen
-          saveSignaturesToLocal(name, data.images, color);
+          if (data.images && data.images.length > 0) {
+            // Tyhjennä aiemmat allekirjoitukset
+            signaturesContainer.innerHTML = "";
 
-          // Näytä allekirjoitukset
-          signaturesContainer.innerHTML = "";
-          data.images.forEach((imageData) => {
-            const signatureItem = document.createElement("div");
-            signatureItem.className = "signature-item";
+            // Lisää uudet allekirjoitukset
+            data.images.forEach((image, index) => {
+              const signatureDiv = document.createElement("div");
+              signatureDiv.className = "signature";
 
-            const img = document.createElement("img");
-            img.src = imageData;
-            img.alt = `${name} allekirjoitus`;
+              const img = document.createElement("img");
+              img.src = image;
+              img.alt = `Allekirjoitus ${index + 1}`;
 
-            signatureItem.appendChild(img);
-            signaturesContainer.appendChild(signatureItem);
-          });
+              signatureDiv.appendChild(img);
+              signaturesContainer.appendChild(signatureDiv);
+            });
 
-          // Näytä ostonappi
-          buyButton.style.display = "inline-block";
+            // Tallenna allekirjoitukset localStorageen
+            saveSignaturesToLocal(name, data.images, color);
 
-          // Näytä viesti
-          statusMessage.textContent = "Allekirjoitukset luotu onnistuneesti!";
-          statusMessage.style.color = "#4CAF50"; // Vihreä väri
+            // Näytä ostonappi
+            buyButton.style.display = "inline-block";
 
-          // Tarkista tila
-          checkStatus();
+            // Näytä viesti
+            statusMessage.textContent = "Allekirjoitukset luotu onnistuneesti!";
+            statusMessage.style.color = "#4CAF50"; // Vihreä väri
+
+            // Aseta 10 minuutin expiration-aika
+            setSignatureExpiry();
+
+            // Käynnistä expiration-ajastin
+            startExpiryTimer();
+          }
         } catch (error) {
           console.error("Virhe allekirjoitusten luonnissa:", error);
           statusMessage.textContent = "Virhe allekirjoitusten luonnissa.";
@@ -831,240 +848,68 @@
         }
       }
 
-      // Tarkista tila
-      async function checkStatus(autoDownload = true) {
-        // Tarkista localStoragesta
-        const signatures = getSignaturesFromLocal();
-        const hasPaid = getPaymentStatus();
+      // Lisää tämä funktio tarkistamaan allekirjoitusten vanheneminen
+      function isSignatureExpired() {
+        const expiryTime = localStorage.getItem("signatureExpiry");
+        if (!expiryTime) return false;
 
-        console.log("Tarkistetaan tila localStoragesta:");
-        console.log("- Allekirjoitukset:", !!signatures);
-        console.log("- Maksettu:", hasPaid);
+        const now = Date.now();
+        const expired = now > parseInt(expiryTime);
 
-        const data = {
-          hasSignatures: !!signatures,
-          hasPaid: hasPaid,
-          canDownload: !!signatures && hasPaid,
-        };
+        console.log(
+          "Allekirjoitusten vanhenemisaika:",
+          new Date(parseInt(expiryTime)).toLocaleTimeString()
+        );
+        console.log("Nykyinen aika:", new Date(now).toLocaleTimeString());
+        console.log("Allekirjoitukset vanhentuneet:", expired);
 
-        console.log("Tila päivitetty:", data);
+        return expired;
+      }
 
-        if (data.hasSignatures) {
-          if (data.hasPaid && data.canDownload) {
-            console.log("Maksu vahvistettu, allekirjoitukset ladattavissa");
-            statusMessage.textContent =
-              "Maksu onnistui! Allekirjoitukset ladattavissa.";
-            statusMessage.style.color = "#4CAF50"; // Vihreä väri
-            buyButton.style.display = "none";
+      // Lisää tämä funktio käynnistämään expiration-ajastin
+      function startExpiryTimer() {
+        // Tarkista onko ajastin jo käynnissä
+        if (window.expiryTimerInterval) {
+          clearInterval(window.expiryTimerInterval);
+        }
 
-            // Näytä "Lataa uudelleen" -nappi
-            downloadAgainContainer.style.display = "block";
-
-            // Näytä sähköpostikenttä
-            emailContainer.style.display = "block";
-
-            // Näytä reset-container ja käynnistä ajastin
-            resetContainer.style.display = "block";
-
-            // Käynnistä ajastin vain jos sitä ei ole jo käynnistetty
-            if (!resetTimerInterval) {
-              resetTimeLeft = 180; // 3 minuuttia
-              updateResetTimer(); // Päivitä heti kerran
-              resetTimerInterval = setInterval(updateResetTimer, 1000);
-            }
-
-            // Tarkista onko automaattinen lataus jo suoritettu
-            const hasAutoDownloaded = localStorage.getItem("hasAutoDownloaded");
-
-            if (autoDownload && !hasAutoDownloaded) {
-              // Merkitse automaattinen lataus suoritetuksi
-              localStorage.setItem("hasAutoDownloaded", "true");
-
-              // Viive ennen latausta, jotta käyttäjä näkee viestin
-              setTimeout(() => {
-                downloadSignatures();
-              }, 1000);
+        // Käynnistä ajastin, joka tarkistaa vanhenemisen 10 sekunnin välein
+        window.expiryTimerInterval = setInterval(() => {
+          // Tarkista onko maksu suoritettu
+          if (getPaymentStatus()) {
+            // Jos maksu on suoritettu, käytä maksun vanhenemisaikaa
+            if (isPaymentExpired()) {
+              resetAllData();
+              clearInterval(window.expiryTimerInterval);
             }
           } else {
-            // Näytä viesti vain jos käyttäjä on luonut allekirjoitukset
-            if (signaturesContainer.innerHTML.trim() !== "") {
-              statusMessage.textContent = "Allekirjoitukset luotu!";
-              statusMessage.style.color = "#6e8efb"; // Sininen väri
-              buyButton.style.display = "inline-block";
-
-              // Piilota "Lataa uudelleen" -nappi ja reset-container
-              downloadAgainContainer.style.display = "none";
-              resetContainer.style.display = "none";
-
-              // Pysäytä ajastin
-              if (resetTimerInterval) {
-                clearInterval(resetTimerInterval);
-                resetTimerInterval = null;
-              }
+            // Jos maksua ei ole suoritettu, tarkista allekirjoitusten vanheneminen
+            if (isSignatureExpired()) {
+              resetAllData();
+              clearInterval(window.expiryTimerInterval);
+              alert(
+                "Allekirjoitusten luonnista on kulunut 10 minuuttia. Tiedot on poistettu."
+              );
             }
           }
-        } else {
-          // Ei allekirjoituksia, piilota ostonappi
-          buyButton.style.display = "none";
-          statusMessage.textContent = "";
-
-          // Piilota "Lataa uudelleen" -nappi ja reset-container
-          downloadAgainContainer.style.display = "none";
-          resetContainer.style.display = "none";
-
-          // Pysäytä ajastin
-          if (resetTimerInterval) {
-            clearInterval(resetTimerInterval);
-            resetTimerInterval = null;
-          }
-        }
+        }, 10000); // Tarkista 10 sekunnin välein
       }
 
-      // Muokataan downloadSignatures-funktiota
-      async function downloadSignatures() {
-        try {
-          // Hae allekirjoitukset localStoragesta
-          const signatures = getSignaturesFromLocal();
-
-          if (!signatures || !signatures.images || !signatures.images.length) {
-            throw new Error("Allekirjoituksia ei löytynyt localStoragesta");
-          }
-
-          console.log("Ladataan puhtaat allekirjoitukset...");
-
-          // Hae puhtaat allekirjoitukset palvelimelta
-          const response = await fetch(
-            `${API_URL}/api/create-clean-signatures`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                name: signatures.name,
-                color: signatures.color,
-              }),
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error(
-              `Virhe puhtaiden allekirjoitusten luonnissa: ${response.status}`
-            );
-          }
-
-          const cleanData = await response.json();
-
-          // Luo ZIP-tiedosto
-          const zip = new JSZip();
-
-          // Lisää puhtaat kuvat ZIP-tiedostoon
-          cleanData.images.forEach((imageData, index) => {
-            // Poista data:image/png;base64, -etuliite
-            const base64Data = imageData.replace(
-              /^data:image\/png;base64,/,
-              ""
-            );
-            zip.file(`allekirjoitus_${index + 1}.png`, base64Data, {
-              base64: true,
-            });
-          });
-
-          // Generoi ZIP-tiedosto
-          const zipBlob = await zip.generateAsync({ type: "blob" });
-
-          // Luo latauslinkki
-          const downloadLink = document.createElement("a");
-          downloadLink.href = URL.createObjectURL(zipBlob);
-          downloadLink.download = `allekirjoitukset_${signatures.name.replace(
-            /\s+/g,
-            "_"
-          )}.zip`;
-
-          // Simuloi klikkausta
-          document.body.appendChild(downloadLink);
-          downloadLink.click();
-          document.body.removeChild(downloadLink);
-
-          console.log("Allekirjoitukset ladattu onnistuneesti");
-          statusMessage.textContent = "Allekirjoitukset ladattu onnistuneesti!";
-          statusMessage.style.color = "#4CAF50"; // Vihreä väri
-        } catch (error) {
-          console.error("Virhe allekirjoitusten latauksessa:", error);
-          statusMessage.textContent = "Virhe allekirjoitusten latauksessa.";
-          statusMessage.style.color = "#f44336"; // Punainen väri
-        }
-      }
-
-      // Muokataan checkExistingSignatures-funktiota
-      function checkExistingSignatures() {
-        const signatures = getSignaturesFromLocal();
-
-        if (signatures && signatures.images && signatures.images.length > 0) {
-          console.log("Löydettiin aiemmat allekirjoitukset:", signatures);
-
-          // Näytä allekirjoitukset
-          signaturesContainer.innerHTML = "";
-          signatures.images.forEach((imageData) => {
-            const signatureItem = document.createElement("div");
-            signatureItem.className = "signature-item";
-
-            const img = document.createElement("img");
-            img.src = imageData;
-            img.alt = `${signatures.name} allekirjoitus`;
-
-            signatureItem.appendChild(img);
-            signaturesContainer.appendChild(signatureItem);
-          });
-
-          // Täytä nimi-kenttä
-          nameInput.value = signatures.name;
-
-          // Tarkista tila uudelleen
-          checkStatus();
-
-          return true;
-        }
-
-        return false;
-      }
-
-      // Muokataan resetAllData-funktiota
+      // Muokkaa resetAllData-funktiota poistamaan myös signatureExpiry
       async function resetAllData() {
-        // Tyhjennä localStorage
-        localStorage.removeItem("clientIp");
-        localStorage.removeItem("hasAutoDownloaded");
-        localStorage.removeItem("hasPaid");
+        // Poista kaikki tiedot localStoragesta
         localStorage.removeItem("signatures");
+        localStorage.removeItem("hasPaid");
         localStorage.removeItem("paymentExpiry");
+        localStorage.removeItem("signatureExpiry");
+        localStorage.removeItem("hasAutoDownloaded");
 
-        // Tyhjennä allekirjoitukset
-        signaturesContainer.innerHTML = "";
-
-        // Tyhjennä nimi
-        nameInput.value = "";
-
-        // Piilota napit ja viestit
-        buyButton.style.display = "none";
-        downloadAgainContainer.style.display = "none";
-        emailContainer.style.display = "none";
-        resetContainer.style.display = "none";
-
-        // Näytä viesti
-        statusMessage.textContent = "Tiedot poistettu. Ohjataan etusivulle...";
-        statusMessage.style.color = "#4CAF50"; // Vihreä väri
-
-        // Pysäytä ajastin
-        if (resetTimerInterval) {
-          clearInterval(resetTimerInterval);
+        // Tyhjennä ajastimet
+        if (window.expiryTimerInterval) {
+          clearInterval(window.expiryTimerInterval);
         }
 
-        // Pieni viive ennen ohjausta etusivulle
-        setTimeout(() => {
-          // Ohjaa käyttäjä etusivulle ja pakota sivu latautumaan uudelleen
-          window.location.href =
-            window.location.origin + window.location.pathname + "?reset=true";
-        }, 1500);
+        // Muu resetointi-koodi...
       }
 
       // Muokataan createCheckoutSession-funktiota
