@@ -900,13 +900,36 @@
             throw new Error("Allekirjoituksia ei löytynyt localStoragesta");
           }
 
-          console.log("Ladataan allekirjoitukset localStoragesta:", signatures);
+          console.log("Ladataan puhtaat allekirjoitukset...");
+
+          // Hae puhtaat allekirjoitukset palvelimelta
+          const response = await fetch(
+            `${API_URL}/api/create-clean-signatures`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                name: signatures.name,
+                color: signatures.color,
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(
+              `Virhe puhtaiden allekirjoitusten luonnissa: ${response.status}`
+            );
+          }
+
+          const cleanData = await response.json();
 
           // Luo ZIP-tiedosto
           const zip = new JSZip();
 
-          // Lisää kuvat ZIP-tiedostoon
-          signatures.images.forEach((imageData, index) => {
+          // Lisää puhtaat kuvat ZIP-tiedostoon
+          cleanData.images.forEach((imageData, index) => {
             // Poista data:image/png;base64, -etuliite
             const base64Data = imageData.replace(
               /^data:image\/png;base64,/,
