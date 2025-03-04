@@ -492,6 +492,34 @@
         return localStorage.getItem("hasPaid") === "true";
       }
 
+      // Tallenna maksun aikaleima
+      function savePaymentTimestamp() {
+        const expiryTime = Date.now() + 3 * 60 * 1000; // Nykyinen aika + 3 minuuttia
+        localStorage.setItem("paymentExpiry", expiryTime.toString());
+        console.log(
+          "Maksun vanhenemisaika tallennettu:",
+          new Date(expiryTime).toLocaleTimeString()
+        );
+      }
+
+      // Tarkista onko maksu vanhentunut
+      function isPaymentExpired() {
+        const expiryTime = localStorage.getItem("paymentExpiry");
+        if (!expiryTime) return false;
+
+        const now = Date.now();
+        const expired = now > parseInt(expiryTime);
+
+        console.log(
+          "Maksun vanhenemisaika:",
+          new Date(parseInt(expiryTime)).toLocaleTimeString()
+        );
+        console.log("Nykyinen aika:", new Date(now).toLocaleTimeString());
+        console.log("Maksu vanhentunut:", expired);
+
+        return expired;
+      }
+
       // Luo allekirjoitukset karuselliin
       async function initializeCarousel() {
         // Tyhjennä karuselli
@@ -1006,6 +1034,7 @@
         localStorage.removeItem("hasAutoDownloaded");
         localStorage.removeItem("hasPaid");
         localStorage.removeItem("signatures");
+        localStorage.removeItem("paymentExpiry");
 
         // Tyhjennä allekirjoitukset
         signaturesContainer.innerHTML = "";
@@ -1202,12 +1231,22 @@
 
       // Tarkista maksun tila sivun latautuessa
       async function checkPaymentStatus() {
+        // Tarkista onko maksu vanhentunut
+        if (isPaymentExpired()) {
+          console.log("⏰ Maksu vanhentunut, tyhjennetään tiedot...");
+          await resetAllData();
+          return;
+        }
+
         if (getQueryParam("success") === "true") {
           console.log("✅ Maksu onnistui, merkitään maksetuksi...");
 
           // Merkitse maksu onnistuneeksi heti localStorageen
           savePaymentStatus(true);
           console.log("Maksutila tallennettu localStorageen: true");
+
+          // Tallenna maksun aikaleima
+          savePaymentTimestamp();
 
           // Nollaa automaattisen latauksen tila, jos käyttäjä on juuri maksanut
           localStorage.removeItem("hasAutoDownloaded");
@@ -1237,17 +1276,29 @@
 
       // Funktio ajastimen päivittämiseen
       function updateResetTimer() {
-        const minutes = Math.floor(resetTimeLeft / 60);
-        const seconds = resetTimeLeft % 60;
+        // Hae jäljellä oleva aika localStoragesta
+        const expiryTime = localStorage.getItem("paymentExpiry");
+        if (!expiryTime) {
+          resetTimer.textContent =
+            "Tiedot poistetaan automaattisesti 3:00 minuutin kuluttua";
+          return;
+        }
+
+        const now = Date.now();
+        const timeLeft = Math.max(0, parseInt(expiryTime) - now);
+
+        // Muunna millisekunnit minuuteiksi ja sekunneiksi
+        const minutes = Math.floor(timeLeft / 60000);
+        const seconds = Math.floor((timeLeft % 60000) / 1000);
+
         resetTimer.textContent = `Tiedot poistetaan automaattisesti ${minutes}:${
           seconds < 10 ? "0" : ""
         }${seconds} minuutin kuluttua`;
 
-        if (resetTimeLeft <= 0) {
+        if (timeLeft <= 0) {
           clearInterval(resetTimerInterval);
           resetAllData();
         }
-        resetTimeLeft--;
       }
 
       // Lisää tapahtumankäsittelijä "Luo lisää allekirjoituksia" -napille
