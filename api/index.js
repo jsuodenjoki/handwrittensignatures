@@ -205,7 +205,7 @@ app.post("/api/create-signatures", (req, res) => {
   console.log(`Luodaan allekirjoitukset: nimi=${name}, väri=${color}`);
 
   if (!name) {
-    return res.status(400).json({ error: "Name is missing" });
+    return res.status(400).json({ error: "Nimi puuttuu" });
   }
 
   const signatureImages = [];
@@ -248,7 +248,7 @@ app.get("/api/get-signatures", (req, res) => {
   }
 
   console.log(`Allekirjoituksia ei löytynyt IP:lle ${clientIp}`);
-  return res.status(404).json({ error: "No signatures found" });
+  return res.status(404).json({ error: "Allekirjoituksia ei löytynyt" });
 });
 
 // Allekirjoitusten lataus
@@ -308,7 +308,7 @@ app.get("/api/download-signatures", (req, res) => {
   if (!hasSignatures || !hasPaid) {
     return res
       .status(403)
-      .json({ error: "No permission to download signatures" });
+      .json({ error: "Ei oikeutta ladata allekirjoituksia" });
   }
 
   const userSignatures = signatures.get(signatureIp);
@@ -325,7 +325,7 @@ app.get("/api/download-signatures", (req, res) => {
   // Käsittele virheet
   archive.on("error", function (err) {
     console.error("Virhe ZIP-tiedoston luonnissa:", err);
-    res.status(500).send({ error: "Error creating file" });
+    res.status(500).send({ error: "Virhe tiedoston luonnissa" });
   });
 
   archive.pipe(res);
@@ -351,11 +351,11 @@ app.get("/api/download-signatures", (req, res) => {
   });
 
   // Lisää README-tiedosto
-  const readme = `Signatures created: ${new Date().toLocaleString("en-US")}
-Name: ${userSignatures.name}
-Files: ${signatureFonts.length} pcs
+  const readme = `Allekirjoitukset luotu: ${new Date().toLocaleString("fi-FI")}
+Nimi: ${userSignatures.name}
+Tiedostoja: ${signatureFonts.length} kpl
 
-Thank you for using our service!`;
+Kiitos että käytit palveluamme!`;
 
   archive.append(readme, { name: "README.txt" });
 
@@ -378,8 +378,8 @@ app.post("/api/create-checkout-session", async (req, res) => {
           price_data: {
             currency: "eur",
             product_data: {
-              name: "Signatures",
-              description: `Signatures for: ${name}`,
+              name: "Allekirjoitukset",
+              description: `Allekirjoitukset nimelle: ${name}`,
             },
             unit_amount: 100, // 1€ sentteinä
           },
@@ -393,8 +393,8 @@ app.post("/api/create-checkout-session", async (req, res) => {
 
     res.json({ url: session.url });
   } catch (error) {
-    console.error("Error creating checkout session:", error);
-    res.status(500).json({ error: "Error creating checkout session" });
+    console.error("Virhe checkout-session luonnissa:", error);
+    res.status(500).json({ error: "Virhe checkout-session luonnissa" });
   }
 });
 
@@ -405,17 +405,17 @@ app.post("/api/send-email", async (req, res) => {
 
     if (!email) {
       return res.status(400).json({
-        error: "Email address is missing",
+        error: "Sähköpostiosoite puuttuu",
       });
     }
 
     // Tässä voit toteuttaa sähköpostin lähetyksen
     // Koska tiedot ovat nyt localStoragessa, ei tarvitse tarkistaa palvelimelta
 
-    res.json({ success: true, message: "Email sent successfully" });
+    res.json({ success: true, message: "Sähköposti lähetetty onnistuneesti" });
   } catch (error) {
-    console.error("Error sending email:", error);
-    res.status(500).json({ error: "Error sending email" });
+    console.error("Virhe sähköpostin lähetyksessä:", error);
+    res.status(500).json({ error: "Virhe sähköpostin lähetyksessä" });
   }
 });
 
@@ -436,7 +436,7 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
   const { name } = req.body;
 
   if (!name) {
-    return res.status(400).json({ error: "Name is missing" });
+    return res.status(400).json({ error: "Nimi puuttuu" });
   }
 
   const fontStyle = signatureFonts.find(
@@ -444,7 +444,7 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
   );
 
   if (!fontStyle) {
-    return res.status(400).json({ error: "Font not found" });
+    return res.status(400).json({ error: "Fonttia ei löytynyt" });
   }
 
   const canvas = createCanvas(600, 200);
@@ -484,7 +484,7 @@ app.post("/api/restore-signatures", (req, res) => {
   const clientIp = getClientIpFormatted(req);
 
   if (!name || !images || !Array.isArray(images)) {
-    return res.status(400).json({ error: "Invalid request" });
+    return res.status(400).json({ error: "Virheellinen pyyntö" });
   }
 
   console.log(`Palautetaan allekirjoitukset IP:lle ${clientIp}, nimi: ${name}`);
@@ -552,10 +552,10 @@ app.get("/api/check-payment/:sessionId", async (req, res) => {
 
     return res.json({ success: true, status: session.payment_status });
   } catch (error) {
-    console.error("Error checking payment status:", error);
+    console.error("Virhe maksun tarkistuksessa:", error);
     return res
       .status(500)
-      .json({ success: false, error: "Error checking payment status" });
+      .json({ success: false, error: "Virhe maksun tarkistuksessa" });
   }
 });
 
@@ -566,7 +566,7 @@ app.post("/api/reset-user-data", (req, res) => {
   if (!clientIp) {
     return res
       .status(400)
-      .json({ success: false, message: "Client IP is missing." });
+      .json({ success: false, message: "Client IP puuttuu." });
   }
 
   // Poista tiedot serverin Mapista ja Setistä
@@ -579,7 +579,7 @@ app.post("/api/reset-user-data", (req, res) => {
   }
 
   console.log(`Poistettu tiedot IP-osoitteelle: ${clientIp}`);
-  res.json({ success: true, message: "User data deleted." });
+  res.json({ success: true, message: "Käyttäjän tiedot poistettu." });
 });
 
 // Allekirjoitusten luonti ilman vesileimaa
@@ -588,7 +588,7 @@ app.post("/api/create-clean-signatures", (req, res) => {
   console.log(`Luodaan puhtaat allekirjoitukset: nimi=${name}, väri=${color}`);
 
   if (!name) {
-    return res.status(400).json({ error: "Name is missing" });
+    return res.status(400).json({ error: "Nimi puuttuu" });
   }
 
   const signatureImages = [];
