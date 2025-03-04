@@ -239,61 +239,33 @@
       /* Karusellin tyylit */
       .signature-carousel-container {
         width: 100%;
-        max-width: 1000px;
-        margin: 0 auto 40px auto;
         overflow: hidden;
-        position: relative;
+        margin: 20px 0;
       }
 
       .signature-carousel {
+        width: 100%;
+        overflow: hidden;
+      }
+
+      .signature-carousel-inner {
         display: flex;
-        transition: transform 0.5s ease;
-        gap: 30px;
-        padding: 10px 100px;
+        animation: carousel 30s linear infinite;
       }
 
       .carousel-item {
-        min-width: 250px;
-        height: 150px;
-        background-color: rgba(255, 255, 255, 0.9);
-        border-radius: 10px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 10px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        flex-shrink: 0;
-        transition: opacity 0.3s ease, transform 0.3s ease;
+        flex: 0 0 auto;
+        padding: 0 20px;
+        opacity: 1;
+        transition: opacity 0.3s ease;
       }
 
-      .carousel-item img {
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-        display: block;
-      }
-
-      @media (max-width: 1200px) {
-        .carousel-item {
-          min-width: calc(33.333% - 20px);
+      @keyframes carousel {
+        0% {
+          transform: translateX(0);
         }
-      }
-
-      @media (max-width: 900px) {
-        .signature-carousel-container {
-          margin-bottom: 30px;
-        }
-
-        .carousel-item {
-          min-width: calc(50% - 20px);
-          height: 120px;
-        }
-      }
-
-      @media (max-width: 600px) {
-        .carousel-item {
-          min-width: calc(100% - 40px);
+        100% {
+          transform: translateX(-50%); /* Säädä tätä kuvien määrän mukaan */
         }
       }
 
@@ -345,10 +317,57 @@
     <h1>Allekirjoitusgeneraattori</h1>
     <p>Luo kauniita käsinkirjoitettuja allekirjoituksia helposti</p>
 
-    <!-- Lisätään allekirjoituskaruselli -->
+    <!-- Korvaa nykyinen karuselli-elementti tällä staattisella HTML-rakenteella -->
     <div class="signature-carousel-container">
       <div class="signature-carousel">
-        <!-- Karusellin sisältö täytetään JavaScriptillä -->
+        <div class="signature-carousel-inner">
+          <!-- Ensimmäinen sarja kuvia -->
+          <div class="carousel-item">
+            <img
+              src="/signatures/example_1.png"
+              alt="Allekirjoitus 1"
+              style="max-height: 60px"
+            />
+          </div>
+          <div class="carousel-item">
+            <img
+              src="/signatures/example_2.png"
+              alt="Allekirjoitus 2"
+              style="max-height: 60px"
+            />
+          </div>
+          <div class="carousel-item">
+            <img
+              src="/signatures/example_3.png"
+              alt="Allekirjoitus 3"
+              style="max-height: 60px"
+            />
+          </div>
+          <!-- Lisää loput kuvat tähän -->
+
+          <!-- Toista ensimmäiset kuvat saumattoman animaation varmistamiseksi -->
+          <div class="carousel-item">
+            <img
+              src="/signatures/example_1.png"
+              alt="Allekirjoitus 1"
+              style="max-height: 60px"
+            />
+          </div>
+          <div class="carousel-item">
+            <img
+              src="/signatures/example_2.png"
+              alt="Allekirjoitus 2"
+              style="max-height: 60px"
+            />
+          </div>
+          <div class="carousel-item">
+            <img
+              src="/signatures/example_3.png"
+              alt="Allekirjoitus 3"
+              style="max-height: 60px"
+            />
+          </div>
+        </div>
       </div>
     </div>
 
@@ -537,234 +556,6 @@
         console.log("Maksu vanhentunut:", expired);
 
         return expired;
-      }
-
-      // Luo allekirjoitukset karuselliin
-      async function initializeCarousel() {
-        // Tyhjennä karuselli
-        signatureCarousel.innerHTML = "";
-
-        // Odota että fontit on ladattu
-        await document.fonts.ready;
-
-        // Varmista että käyttäjän IP on tallennettu
-        await getClientIp();
-
-        console.log("Alustetaan karuselli käyttäen backend-reittiä");
-
-        // Luo esimerkkiallekirjoitukset ja lisää ne karuselliin
-        const signatures = [];
-
-        // Luo esimerkkiallekirjoitukset backendissä
-        try {
-          // Luo allekirjoitukset jokaiselle esimerkkihenkilölle
-          for (const name of exampleNames) {
-            try {
-              // Käytä samaa backend-reittiä kuin käyttäjän allekirjoituksille
-              const response = await fetch(
-                `${API_URL}/api/create-signature-for-carousel`,
-                {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({ name }),
-                }
-              );
-
-              if (!response.ok) {
-                throw new Error(
-                  `Virhe allekirjoituksen luonnissa: ${response.status}`
-                );
-              }
-
-              const data = await response.json();
-
-              if (data.image) {
-                signatures.push({
-                  name,
-                  image: data.image,
-                  font: "Oma Fontti",
-                });
-              }
-            } catch (error) {
-              console.error(
-                `Virhe esimerkkiallekirjoituksen luonnissa (${name}):`,
-                error
-              );
-            }
-          }
-
-          // Jos ei saatu yhtään allekirjoitusta, näytä virheilmoitus
-          if (signatures.length === 0) {
-            const message = document.createElement("div");
-            message.className = "carousel-item";
-            message.textContent =
-              "Esimerkkiallekirjoitusten luonti epäonnistui.";
-            signatureCarousel.appendChild(message);
-            return;
-          }
-
-          console.log(`Luotu ${signatures.length} esimerkkiallekirjoitusta`);
-
-          // Lisää allekirjoitukset karuselliin
-          for (const signature of signatures) {
-            const carouselItem = document.createElement("div");
-            carouselItem.className = "carousel-item";
-            carouselItem.dataset.name = signature.name;
-
-            // Luo div-elementti kuvan ympärille keskitystä varten
-            const imgContainer = document.createElement("div");
-            imgContainer.style.width = "100%";
-            imgContainer.style.height = "100%";
-            imgContainer.style.display = "flex";
-            imgContainer.style.alignItems = "center";
-            imgContainer.style.justifyContent = "center";
-
-            const img = document.createElement("img");
-            img.src = signature.image;
-            img.alt = `${signature.name} allekirjoitus (${signature.font})`;
-            img.style.maxWidth = "100%";
-            img.style.maxHeight = "100%";
-            img.style.objectFit = "contain";
-
-            imgContainer.appendChild(img);
-            carouselItem.appendChild(imgContainer);
-            signatureCarousel.appendChild(carouselItem);
-          }
-
-          // Lisää samat allekirjoitukset uudelleen, jotta karuselli näyttää jatkuvalta
-          for (const signature of signatures) {
-            const carouselItem = document.createElement("div");
-            carouselItem.className = "carousel-item";
-            carouselItem.dataset.name = signature.name;
-
-            // Luo div-elementti kuvan ympärille keskitystä varten
-            const imgContainer = document.createElement("div");
-            imgContainer.style.width = "100%";
-            imgContainer.style.height = "100%";
-            imgContainer.style.display = "flex";
-            imgContainer.style.alignItems = "center";
-            imgContainer.style.justifyContent = "center";
-
-            const img = document.createElement("img");
-            img.src = signature.image;
-            img.alt = `${signature.name} allekirjoitus (${signature.font})`;
-            img.style.maxWidth = "100%";
-            img.style.maxHeight = "100%";
-            img.style.objectFit = "contain";
-
-            imgContainer.appendChild(img);
-            carouselItem.appendChild(imgContainer);
-            signatureCarousel.appendChild(carouselItem);
-          }
-
-          // Käynnistä karusellin animaatio
-          startCarouselAnimation();
-        } catch (error) {
-          console.error("Virhe karusellin alustuksessa:", error);
-          const message = document.createElement("div");
-          message.className = "carousel-item";
-          message.textContent = "Virhe esimerkkiallekirjoitusten luonnissa.";
-          signatureCarousel.appendChild(message);
-        }
-      }
-
-      // Karusellin animaatio
-      let carouselPosition = 0;
-      let carouselAnimationId;
-      let isResetting = false;
-
-      function startCarouselAnimation() {
-        if (carouselAnimationId) {
-          cancelAnimationFrame(carouselAnimationId);
-        }
-
-        const items = signatureCarousel.querySelectorAll(".carousel-item");
-        const totalItems = items.length;
-        const visibleItems = 3; // Näkyvien elementtien määrä
-        const itemWidth = 280; // Elementin leveys + marginaali
-        const duration = 10000; // Koko kierroksen kesto millisekunteina
-        const step = ((itemWidth * exampleNames.length) / duration) * 16.7; // Siirtymä per frame
-        const containerWidth = document.querySelector(
-          ".signature-carousel-container"
-        ).offsetWidth;
-
-        // Aseta alkuposition niin, että ensimmäinen elementti on näkyvissä
-        carouselPosition = 0;
-
-        function animateCarousel() {
-          if (!isResetting) {
-            carouselPosition -= step;
-
-            // Kun karuselli on liikkunut tarpeeksi, valmistele paluu alkuun
-            // Tarkistetaan onko ensimmäinen "aito" elementti liikkunut pois näkyvistä
-            if (carouselPosition <= -itemWidth * exampleNames.length) {
-              isResetting = true;
-
-              // Poista transition väliaikaisesti
-              signatureCarousel.style.transition = "none";
-
-              // Aseta timeout, jotta transition-muutos ehtii vaikuttaa
-              setTimeout(() => {
-                // Nollaa positio
-                carouselPosition = 0;
-                signatureCarousel.style.transform = `translateX(${carouselPosition}px)`;
-
-                // Palauta transition pienen viiveen jälkeen
-                setTimeout(() => {
-                  signatureCarousel.style.transition = "transform 0.5s ease";
-                  isResetting = false;
-                }, 20);
-              }, 20);
-            }
-          }
-
-          // Päivitä karusellin sijainti
-          if (!isResetting) {
-            signatureCarousel.style.transform = `translateX(${carouselPosition}px)`;
-
-            // Päivitä elementtien läpinäkyvyys sijainnin perusteella
-            updateItemsOpacity(containerWidth);
-          }
-
-          carouselAnimationId = requestAnimationFrame(animateCarousel);
-        }
-
-        carouselAnimationId = requestAnimationFrame(animateCarousel);
-      }
-
-      // Päivitä elementtien läpinäkyvyys
-      function updateItemsOpacity(containerWidth) {
-        const items = signatureCarousel.querySelectorAll(".carousel-item");
-        const fadeZone = 200; // Häivytysvyöhykkeen leveys
-
-        items.forEach((item) => {
-          const rect = item.getBoundingClientRect();
-          const containerRect =
-            signatureCarousel.parentElement.getBoundingClientRect();
-
-          // Laske etäisyys vasemmasta ja oikeasta reunasta
-          const distanceFromLeft = rect.left - containerRect.left;
-          const distanceFromRight = containerRect.right - rect.right;
-
-          // Laske läpinäkyvyys etäisyyden perusteella
-          let opacity = 1;
-          let scale = 1;
-
-          if (distanceFromLeft < fadeZone) {
-            opacity = distanceFromLeft / fadeZone;
-            scale = 0.9 + 0.1 * opacity;
-          } else if (distanceFromRight < fadeZone) {
-            opacity = distanceFromRight / fadeZone;
-            scale = 0.9 + 0.1 * opacity;
-          }
-
-          // Rajoita läpinäkyvyys välille 0-1 ja aseta se
-          opacity = Math.max(0.1, Math.min(1, opacity));
-          item.style.opacity = opacity;
-          item.style.transform = `scale(${scale})`;
-        });
       }
 
       // Tallenna allekirjoitukset localStorageen
@@ -1175,8 +966,26 @@
         }
       });
 
-      // Lataa oma fontti dynaamisesti ja alusta karuselli vasta kun fontti on ladattu
-      async function loadFontsAndInitialize() {
+      // Käynnistä fonttien lataus ja alustus
+      async function initialize() {
+        // Tallenna IP-osoite heti alussa
+        await saveClientIp();
+
+        // Ei tarvitse enää alustaa karusellia
+        // await loadFontsAndInitialize();
+
+        // Lataa fontit allekirjoitusten luontia varten
+        await loadFonts();
+
+        // Tarkista maksun tila ensin
+        await checkPaymentStatus();
+
+        // Tarkista tila vasta kun IP on tallennettu
+        await checkStatus();
+      }
+
+      // Lataa fontit allekirjoitusten luontia varten
+      async function loadFonts() {
         try {
           // Tyhjennä fonttilistaus ensin
           signatureFonts.length = 0;
@@ -1209,34 +1018,17 @@
 
           console.log("Fontit ladattu onnistuneesti:", signatureFonts);
 
-          // Alusta karuselli vasta kun fontit on ladattu
-          await initializeCarousel();
-
           // Tarkista onko käyttäjällä jo allekirjoituksia
           checkExistingSignatures();
         } catch (error) {
           console.error("Virhe fonttien latauksessa:", error);
-          // Virhetilanteessa alusta karuselli järjestelmäfontilla
+          // Virhetilanteessa käytä järjestelmäfonttia
           signatureFonts.length = 0;
           signatureFonts.push({
             name: "Järjestelmäfontti",
             font: "60px Arial, sans-serif",
           });
-          initializeCarousel();
         }
-      }
-
-      // Käynnistä fonttien lataus ja alustus
-      async function initialize() {
-        // Tallenna IP-osoite heti alussa
-        await saveClientIp();
-        await loadFontsAndInitialize();
-
-        // Tarkista maksun tila ensin
-        await checkPaymentStatus();
-
-        // Tarkista tila vasta kun IP on tallennettu
-        await checkStatus();
       }
 
       // Käynnistä sovellus
