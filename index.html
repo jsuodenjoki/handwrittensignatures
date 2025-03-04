@@ -1224,6 +1224,11 @@
         url.searchParams.delete("reset");
         window.history.replaceState({}, document.title, url);
       }
+
+      // Lisää tapahtumankäsittelijä ostonapille
+      buyButton.addEventListener("click", async () => {
+        await createCheckoutSession();
+      });
     </script>
   </body>
 </html>
