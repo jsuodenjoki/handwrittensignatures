@@ -538,9 +538,13 @@
 
         // Käytä staattisia kuvia
         try {
-          // Luo allekirjoitukset jokaiselle esimerkkihenkilölle
-          for (let i = 0; i < exampleNames.length; i++) {
-            const name = exampleNames[i];
+          // Käytä kaikkia 26 kuvaa
+          const totalImages = 26;
+
+          for (let i = 0; i < totalImages; i++) {
+            // Käytä exampleNames-taulukon nimiä, jos saatavilla, muuten käytä geneerisiä nimiä
+            const name =
+              i < exampleNames.length ? exampleNames[i] : `Esimerkki ${i + 1}`;
 
             // Käytä staattista kuvaa
             const imagePath = `/signatures/handwritten_signature_generator_example_${
@@ -608,7 +612,7 @@
 
             const img = document.createElement("img");
             img.src = signature.image;
-            img.alt = `${signature.name} allekirjoitus (${signature.font})`;
+            img.alt = `Handwritten signature genetator example with the name of ${signature.name}`;
             img.style.maxWidth = "100%";
             img.style.maxHeight = "100%";
             img.style.objectFit = "contain";
