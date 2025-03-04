@@ -719,7 +719,7 @@
       // Päivitä elementtien läpinäkyvyys
       function updateItemsOpacity(containerWidth) {
         const items = signatureCarousel.querySelectorAll(".carousel-item");
-        const fadeZone = 200; // Pienennetty häivytysvyöhykkeen leveys
+        const fadeZone = 200; // Häivytysvyöhykkeen leveys
 
         items.forEach((item) => {
           const rect = item.getBoundingClientRect();
@@ -734,26 +734,16 @@
           let opacity = 1;
           let scale = 1;
 
-          // Jos elementti on vasemmassa häivytysvyöhykkeessä
           if (distanceFromLeft < fadeZone) {
             opacity = distanceFromLeft / fadeZone;
             scale = 0.9 + 0.1 * opacity;
-          }
-          // Jos elementti on oikeassa häivytysvyöhykkeessä
-          else if (distanceFromRight < fadeZone) {
+          } else if (distanceFromRight < fadeZone) {
             opacity = distanceFromRight / fadeZone;
             scale = 0.9 + 0.1 * opacity;
           }
-          // Muuten elementti on täysin näkyvissä
-          else {
-            opacity = 1;
-            scale = 1;
-          }
 
-          // Rajoita arvot välille 0-1
-          opacity = Math.max(0, Math.min(1, opacity));
-
-          // Aseta läpinäkyvyys ja skaalaus
+          // Rajoita läpinäkyvyys välille 0-1 ja aseta se
+          opacity = 1;
           item.style.opacity = opacity;
           item.style.transform = `scale(${scale})`;
         });
