@@ -8,6 +8,7 @@
       href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap"
       rel="stylesheet"
     />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -892,11 +893,14 @@
       // Muokataan downloadSignatures-funktiota
       async function downloadSignatures() {
         try {
+          // Hae allekirjoitukset localStoragesta
           const signatures = getSignaturesFromLocal();
 
           if (!signatures || !signatures.images || !signatures.images.length) {
-            throw new Error("Allekirjoituksia ei löytynyt");
+            throw new Error("Allekirjoituksia ei löytynyt localStoragesta");
           }
+
+          console.log("Ladataan allekirjoitukset localStoragesta:", signatures);
 
           // Luo ZIP-tiedosto
           const zip = new JSZip();
@@ -930,9 +934,12 @@
           document.body.removeChild(downloadLink);
 
           console.log("Allekirjoitukset ladattu onnistuneesti");
+          statusMessage.textContent = "Allekirjoitukset ladattu onnistuneesti!";
+          statusMessage.style.color = "#4CAF50"; // Vihreä väri
         } catch (error) {
           console.error("Virhe allekirjoitusten latauksessa:", error);
-          alert("Virhe allekirjoitusten latauksessa.");
+          statusMessage.textContent = "Virhe allekirjoitusten latauksessa.";
+          statusMessage.style.color = "#f44336"; // Punainen väri
         }
       }
 
