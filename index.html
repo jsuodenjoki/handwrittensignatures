@@ -239,78 +239,70 @@
       /* Karusellin tyylit */
       .signature-carousel-container {
         width: 100%;
+        max-width: 1000px;
+        margin: 0 auto 40px auto;
         overflow: hidden;
-        margin: 20px 0;
         position: relative;
       }
 
       .signature-carousel {
-        width: 100%;
-        overflow: hidden;
-        padding: 20px 0;
-      }
-
-      .signature-carousel-inner {
         display: flex;
-        animation: carousel 60s linear infinite;
+        transition: transform 0.5s ease;
+        gap: 30px;
+        padding: 10px 100px;
       }
 
       .carousel-item {
-        flex: 0 0 auto;
-        padding: 15px;
-        margin: 0 10px;
-        background: rgba(240, 240, 240, 0.9);
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        width: 300px;
-        height: 100px;
+        min-width: 250px;
+        height: 150px;
+        background-color: rgba(255, 255, 255, 0.9);
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
         display: flex;
         align-items: center;
         justify-content: center;
+        padding: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        flex-shrink: 0;
+        transition: opacity 0.3s ease, transform 0.3s ease;
       }
 
       .carousel-item img {
-        max-width: 90%;
-        max-height: 70px;
-      }
-
-      /* Häivytysefekti reunoilla */
-      .signature-carousel-container::before,
-      .signature-carousel-container::after {
-        content: "";
-        position: absolute;
-        top: 0;
-        width: 15%;
+        width: 100%;
         height: 100%;
-        z-index: 2;
-        pointer-events: none;
+        object-fit: contain;
+        display: block;
       }
 
-      .signature-carousel-container::before {
-        left: 0;
-        background: linear-gradient(
-          to right,
-          rgba(255, 255, 255, 1),
-          rgba(255, 255, 255, 0)
-        );
-      }
-
-      .signature-carousel-container::after {
-        right: 0;
-        background: linear-gradient(
-          to left,
-          rgba(255, 255, 255, 1),
-          rgba(255, 255, 255, 0)
-        );
-      }
-
-      @keyframes carousel {
-        0% {
-          transform: translateX(0);
+      @media (max-width: 1200px) {
+        .carousel-item {
+          min-width: calc(33.333% - 20px);
         }
-        100% {
-          transform: translateX(-2600px);
+      }
+
+      @media (max-width: 900px) {
+        .signature-carousel-container {
+          margin-bottom: 30px;
         }
+
+        .carousel-item {
+          min-width: calc(50% - 20px);
+          height: 120px;
+        }
+      }
+
+      @media (max-width: 600px) {
+        .carousel-item {
+          min-width: calc(100% - 40px);
+        }
+      }
+
+      /* Lisää oma fontti @font-face-säännöllä */
+      @font-face {
+        font-family: "OmaFontti1";
+        src: url("/fonts/omafontti1.ttf") format("truetype");
+        font-weight: normal;
+        font-style: normal;
       }
 
       .color-options {
@@ -353,200 +345,10 @@
     <h1>Allekirjoitusgeneraattori</h1>
     <p>Luo kauniita käsinkirjoitettuja allekirjoituksia helposti</p>
 
-    <!-- Korjataan karuselli vastaamaan alkuperäistä ulkoasua -->
+    <!-- Lisätään allekirjoituskaruselli -->
     <div class="signature-carousel-container">
       <div class="signature-carousel">
-        <div class="signature-carousel-inner">
-          <!-- Kaikki 26 kuvaa -->
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_1.png"
-              alt="Allekirjoitus 1"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_2.png"
-              alt="Allekirjoitus 2"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_3.png"
-              alt="Allekirjoitus 3"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_4.png"
-              alt="Allekirjoitus 4"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_5.png"
-              alt="Allekirjoitus 5"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_6.png"
-              alt="Allekirjoitus 6"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_7.png"
-              alt="Allekirjoitus 7"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_8.png"
-              alt="Allekirjoitus 8"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_9.png"
-              alt="Allekirjoitus 9"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_10.png"
-              alt="Allekirjoitus 10"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_11.png"
-              alt="Allekirjoitus 11"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_12.png"
-              alt="Allekirjoitus 12"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_13.png"
-              alt="Allekirjoitus 13"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_14.png"
-              alt="Allekirjoitus 14"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_15.png"
-              alt="Allekirjoitus 15"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_16.png"
-              alt="Allekirjoitus 16"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_17.png"
-              alt="Allekirjoitus 17"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_18.png"
-              alt="Allekirjoitus 18"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_19.png"
-              alt="Allekirjoitus 19"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_20.png"
-              alt="Allekirjoitus 20"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_21.png"
-              alt="Allekirjoitus 21"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_22.png"
-              alt="Allekirjoitus 22"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_23.png"
-              alt="Allekirjoitus 23"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_24.png"
-              alt="Allekirjoitus 24"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_25.png"
-              alt="Allekirjoitus 25"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_26.png"
-              alt="Allekirjoitus 26"
-            />
-          </div>
-
-          <!-- Toista ensimmäiset 5 kuvaa saumattoman animaation varmistamiseksi -->
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_1.png"
-              alt="Allekirjoitus 1"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_2.png"
-              alt="Allekirjoitus 2"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_3.png"
-              alt="Allekirjoitus 3"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_4.png"
-              alt="Allekirjoitus 4"
-            />
-          </div>
-          <div class="carousel-item">
-            <img
-              src="/signatures/handwritten_signature_generator_example_5.png"
-              alt="Allekirjoitus 5"
-            />
-          </div>
-        </div>
+        <!-- Karusellin sisältö täytetään JavaScriptillä -->
       </div>
     </div>
 
@@ -718,6 +520,43 @@
         return expired;
       }
 
+      // Luo allekirjoitukset karuselliin
+      function initializeStaticCarousel() {
+        const carousel = document.querySelector(".signature-carousel-inner");
+        carousel.innerHTML = ""; // Tyhjennä karuselli
+
+        // Lisää staattiset kuvat karuselliin
+        for (let i = 1; i <= 26; i++) {
+          const carouselItem = document.createElement("div");
+          carouselItem.className = "carousel-item";
+
+          const img = document.createElement("img");
+          img.src = `/signatures/handwritten_signature_generator_example_${i}.png`;
+          img.alt = `Allekirjoitus ${i}`;
+          img.style.maxHeight = "60px";
+
+          carouselItem.appendChild(img);
+          carousel.appendChild(carouselItem);
+        }
+
+        // Toista ensimmäiset 5 kuvaa saumattoman animaation varmistamiseksi
+        for (let i = 1; i <= 5; i++) {
+          const carouselItem = document.createElement("div");
+          carouselItem.className = "carousel-item";
+
+          const img = document.createElement("img");
+          img.src = `/signatures/handwritten_signature_generator_example_${i}.png`;
+          img.alt = `Allekirjoitus ${i}`;
+          img.style.maxHeight = "60px";
+
+          carouselItem.appendChild(img);
+          carousel.appendChild(carouselItem);
+        }
+      }
+
+      // Kutsu tätä funktiota initializeCarousel-funktion sijaan
+      initializeStaticCarousel();
+
       // Tallenna allekirjoitukset localStorageen
       function saveSignaturesToLocal(name, images, color) {
         const signatureData = {
@@ -883,6 +722,7 @@
           // Pysäytä ajastin
           if (resetTimerInterval) {
             clearInterval(resetTimerInterval);
+            resetTimerInterval = null;
           }
         }
       }
@@ -1159,6 +999,9 @@
 
           console.log("Fontit ladattu onnistuneesti:", signatureFonts);
 
+          // Alusta karuselli vasta kun fontit on ladattu
+          await initializeStaticCarousel();
+
           // Tarkista onko käyttäjällä jo allekirjoituksia
           checkExistingSignatures();
         } catch (error) {
@@ -1169,6 +1012,7 @@
             name: "Järjestelmäfontti",
             font: "60px Arial, sans-serif",
           });
+          initializeStaticCarousel();
         }
       }
 
@@ -1281,6 +1125,11 @@
       // Lisää tapahtumankäsittelijä ostonapille
       buyButton.addEventListener("click", async () => {
         await createCheckoutSession();
+      });
+
+      document.addEventListener("DOMContentLoaded", function () {
+        initializeStaticCarousel();
+        // ...muu koodi...
       });
     </script>
   </body>
