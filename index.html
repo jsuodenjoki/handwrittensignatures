@@ -666,7 +666,7 @@
         const totalItems = items.length;
         const visibleItems = 3; // Näkyvien elementtien määrä
         const itemWidth = 280; // Elementin leveys + marginaali
-        const duration = 10000; // Koko kierroksen kesto millisekunteina
+        const duration = 20000; // Koko kierroksen kesto millisekunteina
         const step = ((itemWidth * exampleNames.length) / duration) * 16.7; // Siirtymä per frame
         const containerWidth = document.querySelector(
           ".signature-carousel-container"
@@ -719,7 +719,7 @@
       // Päivitä elementtien läpinäkyvyys
       function updateItemsOpacity(containerWidth) {
         const items = signatureCarousel.querySelectorAll(".carousel-item");
-        const fadeZone = 200; // Häivytysvyöhykkeen leveys
+        const fadeZone = 200; // Pienennetty häivytysvyöhykkeen leveys
 
         items.forEach((item) => {
           const rect = item.getBoundingClientRect();
@@ -734,16 +734,26 @@
           let opacity = 1;
           let scale = 1;
 
+          // Jos elementti on vasemmassa häivytysvyöhykkeessä
           if (distanceFromLeft < fadeZone) {
             opacity = distanceFromLeft / fadeZone;
             scale = 0.9 + 0.1 * opacity;
-          } else if (distanceFromRight < fadeZone) {
+          }
+          // Jos elementti on oikeassa häivytysvyöhykkeessä
+          else if (distanceFromRight < fadeZone) {
             opacity = distanceFromRight / fadeZone;
             scale = 0.9 + 0.1 * opacity;
           }
+          // Muuten elementti on täysin näkyvissä
+          else {
+            opacity = 1;
+            scale = 1;
+          }
 
-          // Rajoita läpinäkyvyys välille 0-1 ja aseta se
-          opacity = Math.max(0.1, Math.min(1, opacity));
+          // Rajoita arvot välille 0-1
+          opacity = Math.max(0, Math.min(1, opacity));
+
+          // Aseta läpinäkyvyys ja skaalaus
           item.style.opacity = opacity;
           item.style.transform = `scale(${scale})`;
         });
