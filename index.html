@@ -806,6 +806,10 @@
         const signatures = getSignaturesFromLocal();
         const hasPaid = getPaymentStatus();
 
+        console.log("Tarkistetaan tila localStoragesta:");
+        console.log("- Allekirjoitukset:", !!signatures);
+        console.log("- Maksettu:", hasPaid);
+
         const data = {
           hasSignatures: !!signatures,
           hasPaid: hasPaid,
@@ -1149,7 +1153,11 @@
         // Tallenna IP-osoite heti alussa
         await saveClientIp();
         await loadFontsAndInitialize();
-        // Tarkista maksun tila vasta kun IP on tallennettu
+
+        // Tarkista maksun tila ensin
+        await checkPaymentStatus();
+
+        // Tarkista tila vasta kun IP on tallennettu
         await checkStatus();
       }
 
@@ -1165,18 +1173,17 @@
       // Tarkista maksun tila sivun latautuessa
       async function checkPaymentStatus() {
         if (getQueryParam("success") === "true") {
-          console.log("✅ Maksu onnistui, tarkistetaan tila...");
+          console.log("✅ Maksu onnistui, merkitään maksetuksi...");
 
           // Merkitse maksu onnistuneeksi heti localStorageen
           savePaymentStatus(true);
+          console.log("Maksutila tallennettu localStorageen: true");
 
           // Nollaa automaattisen latauksen tila, jos käyttäjä on juuri maksanut
           localStorage.removeItem("hasAutoDownloaded");
 
-          // Varmista että IP on haettu ennen tilan tarkistusta
-          await getClientIp();
-          // Odota hetki että backend ehtii käsitellä maksun
-          setTimeout(() => checkStatus(true), 1000);
+          // Tarkista tila heti
+          checkStatus(true);
         } else if (getQueryParam("canceled") === "true") {
           console.log("❌ Maksu peruutettu.");
           statusMessage.textContent = "Maksu peruutettiin.";
