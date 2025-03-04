@@ -3,8 +3,8 @@ const path = require("path");
 const { createCanvas, registerFont } = require("canvas");
 
 // Rekisteröi fontit
-registerFont(path.join(__dirname, "public/fonts/omafontti1.ttf"), {
-  family: "OmaFontti1",
+registerFont(path.join(__dirname, "public/fonts/omafontti3.ttf"), {
+  family: "OmaFontti3",
 });
 
 // Esimerkkinimet
@@ -46,21 +46,28 @@ if (!fs.existsSync(signatureDir)) {
 
 // Luo allekirjoitus
 function createSignature(name, fontFamily, color) {
-  const canvas = createCanvas(600, 100);
+  const canvas = createCanvas(600, 200);
   const ctx = canvas.getContext("2d");
 
-  // Tyhjennä canvas
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Aseta fontti ja väri
-  ctx.font = `60px ${fontFamily}`;
+  // Käytä samaa fonttikokoa kuin API-reitissä
+  ctx.font = `80px ${fontFamily}`; // Suurempi fonttikoko
   ctx.fillStyle = color;
   ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
 
-  // Piirrä teksti
-  ctx.fillText(name, canvas.width / 2, canvas.height / 2);
+  const textMetrics = ctx.measureText(name);
+  const textHeight =
+    textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
+
+  const centerY =
+    canvas.height / 2 +
+    (textMetrics.actualBoundingBoxAscent -
+      textMetrics.actualBoundingBoxDescent) /
+      2;
+
+  ctx.fillText(name, canvas.width / 2, centerY);
 
   return canvas.toBuffer("image/png");
 }
@@ -75,8 +82,8 @@ process.on("uncaughtException", (err) => {
 exampleNames.forEach((name, index) => {
   try {
     console.log(`Luodaan allekirjoitus nimelle: ${name}`);
-    const buffer = createSignature(name, "OmaFontti1", "#6e8efb");
-    const filename = `example_${index + 1}.png`;
+    const buffer = createSignature(name, "OmaFontti3", "#6e8efb");
+    const filename = `handwritten_signature_generator_example_${index + 1}.png`;
     fs.writeFileSync(path.join(signatureDir, filename), buffer);
     console.log(`Luotu allekirjoitus: ${filename}`);
   } catch (error) {

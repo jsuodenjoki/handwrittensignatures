@@ -16,7 +16,10 @@
   ],
   "routes": [
     { "src": "/signatures/(.*)", "dest": "/public/signatures/$1" },
-    { "src": "/example_(.*).png", "dest": "/public/signatures/example_$1.png" },
+    {
+      "src": "/handwritten_signature_generator_example_(.*).png",
+      "dest": "/public/signatures/handwritten_signature_generator_example_$1.png"
+    },
     { "src": "/fonts/(.*)", "dest": "/public/fonts/$1" },
     { "src": "/api/(.*)", "dest": "/api/index.js" },
     { "handle": "filesystem" },
