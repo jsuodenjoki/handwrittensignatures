@@ -337,6 +337,27 @@
       .color-options input[type="radio"]:checked + .color-circle {
         border: 2px solid #6e8efb;
       }
+
+      .btn {
+        background-color: #4caf50; /* Vihreä */
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 10px 0;
+        transition: background-color 0.3s;
+      }
+
+      .btn:hover {
+        background-color: #45a049; /* Tummempi vihreä hover-tilassa */
+      }
+
+      .btn:disabled {
+        background-color: #cccccc; /* Harmaa, kun nappi on disabloitu */
+        cursor: not-allowed;
+      }
     </style>
   </head>
   <body>
@@ -373,13 +394,17 @@
         </label>
       </div>
 
-      <button id="generateBtn" class="btn">Generate Signatures</button>
+      <button id="generateBtn" class="button primary-button">
+        Generate Signatures
+      </button>
 
       <div id="statusMessage" class="status-message"></div>
 
       <div id="signaturesContainer" class="signatures-container"></div>
 
-      <button id="downloadBtn" class="btn" disabled>Download Signatures</button>
+      <button id="downloadBtn" class="button primary-button" disabled>
+        Download Signatures
+      </button>
     </div>
 
     <div id="email-container" class="email-container">
