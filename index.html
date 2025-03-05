@@ -351,6 +351,7 @@
         margin: 0 5px;
         cursor: pointer;
         border: 2px solid #fff;
+        position: relative;
       }
 
       .color-circle.black {
@@ -361,12 +362,39 @@
         background-color: blue;
       }
 
+      .color-circle::before,
+      .color-circle::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 8px;
+        height: 2px;
+        background-color: white;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+      }
+
+      .color-circle::before {
+        transform: translate(-50%, -50%) rotate(45deg);
+      }
+
+      .color-circle::after {
+        transform: translate(-50%, -50%) rotate(-45deg);
+      }
+
       .color-options input[type="radio"] {
         display: none;
       }
 
       .color-options input[type="radio"]:checked + .color-circle {
-        border: 2px solid #6e8efb;
+        border: 2px solid white;
+        box-shadow: 0 0 0 2px #6e8efb;
+      }
+
+      .color-options input[type="radio"]:checked + .color-circle::before,
+      .color-options input[type="radio"]:checked + .color-circle::after {
+        opacity: 1;
       }
     </style>
   </head>
