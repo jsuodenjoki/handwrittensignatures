@@ -13,6 +13,8 @@ const stripe = stripePackage(process.env.STRIPE_SECRET_KEY);
 const app = express();
 const signatures = new Map();
 const paidIPs = new Set();
+const paymentStatus = new Map(); // Tallentaa maksutilan IP-osoitteen perusteella
+const paymentExpiry = new Map(); // Tallentaa maksun vanhenemisajan IP-osoitteen perusteella
 
 //3. MIDDLEWARE MÄÄRITTELYT
 app.use(cors());
@@ -579,28 +581,78 @@ app.post("/api/reset-user-data", (req, res) => {
 });
 
 // Allekirjoitusten luonti ilman vesileimaa
-app.post("/api/create-clean-signatures", (req, res) => {
-  const { name, color } = req.body;
-  console.log(`Creating clean signatures: name=${name}, color=${color}`);
+app.post("/api/create-clean-signatures", async (req, res) => {
+  try {
+    const { name, color, clientIp } = req.body;
 
-  if (!name) {
-    return res.status(400).json({ error: "Nimi puuttuu" });
+    // Tarkista maksutila
+    const hasPaid = paymentStatus.get(clientIp) === true;
+
+    // Jos ei ole maksanut, palauta virhe
+    if (!hasPaid) {
+      return res.status(402).json({ error: "Payment required" });
+    }
+
+    // Jatka normaalisti allekirjoitusten luomiseen
+    // ... olemassa oleva koodi allekirjoitusten luomiseen ...
+
+    // Esimerkki:
+    const images = await generateCleanSignatures(name, color);
+    res.json({ images });
+  } catch (error) {
+    console.error("Error creating clean signatures:", error);
+    res.status(500).json({ error: "Error creating clean signatures" });
+  }
+});
+
+// Lisää uusi päätepiste maksutilan tarkistamiseen
+app.post("/api/check-payment-status", (req, res) => {
+  const { clientIp } = req.body;
+
+  if (!clientIp) {
+    return res.status(400).json({ error: "Client IP is required" });
   }
 
-  const signatureImages = [];
+  // Tarkista onko maksu vanhentunut
+  const expiry = paymentExpiry.get(clientIp);
+  const now = Date.now();
 
-  for (const fontStyle of signatureFonts) {
-    // Käytä samaa funktiota mutta ilman vesileimoja
-    const signatureImage = createSignatureWithoutWatermark(
-      name,
-      fontStyle,
-      color
-    );
-    signatureImages.push(signatureImage);
+  if (expiry && now > expiry) {
+    // Maksu on vanhentunut, poista tiedot
+    paymentStatus.delete(clientIp);
+    paymentExpiry.delete(clientIp);
+
+    return res.json({ hasPaid: false });
   }
 
-  // Palauta puhtaat kuvat
-  res.json({ images: signatureImages });
+  // Palauta maksutila
+  const hasPaid = paymentStatus.get(clientIp) === true;
+
+  return res.json({ hasPaid });
+});
+
+// Lisää uusi päätepiste maksun merkitsemiseen suoritetuksi
+app.post("/api/mark-as-paid", (req, res) => {
+  const { clientIp } = req.body;
+
+  if (!clientIp) {
+    return res.status(400).json({ error: "Client IP is required" });
+  }
+
+  // Merkitse maksu suoritetuksi
+  paymentStatus.set(clientIp, true);
+
+  // Aseta maksun vanhenemisaika (3 minuuttia)
+  const expiryTime = Date.now() + 3 * 60 * 1000;
+  paymentExpiry.set(clientIp, expiryTime);
+
+  console.log(
+    `Payment marked as paid for IP: ${clientIp}, expires at: ${new Date(
+      expiryTime
+    ).toLocaleTimeString()}`
+  );
+
+  return res.json({ success: true });
 });
 
 export default app;
