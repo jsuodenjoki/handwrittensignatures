@@ -390,7 +390,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
               name: "Handwritten Signatures",
               description: `Handwritten signatures for ${name}`,
             },
-            unit_amount: 500, // 5€ sentteinä
+            unit_amount: 100, // 5€ sentteinä
           },
           quantity: 1,
         },
