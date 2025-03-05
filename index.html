@@ -885,6 +885,15 @@
             // Näytä viesti
             statusMessage.textContent = "Signatures created successfully!";
             statusMessage.style.color = "#4CAF50"; // Vihreä väri
+
+            // Aseta väri-valitsin vastaamaan valittua väriä
+            document
+              .querySelectorAll('input[name="color"]')
+              .forEach((radio) => {
+                if (radio.value === color) {
+                  radio.checked = true;
+                }
+              });
           }
         } catch (error) {
           console.error("Error creating signatures:", error);
@@ -931,6 +940,17 @@
 
               // Täytä nimi-kenttä
               nameInput.value = userData.signatureData.name;
+
+              // Aseta väri-valitsin vastaamaan tallennettua väriä
+              if (userData.signatureData.color) {
+                document
+                  .querySelectorAll('input[name="color"]')
+                  .forEach((radio) => {
+                    if (radio.value === userData.signatureData.color) {
+                      radio.checked = true;
+                    }
+                  });
+              }
             }
 
             if (hasPaid && canDownload) {
@@ -974,30 +994,15 @@
             } else {
               // Näytä viesti vain jos käyttäjä on luonut allekirjoitukset
               if (signaturesContainer.innerHTML.trim() !== "") {
-                statusMessage.textContent = "Signatures created!";
-                statusMessage.style.color = "#6e8efb"; // Sininen väri
+                // Päivitä ajastin joka kerta kun tarkistamme tilan
+                updateExpiryTimer(expiryTimeLeft);
+
+                // Näytä ostonappi
                 buyButton.style.display = "inline-block";
-
-                // Näytä vanhenemisaika, jos se on saatavilla
-                if (expiryTimeLeft) {
-                  const minutes = Math.floor(expiryTimeLeft / 60000);
-                  const seconds = Math.floor((expiryTimeLeft % 60000) / 1000);
-
-                  // Lisää vanhenemisaika statusviestiin
-                  statusMessage.textContent += ` (Expires in ${minutes}:${
-                    seconds < 10 ? "0" : ""
-                  }${seconds})`;
-                }
 
                 // Piilota "Lataa uudelleen" -nappi ja reset-container
                 downloadAgainContainer.style.display = "none";
                 resetContainer.style.display = "none";
-
-                // Pysäytä ajastin
-                if (resetTimerInterval) {
-                  clearInterval(resetTimerInterval);
-                  resetTimerInterval = null;
-                }
               }
             }
           } else {
@@ -1018,6 +1023,23 @@
         } catch (error) {
           console.error("Error checking status:", error);
         }
+      }
+
+      // Lisää uusi funktio ajastimen päivittämiseen
+      function updateExpiryTimer(expiryTimeLeft) {
+        if (!expiryTimeLeft) {
+          statusMessage.textContent = "Signatures created!";
+          statusMessage.style.color = "#6e8efb"; // Sininen väri
+          return;
+        }
+
+        const minutes = Math.floor(expiryTimeLeft / 60000);
+        const seconds = Math.floor((expiryTimeLeft % 60000) / 1000);
+
+        statusMessage.textContent = `Signatures created! (Expires in ${minutes}:${
+          seconds < 10 ? "0" : ""
+        }${seconds})`;
+        statusMessage.style.color = "#6e8efb"; // Sininen väri
       }
 
       // Muokataan downloadSignatures-funktiota
@@ -1356,9 +1378,10 @@
         await downloadSignatures();
       });
 
-      // Tarkista tila säännöllisesti
+      // Päivitä ajastinta useammin
       setTimeout(() => {
-        setInterval(checkStatus, 5000);
+        // Tarkista tila useammin ajastimen päivittämiseksi
+        setInterval(checkStatus, 1000); // Päivitä joka sekunti
         checkStatus();
       }, 1000);
 
