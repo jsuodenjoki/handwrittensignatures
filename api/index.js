@@ -329,11 +329,30 @@ Kiitos että käytit palveluamme!`;
 app.post("/api/create-checkout-session", async (req, res) => {
   try {
     const { name, sessionId } = req.body;
-    const userSessionId = sessionId || getOrCreateSessionId(req);
+
+    if (!name) {
+      console.error("Name missing from checkout request");
+      return res.status(400).json({ error: "Name is required" });
+    }
+
+    if (!sessionId) {
+      console.error("SessionId missing from checkout request");
+      return res.status(400).json({ error: "SessionId is required" });
+    }
+
+    const userSessionId = sessionId;
 
     console.log(
       `Creating checkout session for ${name}, session ID: ${userSessionId}`
     );
+
+    // Tarkista onko allekirjoituksia olemassa
+    if (!signatures.has(userSessionId)) {
+      console.error(`No signatures found for session: ${userSessionId}`);
+      return res
+        .status(400)
+        .json({ error: "No signatures found for this session" });
+    }
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -362,7 +381,10 @@ app.post("/api/create-checkout-session", async (req, res) => {
     res.json({ url: session.url, sessionId: userSessionId });
   } catch (error) {
     console.error("Virhe checkout-session luonnissa:", error);
-    res.status(500).json({ error: "Virhe checkout-session luonnissa" });
+    res.status(500).json({
+      error: "Virhe checkout-session luonnissa",
+      details: error.message,
+    });
   }
 });
 
@@ -496,6 +518,34 @@ app.post("/api/reset-user-data", (req, res) => {
   res.json({
     success: true,
     message: "User data deleted.",
+    sessionId: userSessionId,
+  });
+});
+
+app.post("/api/restore-signatures", (req, res) => {
+  const { name, images, color, sessionId } = req.body;
+  const userSessionId = sessionId || getOrCreateSessionId(req);
+
+  if (!name || !images || !Array.isArray(images)) {
+    return res.status(400).json({ error: "Virheellinen pyyntö" });
+  }
+
+  console.log(
+    `Restoring signatures for session: ${userSessionId}, name: ${name}`
+  );
+
+  signatures.set(userSessionId, {
+    name,
+    color,
+    images,
+    createdAt: new Date().toISOString(),
+  });
+
+  console.log(`Signatures restored for session ${userSessionId}`);
+  console.log(`Current signatures map size: ${signatures.size}`);
+
+  res.json({
+    success: true,
     sessionId: userSessionId,
   });
 });
