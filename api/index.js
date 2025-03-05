@@ -230,6 +230,9 @@ app.post("/api/create-signatures", (req, res) => {
     createdAt: new Date().toISOString(),
   });
 
+  console.log(`Saved signatures for session ${userSessionId}`);
+  console.log(`Current signatures map size: ${signatures.size}`);
+
   res.json({
     images: signatureImages,
     sessionId: userSessionId,

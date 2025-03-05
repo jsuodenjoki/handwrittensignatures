@@ -819,17 +819,16 @@
         });
       }
 
-      // Tallenna allekirjoitukset localStorageen
+      // Korjataan saveSignaturesToLocal-funktio käyttämään session ID:tä
       function saveSignaturesToLocal(name, images, color) {
-        const signatureData = {
+        const signatures = {
           name,
           images,
           color,
           createdAt: new Date().toISOString(),
         };
-
-        localStorage.setItem("signatures", JSON.stringify(signatureData));
-        console.log("Signatures saved to localStorage");
+        localStorage.setItem("signatures", JSON.stringify(signatures));
+        console.log("Signatures saved to localStorage:", signatures);
       }
 
       // Hae allekirjoitukset localStoragesta
@@ -871,12 +870,13 @@
         return expired;
       }
 
-      // Muokkaa createSignatures-funktiota asettamaan vanhenemisaika
+      // Korjataan createSignatures-funktio lähettämään session ID
       async function createSignatures() {
         const name = nameInput.value.trim();
         const color = document.querySelector(
           'input[name="color"]:checked'
         ).value;
+        const { sessionId } = await getClientIp();
 
         if (!name) {
           alert("Write your name first!");
@@ -894,7 +894,7 @@
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ name, color }),
+            body: JSON.stringify({ name, color, sessionId }),
           });
 
           const data = await response.json();
@@ -928,6 +928,9 @@
             // Näytä viesti
             statusMessage.textContent = "Signatures created successfully!";
             statusMessage.style.color = "#4CAF50"; // Vihreä väri
+
+            // Tarkista tila heti
+            checkStatus();
           }
         } catch (error) {
           console.error("Error creating signatures:", error);
@@ -1424,6 +1427,39 @@
           checkStatus();
         }
       });
+
+      // Korjataan checkExistingSignatures-funktio
+      function checkExistingSignatures() {
+        const signatures = getSignaturesFromLocal();
+
+        if (signatures && signatures.images && signatures.images.length > 0) {
+          console.log("Found existing signatures:", signatures);
+
+          // Näytä allekirjoitukset
+          signaturesContainer.innerHTML = "";
+          signatures.images.forEach((imageData) => {
+            const signatureItem = document.createElement("div");
+            signatureItem.className = "signature-item";
+
+            const img = document.createElement("img");
+            img.src = imageData;
+            img.alt = `${signatures.name} signature`;
+
+            signatureItem.appendChild(img);
+            signaturesContainer.appendChild(signatureItem);
+          });
+
+          // Täytä nimi-kenttä
+          nameInput.value = signatures.name;
+
+          // Tarkista tila uudelleen
+          checkStatus();
+
+          return true;
+        }
+
+        return false;
+      }
     </script>
   </body>
 </html>
