@@ -273,8 +273,8 @@
       }
 
       .carousel-item img {
-        width: 100%;
-        height: 100%;
+        max-width: 90%;
+        max-height: 90%;
         object-fit: contain;
         display: block;
       }
@@ -295,11 +295,19 @@
         .signature-carousel {
           padding: 10px 20px;
           gap: 15px;
+          scroll-snap-type: x mandatory;
         }
 
         .carousel-item {
-          min-width: 200px;
+          min-width: 180px;
           height: 120px;
+          scroll-snap-align: center;
+          background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .carousel-item.active {
+          opacity: 1 !important;
+          transform: scale(1.05) !important;
         }
       }
 
@@ -309,7 +317,7 @@
         }
 
         .carousel-item {
-          min-width: 180px;
+          min-width: 160px;
           height: 100px;
         }
       }
@@ -732,10 +740,14 @@
         carouselAnimationId = requestAnimationFrame(animateCarousel);
       }
 
-      // Päivitä elementtien läpinäkyvyys
+      // Muokkaa updateItemsOpacity-funktiota
       function updateItemsOpacity(containerWidth) {
         const items = signatureCarousel.querySelectorAll(".carousel-item");
-        const fadeZone = 200; // Häivytysvyöhykkeen leveys
+        const fadeZone = 150; // Pienempi häivytysvyöhyke mobiilissa
+        const isMobile = window.innerWidth <= 900;
+
+        // Poista active-luokka kaikilta
+        items.forEach((item) => item.classList.remove("active"));
 
         items.forEach((item) => {
           const rect = item.getBoundingClientRect();
@@ -746,19 +758,45 @@
           const distanceFromLeft = rect.left - containerRect.left;
           const distanceFromRight = containerRect.right - rect.right;
 
-          // Laske läpinäkyvyys etäisyyden perusteella
+          // Laske keskikohta
+          const itemCenter = rect.left + rect.width / 2;
+          const containerCenter = containerRect.left + containerRect.width / 2;
+          const distanceFromCenter = Math.abs(itemCenter - containerCenter);
+
+          // Oletusarvot
           let opacity = 1;
           let scale = 1;
 
-          if (distanceFromLeft < fadeZone) {
-            opacity = distanceFromLeft / fadeZone;
-            scale = 0.9 + 0.1 * opacity;
-          } else if (distanceFromRight < fadeZone) {
-            opacity = distanceFromRight / fadeZone;
-            scale = 0.9 + 0.1 * opacity;
+          // Jos mobiili, käytä yksinkertaisempaa logiikkaa
+          if (isMobile) {
+            // Jos lähellä keskustaa, merkitse aktiiviseksi
+            if (distanceFromCenter < rect.width / 2) {
+              item.classList.add("active");
+              opacity = 1;
+              scale = 1.05;
+            } else {
+              // Muuten häivytä etäisyyden mukaan
+              opacity = Math.max(
+                0.3,
+                1 - distanceFromCenter / containerRect.width
+              );
+              scale = Math.max(
+                0.9,
+                1 - (distanceFromCenter / containerRect.width) * 0.2
+              );
+            }
+          } else {
+            // Työpöytäversio
+            if (distanceFromLeft < fadeZone) {
+              opacity = distanceFromLeft / fadeZone;
+              scale = 0.9 + 0.1 * opacity;
+            } else if (distanceFromRight < fadeZone) {
+              opacity = distanceFromRight / fadeZone;
+              scale = 0.9 + 0.1 * opacity;
+            }
           }
 
-          // Rajoita läpinäkyvyys välille 0-1 ja aseta se
+          // Rajoita läpinäkyvyys välille 0.1-1 ja aseta se
           opacity = Math.max(0.1, Math.min(1, opacity));
           item.style.opacity = opacity;
           item.style.transform = `scale(${scale})`;
