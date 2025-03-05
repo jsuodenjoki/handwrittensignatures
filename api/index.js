@@ -354,37 +354,52 @@ app.post("/api/create-checkout-session", async (req, res) => {
   }
 });
 
+// Debug-reitti
+app.get("/api/debug", (req, res) => {
+  const clientIp = getClientIpFormatted(req);
+  res.json({
+    clientIp,
+    hasSignatures: userSignatures.has(clientIp),
+    hasPaid: paidIPs.has(clientIp),
+    userSignaturesSize: userSignatures.size,
+    paidIPsSize: paidIPs.size,
+    expiryTimesSize: expiryTimes.size,
+  });
+});
+
 // Sähköpostin lähetys
 app.post("/api/send-email", async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, clientIp } = req.body;
 
-    if (!email) {
+    if (!email || !clientIp) {
       return res.status(400).json({
-        error: "Sähköpostiosoite puuttuu",
+        error: "Sähköpostiosoite tai clientIp puuttuu",
+      });
+    }
+
+    // Tarkista onko käyttäjällä allekirjoituksia
+    if (!userSignatures.has(clientIp)) {
+      return res.status(404).json({
+        error: "Allekirjoituksia ei löydy",
+      });
+    }
+
+    // Tarkista onko käyttäjä maksanut
+    if (!paidIPs.has(clientIp)) {
+      return res.status(403).json({
+        error: "Allekirjoituksia ei ole maksettu",
       });
     }
 
     // Tässä voit toteuttaa sähköpostin lähetyksen
-    // Koska tiedot ovat nyt localStoragessa, ei tarvitse tarkistaa palvelimelta
+    console.log(`Sending email to ${email} for IP ${clientIp}`);
 
     res.json({ success: true, message: "Sähköposti lähetetty onnistuneesti" });
   } catch (error) {
     console.error("Virhe sähköpostin lähetyksessä:", error);
     res.status(500).json({ error: "Virhe sähköpostin lähetyksessä" });
   }
-});
-
-// Debug-reitti
-app.get("/api/debug", (req, res) => {
-  const clientIp = getClientIpFormatted(req);
-  res.json({
-    clientIp,
-    hasSignatures: signatures.has(clientIp),
-    hasPaid: paidIPs.has(clientIp),
-    signaturesSize: signatures.size,
-    paidIPsSize: paidIPs.size,
-  });
 });
 
 // Karusellin allekirjoitusten luonti

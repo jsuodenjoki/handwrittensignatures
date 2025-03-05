@@ -749,58 +749,6 @@
         });
       }
 
-      // Tallenna allekirjoitukset localStorageen
-      function saveSignaturesToLocal(name, images, color) {
-        const signatureData = {
-          name,
-          images,
-          color,
-          createdAt: new Date().toISOString(),
-        };
-
-        localStorage.setItem("signatures", JSON.stringify(signatureData));
-        console.log("Signatures saved to localStorage");
-      }
-
-      // Hae allekirjoitukset localStoragesta
-      function getSignaturesFromLocal() {
-        const data = localStorage.getItem("signatures");
-        return data ? JSON.parse(data) : null;
-      }
-
-      // Lisää tämä funktio allekirjoitusten vanhenemisajan asettamiseksi
-      function setSignatureExpiry() {
-        const expiryTime = Date.now() + 10 * 60 * 1000; // Nykyinen aika + 1 minuuttia
-        localStorage.setItem("signatureExpiry", expiryTime.toString());
-        console.log(
-          "Signature expiry time set:",
-          new Date(expiryTime).toLocaleTimeString()
-        );
-      }
-
-      // Lisää tämä funktio allekirjoitusten vanhenemisen tarkistamiseksi
-      function isSignatureExpired() {
-        // Jos maksu on suoritettu, käytä maksun vanhenemisaikaa
-        if (getPaymentStatus()) {
-          return isPaymentExpired();
-        }
-
-        const expiryTime = localStorage.getItem("signatureExpiry");
-        if (!expiryTime) return false;
-
-        const now = Date.now();
-        const expired = now > parseInt(expiryTime);
-
-        console.log(
-          "Allekirjoitusten vanhenemisaika:",
-          new Date(parseInt(expiryTime)).toLocaleTimeString()
-        );
-        console.log("Nykyinen aika:", new Date(now).toLocaleTimeString());
-        console.log("Allekirjoitukset vanhentuneet:", expired);
-
-        return expired;
-      }
-
       // Muokataan createSignatures-funktiota
       async function createSignatures() {
         const name = nameInput.value.trim();
@@ -847,18 +795,15 @@
               signaturesContainer.appendChild(signatureDiv);
             });
 
-            // Tallenna allekirjoitukset localStorageen
-            saveSignaturesToLocal(name, data.images, color);
-
-            // Aseta 10 minuutin vanhenemisaika
-            setSignatureExpiry();
-
             // Näytä ostonappi
             buyButton.style.display = "inline-block";
 
             // Näytä viesti
             statusMessage.textContent = "Signatures created successfully!";
             statusMessage.style.color = "#4CAF50"; // Vihreä väri
+
+            // Tarkista tila heti
+            await checkStatus();
           }
         } catch (error) {
           console.error("Error creating signatures:", error);
@@ -867,7 +812,7 @@
         }
       }
 
-      // Tarkista tila
+      // Muokataan checkStatus-funktiota
       async function checkStatus(forceCheck = false) {
         try {
           const clientIp = await getClientIp();
@@ -881,6 +826,11 @@
           console.log("Status from server:", data);
 
           if (data.hasSignatures) {
+            // Jos käyttäjällä on allekirjoituksia, varmista että ne näkyvät
+            if (signaturesContainer.innerHTML.trim() === "") {
+              await checkExistingSignatures();
+            }
+
             if (data.hasPaid && data.canDownload) {
               console.log(
                 "Payment confirmed, signatures available for download"
@@ -921,20 +871,18 @@
               }
             } else {
               // Näytä viesti vain jos käyttäjä on luonut allekirjoitukset
-              if (signaturesContainer.innerHTML.trim() !== "") {
-                statusMessage.textContent = "Signatures created!";
-                statusMessage.style.color = "#6e8efb"; // Sininen väri
-                buyButton.style.display = "inline-block";
+              statusMessage.textContent = "Signatures created!";
+              statusMessage.style.color = "#6e8efb"; // Sininen väri
+              buyButton.style.display = "inline-block";
 
-                // Piilota "Lataa uudelleen" -nappi ja reset-container
-                downloadAgainContainer.style.display = "none";
-                resetContainer.style.display = "none";
+              // Piilota "Lataa uudelleen" -nappi ja reset-container
+              downloadAgainContainer.style.display = "none";
+              resetContainer.style.display = "none";
 
-                // Pysäytä ajastin
-                if (resetTimerInterval) {
-                  clearInterval(resetTimerInterval);
-                  resetTimerInterval = null;
-                }
+              // Pysäytä ajastin
+              if (resetTimerInterval) {
+                clearInterval(resetTimerInterval);
+                resetTimerInterval = null;
               }
             }
           } else {
@@ -1266,13 +1214,16 @@
         }
       }
 
-      // Käynnistä fonttien lataus ja alustus
+      // Muokataan initialize-funktiota
       async function initialize() {
         // Tallenna IP-osoite heti alussa
         await saveClientIp();
         await loadFontsAndInitialize();
 
-        // Tarkista maksun tila ensin
+        // Tarkista ensin olemassa olevat allekirjoitukset
+        const hasExistingSignatures = await checkExistingSignatures();
+
+        // Tarkista maksun tila
         await checkPaymentStatus();
 
         // Tarkista tila vasta kun IP on tallennettu
