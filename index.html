@@ -830,7 +830,7 @@
         };
 
         localStorage.setItem("signatures", JSON.stringify(signatureData));
-        console.log("Signatures saved to localStorage");
+        console.log("Signatures saved to localStorage with color:", color);
       }
 
       // Hae allekirjoitukset localStoragesta
@@ -1139,6 +1139,17 @@
 
           // Täytä nimi-kenttä
           nameInput.value = signatures.name;
+
+          // Aseta tallennettu väri
+          if (signatures.color) {
+            // Etsi oikea värivaihtoehto ja valitse se
+            const colorRadio = document.querySelector(
+              `input[name="color"][value="${signatures.color}"]`
+            );
+            if (colorRadio) {
+              colorRadio.checked = true;
+            }
+          }
 
           // Tarkista tila uudelleen
           checkStatus();
