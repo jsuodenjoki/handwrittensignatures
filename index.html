@@ -270,6 +270,10 @@
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         flex-shrink: 0;
         transition: opacity 0.3s ease, transform 0.3s ease;
+        will-change: transform, opacity;
+        transform: translateZ(0);
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
       }
 
       .carousel-item img {
@@ -277,6 +281,8 @@
         max-height: 90%;
         object-fit: contain;
         display: block;
+        will-change: transform;
+        transform: translateZ(0);
       }
 
       @media (max-width: 1200px) {
@@ -702,7 +708,6 @@
             carouselPosition -= step;
 
             // Kun karuselli on liikkunut tarpeeksi, valmistele paluu alkuun
-            // Tarkistetaan onko ensimmäinen "aito" elementti liikkunut pois näkyvistä
             if (carouselPosition <= -itemWidth * exampleNames.length) {
               isResetting = true;
 
@@ -713,7 +718,7 @@
               setTimeout(() => {
                 // Nollaa positio
                 carouselPosition = 0;
-                signatureCarousel.style.transform = `translateX(${carouselPosition}px)`;
+                signatureCarousel.style.transform = `translate3d(${carouselPosition}px, 0, 0)`;
 
                 // Palauta transition pienen viiveen jälkeen
                 setTimeout(() => {
@@ -726,7 +731,7 @@
 
           // Päivitä karusellin sijainti
           if (!isResetting) {
-            signatureCarousel.style.transform = `translateX(${carouselPosition}px)`;
+            signatureCarousel.style.transform = `translate3d(${carouselPosition}px, 0, 0)`;
 
             // Päivitä elementtien läpinäkyvyys sijainnin perusteella
             updateItemsOpacity(containerWidth);
@@ -738,66 +743,71 @@
         carouselAnimationId = requestAnimationFrame(animateCarousel);
       }
 
-      // Muokkaa updateItemsOpacity-funktiota
+      // Optimoi updateItemsOpacity-funktiota
       function updateItemsOpacity(containerWidth) {
         const items = signatureCarousel.querySelectorAll(".carousel-item");
-        const fadeZone = 150; // Pienempi häivytysvyöhyke mobiilissa
+        const fadeZone = 150;
         const isMobile = window.innerWidth <= 900;
 
-        // Poista active-luokka kaikilta
-        items.forEach((item) => item.classList.remove("active"));
+        // Käytä requestAnimationFrame optimoimaan animaatiot
+        requestAnimationFrame(() => {
+          // Poista active-luokka kaikilta
+          items.forEach((item) => item.classList.remove("active"));
 
-        items.forEach((item) => {
-          const rect = item.getBoundingClientRect();
-          const containerRect =
-            signatureCarousel.parentElement.getBoundingClientRect();
+          items.forEach((item) => {
+            const rect = item.getBoundingClientRect();
+            const containerRect =
+              signatureCarousel.parentElement.getBoundingClientRect();
 
-          // Laske etäisyys vasemmasta ja oikeasta reunasta
-          const distanceFromLeft = rect.left - containerRect.left;
-          const distanceFromRight = containerRect.right - rect.right;
+            // Laske keskikohta
+            const itemCenter = rect.left + rect.width / 2;
+            const containerCenter =
+              containerRect.left + containerRect.width / 2;
+            const distanceFromCenter = Math.abs(itemCenter - containerCenter);
 
-          // Laske keskikohta
-          const itemCenter = rect.left + rect.width / 2;
-          const containerCenter = containerRect.left + containerRect.width / 2;
-          const distanceFromCenter = Math.abs(itemCenter - containerCenter);
+            // Oletusarvot
+            let opacity = 1;
+            let scale = 1;
 
-          // Oletusarvot
-          let opacity = 1;
-          let scale = 1;
-
-          // Jos mobiili, käytä yksinkertaisempaa logiikkaa
-          if (isMobile) {
-            // Jos lähellä keskustaa, merkitse aktiiviseksi
-            if (distanceFromCenter < rect.width / 2) {
-              item.classList.add("active");
-              opacity = 1;
-              scale = 1.05;
+            // Jos mobiili, käytä yksinkertaisempaa logiikkaa
+            if (isMobile) {
+              // Vähennä animaatioiden määrää mobiilissa
+              // Käytä vain kolmea tilaa: aktiivinen, lähellä, kaukana
+              if (distanceFromCenter < rect.width / 2) {
+                // Keskellä oleva elementti
+                item.classList.add("active");
+                opacity = 1;
+                scale = 1.05;
+              } else if (distanceFromCenter < rect.width * 1.5) {
+                // Lähellä keskustaa olevat elementit
+                opacity = 0.6;
+                scale = 0.95;
+              } else {
+                // Kaukana olevat elementit
+                opacity = 0.3;
+                scale = 0.9;
+              }
             } else {
-              // Muuten häivytä etäisyyden mukaan
-              opacity = Math.max(
-                0.3,
-                1 - distanceFromCenter / containerRect.width
-              );
-              scale = Math.max(
-                0.9,
-                1 - (distanceFromCenter / containerRect.width) * 0.2
-              );
-            }
-          } else {
-            // Työpöytäversio
-            if (distanceFromLeft < fadeZone) {
-              opacity = distanceFromLeft / fadeZone;
-              scale = 0.9 + 0.1 * opacity;
-            } else if (distanceFromRight < fadeZone) {
-              opacity = distanceFromRight / fadeZone;
-              scale = 0.9 + 0.1 * opacity;
-            }
-          }
+              // Työpöytäversio
+              const distanceFromLeft = rect.left - containerRect.left;
+              const distanceFromRight = containerRect.right - rect.right;
 
-          // Rajoita läpinäkyvyys välille 0.1-1 ja aseta se
-          opacity = Math.max(0.1, Math.min(1, opacity));
-          item.style.opacity = opacity;
-          item.style.transform = `scale(${scale})`;
+              if (distanceFromLeft < fadeZone) {
+                opacity = distanceFromLeft / fadeZone;
+                scale = 0.9 + 0.1 * opacity;
+              } else if (distanceFromRight < fadeZone) {
+                opacity = distanceFromRight / fadeZone;
+                scale = 0.9 + 0.1 * opacity;
+              }
+            }
+
+            // Rajoita läpinäkyvyys välille 0.1-1 ja aseta se
+            opacity = Math.max(0.1, Math.min(1, opacity));
+
+            // Käytä transform: translate3d() hardware-acceleration varten
+            item.style.opacity = opacity;
+            item.style.transform = `translate3d(0,0,0) scale(${scale})`;
+          });
         });
       }
 
