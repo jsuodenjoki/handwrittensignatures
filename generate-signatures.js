@@ -53,7 +53,7 @@ function createSignature(name, fontFamily, color) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // Käytä samaa fonttikokoa kuin API-reitissä
-  ctx.font = `80px ${fontFamily}`; // Suurempi fonttikoko
+  ctx.font = `110px ${fontFamily}`; // Suurempi fonttikoko
   ctx.fillStyle = color;
   ctx.textAlign = "center";
 
