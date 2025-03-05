@@ -13,6 +13,7 @@ const stripe = stripePackage(process.env.STRIPE_SECRET_KEY);
 const app = express();
 const signatures = new Map();
 const paidIPs = new Set();
+const paymentTimes = new Map();
 
 //3. MIDDLEWARE MÄÄRITTELYT
 app.use(cors());
@@ -601,6 +602,91 @@ app.post("/api/create-clean-signatures", (req, res) => {
 
   // Palauta puhtaat kuvat
   res.json({ images: signatureImages });
+});
+
+// Lisää uusi reitti allekirjoitusten tallentamiseen
+app.post("/api/save-signatures", (req, res) => {
+  const { name, images, color, clientIp } = req.body;
+
+  if (!name || !images || !Array.isArray(images) || !clientIp) {
+    return res.status(400).json({ success: false, error: "Invalid request" });
+  }
+
+  // Tallenna allekirjoitukset Map-rakenteeseen
+  signatures.set(clientIp, {
+    name,
+    images,
+    color,
+    createdAt: new Date().toISOString(),
+  });
+
+  console.log(`Signatures saved for IP: ${clientIp}, name: ${name}`);
+
+  // Aseta vanhenemisaika (10 minuuttia)
+  const expiryTime = new Date();
+  expiryTime.setMinutes(expiryTime.getMinutes() + 10);
+
+  // Tallenna vanhenemisaika
+  const expiryMap = new Map();
+  expiryMap.set(clientIp, expiryTime.getTime());
+
+  res.json({ success: true });
+});
+
+// Lisää uusi reitti maksun tilan tarkistamiseen
+app.post("/api/check-payment-status", (req, res) => {
+  const { clientIp } = req.body;
+
+  if (!clientIp) {
+    return res.status(400).json({ success: false, error: "Client IP missing" });
+  }
+
+  // Tarkista onko käyttäjä maksanut
+  const hasPaid = paidIPs.has(clientIp);
+
+  // Tarkista onko allekirjoitukset olemassa
+  const hasSignatures = signatures.has(clientIp);
+
+  // Tarkista vanhenemisaika
+  let isExpired = false;
+  let expiryTime = null;
+
+  if (hasPaid) {
+    // Jos maksettu, tarkista maksun vanhenemisaika (3 minuuttia maksusta)
+    const paymentTime = paymentTimes.get(clientIp);
+    if (paymentTime) {
+      const expiryTime = paymentTime + 3 * 60 * 1000; // 3 minuuttia
+      isExpired = Date.now() > expiryTime;
+
+      if (isExpired) {
+        // Poista vanhentunut maksu
+        paidIPs.delete(clientIp);
+        paymentTimes.delete(clientIp);
+        signatures.delete(clientIp);
+      }
+    }
+  } else if (hasSignatures) {
+    // Jos ei maksettu, tarkista allekirjoitusten vanhenemisaika (10 minuuttia luonnista)
+    const signatureData = signatures.get(clientIp);
+    if (signatureData && signatureData.createdAt) {
+      const creationTime = new Date(signatureData.createdAt).getTime();
+      const expiryTime = creationTime + 10 * 60 * 1000; // 10 minuuttia
+      isExpired = Date.now() > expiryTime;
+
+      if (isExpired) {
+        // Poista vanhentuneet allekirjoitukset
+        signatures.delete(clientIp);
+      }
+    }
+  }
+
+  res.json({
+    success: true,
+    hasPaid,
+    hasSignatures,
+    isExpired,
+    expiryTime: expiryTime,
+  });
 });
 
 export default app;
