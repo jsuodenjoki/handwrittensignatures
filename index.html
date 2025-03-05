@@ -946,6 +946,7 @@
       async function checkExistingSignatures() {
         try {
           const clientIp = await getClientIp();
+          console.log("Checking existing signatures for IP:", clientIp);
 
           // Hae allekirjoitukset palvelimelta
           const response = await fetch(
@@ -980,7 +981,7 @@
             nameInput.value = signatures.name;
 
             // Tarkista tila uudelleen
-            checkStatus();
+            await checkStatus();
 
             return true;
           }
@@ -1217,11 +1218,14 @@
       // Muokataan initialize-funktiota
       async function initialize() {
         // Tallenna IP-osoite heti alussa
-        await saveClientIp();
+        const clientIp = await saveClientIp();
+        console.log("Initialized with client IP:", clientIp);
+
         await loadFontsAndInitialize();
 
         // Tarkista ensin olemassa olevat allekirjoitukset
         const hasExistingSignatures = await checkExistingSignatures();
+        console.log("Has existing signatures:", hasExistingSignatures);
 
         // Tarkista maksun tila
         await checkPaymentStatus();

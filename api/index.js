@@ -176,11 +176,46 @@ app.get("/api/check-signatures", (req, res) => {
     paidIPs.delete(clientIp);
   }
 
-  const hasSignatures = userSignatures.has(clientIp);
-  const hasPaid = paidIPs.has(clientIp);
+  // Tarkista suora vastaavuus
+  let hasSignatures = userSignatures.has(clientIp);
+  let hasPaid = paidIPs.has(clientIp);
+
+  // Jos ei löydy suoraa vastaavuutta, tarkista osittaiset vastaavuudet
+  if (!hasSignatures) {
+    for (const ip of userSignatures.keys()) {
+      if (
+        ip.includes(clientIp) ||
+        clientIp.includes(ip) ||
+        ip.split(".").slice(0, 3).join(".") ===
+          clientIp.split(".").slice(0, 3).join(".")
+      ) {
+        hasSignatures = true;
+        console.log(`Found signatures for similar IP: ${ip}`);
+        break;
+      }
+    }
+  }
+
+  if (!hasPaid) {
+    for (const ip of paidIPs) {
+      if (
+        ip.includes(clientIp) ||
+        clientIp.includes(ip) ||
+        ip.split(".").slice(0, 3).join(".") ===
+          clientIp.split(".").slice(0, 3).join(".")
+      ) {
+        hasPaid = true;
+        console.log(`Found payment for similar IP: ${ip}`);
+        break;
+      }
+    }
+  }
 
   console.log(
     `Checking status for IP: ${clientIp}: hasSignatures=${hasSignatures}, hasPaid=${hasPaid}`
+  );
+  console.log(
+    `Available userSignatures keys: ${Array.from(userSignatures.keys())}`
   );
 
   res.json({
@@ -221,6 +256,9 @@ app.post("/api/create-signatures", (req, res) => {
   expiryTimes.set(clientIp, expiryTime);
 
   console.log(`Signatures created and stored for IP: ${clientIp}`);
+  console.log(
+    `Current userSignatures keys: ${Array.from(userSignatures.keys())}`
+  );
 
   // Palauta kuvat
   res.json({ images: signatureImages });
@@ -230,10 +268,26 @@ app.post("/api/create-signatures", (req, res) => {
 app.get("/api/get-signatures", (req, res) => {
   const clientIp = req.query.clientIp || getClientIpFormatted(req);
   console.log(`Getting signatures for IP: ${clientIp}`);
+  console.log(
+    `Available userSignatures keys: ${Array.from(userSignatures.keys())}`
+  );
 
   if (userSignatures.has(clientIp)) {
     console.log(`Found signatures for IP: ${clientIp}`);
     return res.json(userSignatures.get(clientIp));
+  }
+
+  // Jos ei löydy täsmällistä vastaavuutta, tarkistetaan osittaiset vastaavuudet
+  for (const ip of userSignatures.keys()) {
+    if (
+      ip.includes(clientIp) ||
+      clientIp.includes(ip) ||
+      ip.split(".").slice(0, 3).join(".") ===
+        clientIp.split(".").slice(0, 3).join(".")
+    ) {
+      console.log(`Found signatures for similar IP: ${ip}`);
+      return res.json(userSignatures.get(ip));
+    }
   }
 
   console.log(`No signatures found for IP: ${clientIp}`);
@@ -642,5 +696,44 @@ app.post(
     res.json({ received: true });
   }
 );
+
+// Lisätään debug-reitti allekirjoitusten testaamiseen
+app.post("/api/test-signatures", (req, res) => {
+  const { clientIp } = req.body;
+
+  if (!clientIp) {
+    return res.status(400).json({ error: "Client IP puuttuu" });
+  }
+
+  // Luo testiallekirjoitukset
+  const testImages = [];
+  for (const fontStyle of signatureFonts) {
+    const signatureImage = createSignature("Test User", fontStyle, "black");
+    testImages.push(signatureImage);
+  }
+
+  // Tallenna testiallekirjoitukset
+  userSignatures.set(clientIp, {
+    name: "Test User",
+    color: "black",
+    images: testImages,
+    createdAt: new Date().toISOString(),
+  });
+
+  // Aseta vanhenemisaika
+  const expiryTime = Date.now() + 10 * 60 * 1000;
+  expiryTimes.set(clientIp, expiryTime);
+
+  console.log(`Test signatures created for IP: ${clientIp}`);
+  console.log(
+    `Current userSignatures keys: ${Array.from(userSignatures.keys())}`
+  );
+
+  res.json({
+    success: true,
+    message: "Test signatures created",
+    userSignaturesKeys: Array.from(userSignatures.keys()),
+  });
+});
 
 export default app;
