@@ -41,13 +41,13 @@ const signatureFonts = [];
 try {
   if (fs.existsSync(fontsDir)) {
     const fontFiles = fs.readdirSync(fontsDir);
-    console.log("Saatavilla olevat fontit:", fontFiles);
+    console.log("Available fonts:", fontFiles);
 
     fontFiles.forEach((fontFile) => {
       if (fontFile.endsWith(".ttf")) {
         const fontName = fontFile.replace(".ttf", "").replace(/[-_]/g, " ");
         const fontFamily = fontName.replace(/\s+/g, "");
-        console.log(`Rekisteröidään fontti: ${fontFile} nimellä ${fontFamily}`);
+        console.log(`Registering font: ${fontFile} named ${fontFamily}`);
         registerFont(path.join(fontsDir, fontFile), { family: fontFamily });
 
         signatureFonts.push({
@@ -65,7 +65,7 @@ try {
   }
 
   if (signatureFonts.length === 0) {
-    console.log("Ei löytynyt fontteja, käytetään oletusfontteja");
+    console.log("No fonts found, using default fonts");
     signatureFonts.push(
       { name: "Arial", font: "40px Arial, sans-serif" },
       { name: "Times New Roman", font: "40px 'Times New Roman', serif" },
@@ -73,7 +73,7 @@ try {
     );
   }
 } catch (error) {
-  console.error("Virhe fonttien lataamisessa:", error);
+  console.error("Error loading fonts:", error);
   signatureFonts.push(
     { name: "Arial", font: "40px Arial, sans-serif" },
     { name: "Times New Roman", font: "40px 'Times New Roman', serif" },
@@ -180,7 +180,7 @@ app.get("/api/check-signatures", (req, res) => {
           clientIp.split(".").slice(0, 3).join(".")
       ) {
         hasPaid = true;
-        console.log(`IP ${clientIp} vastaa osittain maksettua IP:tä ${ip}`);
+        console.log(`IP ${clientIp} matches partially paid IP: ${ip}`);
         // Lisätään tämä IP myös maksettuihin, jotta jatkossa tarkistus on nopeampi
         paidIPs.add(clientIp);
         break;
@@ -189,7 +189,7 @@ app.get("/api/check-signatures", (req, res) => {
   }
 
   console.log(
-    `Tarkistetaan tila IP:lle ${clientIp}: hasSignatures=${hasSignatures}, hasPaid=${hasPaid}`
+    `Checking status for IP: ${clientIp}: hasSignatures=${hasSignatures}, hasPaid=${hasPaid}`
   );
 
   res.json({
@@ -202,7 +202,7 @@ app.get("/api/check-signatures", (req, res) => {
 // Allekirjoitusten luonti
 app.post("/api/create-signatures", (req, res) => {
   const { name, color } = req.body;
-  console.log(`Luodaan allekirjoitukset: nimi=${name}, väri=${color}`);
+  console.log(`Creating signatures: name=${name}, color=${color}`);
 
   if (!name) {
     return res.status(400).json({ error: "Nimi puuttuu" });
@@ -223,14 +223,12 @@ app.post("/api/create-signatures", (req, res) => {
 app.get("/api/get-signatures", (req, res) => {
   // Käytä joko URL-parametria tai fallback IP-osoitteeseen
   const clientIp = req.query.clientIp || getClientIpFormatted(req);
-  console.log(`Haetaan allekirjoituksia IP:lle ${clientIp}`);
-  console.log(
-    `Kaikki tallennetut allekirjoitukset: ${Array.from(signatures.keys())}`
-  );
+  console.log(`Getting signatures for IP: ${clientIp}`);
+  console.log(`All stored signatures: ${Array.from(signatures.keys())}`);
 
   // Tarkistetaan ensin täsmällinen vastaavuus
   if (signatures.has(clientIp)) {
-    console.log(`Löydettiin allekirjoitukset IP:lle ${clientIp}`);
+    console.log(`Found signatures for IP: ${clientIp}`);
     return res.json(signatures.get(clientIp));
   }
 
@@ -242,13 +240,13 @@ app.get("/api/get-signatures", (req, res) => {
       ip.split(".").slice(0, 3).join(".") ===
         clientIp.split(".").slice(0, 3).join(".")
     ) {
-      console.log(`Löydettiin allekirjoitukset samankaltaiselle IP:lle: ${ip}`);
+      console.log(`Found signatures for similar IP: ${ip}`);
       return res.json(signatures.get(ip));
     }
   }
 
-  console.log(`Allekirjoituksia ei löytynyt IP:lle ${clientIp}`);
-  return res.status(404).json({ error: "Allekirjoituksia ei löytynyt" });
+  console.log(`No signatures found for IP: ${clientIp}`);
+  return res.status(404).json({ error: "No signatures found" });
 });
 
 // Allekirjoitusten lataus
@@ -263,7 +261,7 @@ app.get("/api/download-signatures", (req, res) => {
 
   // Jos ei löydy täsmällistä vastaavuutta, tarkistetaan osittaiset vastaavuudet
   if (!hasSignatures || !hasPaid) {
-    console.log("Etsitään osittaisia IP-vastaavuuksia latausta varten...");
+    console.log("Searching for partial IP matches for download...");
 
     // Tarkistetaan allekirjoitukset
     if (!hasSignatures) {
@@ -276,9 +274,7 @@ app.get("/api/download-signatures", (req, res) => {
         ) {
           hasSignatures = true;
           signatureIp = ip; // Tallennetaan löydetty IP
-          console.log(
-            `Löydettiin allekirjoitukset samankaltaiselle IP:lle: ${ip}`
-          );
+          console.log(`Found signatures for similar IP: ${ip}`);
           break;
         }
       }
@@ -294,7 +290,7 @@ app.get("/api/download-signatures", (req, res) => {
             clientIp.split(".").slice(0, 3).join(".")
         ) {
           hasPaid = true;
-          console.log(`Löydettiin maksutila samankaltaiselle IP:lle: ${ip}`);
+          console.log(`Found payment status for similar IP: ${ip}`);
           break;
         }
       }
@@ -302,13 +298,13 @@ app.get("/api/download-signatures", (req, res) => {
   }
 
   console.log(
-    `Lataus IP:lle ${clientIp}: hasSignatures=${hasSignatures}, hasPaid=${hasPaid}`
+    `Downloading for IP: ${clientIp}: hasSignatures=${hasSignatures}, hasPaid=${hasPaid}`
   );
 
   if (!hasSignatures || !hasPaid) {
     return res
       .status(403)
-      .json({ error: "Ei oikeutta ladata allekirjoituksia" });
+      .json({ error: "No permission to download signatures" });
   }
 
   const userSignatures = signatures.get(signatureIp);
@@ -333,7 +329,7 @@ app.get("/api/download-signatures", (req, res) => {
   // Lisää kuvat ilman vesileimaa
   signatureFonts.forEach((fontStyle, index) => {
     console.log(
-      `Luodaan allekirjoitus ${index + 1} värilllä: ${userSignatures.color}`
+      `Creating signature ${index + 1} with color: ${userSignatures.color}`
     );
 
     const signatureImage = createSignatureWithoutWatermark(
@@ -362,7 +358,7 @@ Kiitos että käytit palveluamme!`;
   archive.finalize();
 
   // Älä poista allekirjoituksia tai maksutilaa, jotta käyttäjä voi ladata ne uudelleen tarvittaessa
-  console.log(`Allekirjoitukset ladattu onnistuneesti IP:lle ${clientIp}`);
+  console.log(`Signatures downloaded successfully for IP: ${clientIp}`);
 });
 
 // Stripe checkout session luonti
@@ -372,14 +368,21 @@ app.post("/api/create-checkout-session", async (req, res) => {
 
     // Luo Stripe checkout session
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
+      payment_method_types: [
+        "card",
+        "apple_pay",
+        "google_pay",
+        "paypal",
+        "klarna",
+        "mobilepay",
+      ],
       line_items: [
         {
           price_data: {
             currency: "eur",
             product_data: {
-              name: "Allekirjoitukset",
-              description: `Allekirjoitukset nimelle: ${name}`,
+              name: "Handwritten Signatures",
+              description: `Handwritten signatures for ${name}`,
             },
             unit_amount: 100, // 1€ sentteinä
           },
@@ -472,7 +475,7 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
   const signatureImage = canvas.toDataURL("image/png");
 
   console.log(
-    `Luotu karusellin allekirjoitus nimelle "${name}" fontilla ${fontStyle.name} (${fontStyle.font})`
+    `Created carousel signature for "${name}" with font ${fontStyle.name} (${fontStyle.font})`
   );
 
   res.json({ image: signatureImage });
@@ -487,7 +490,7 @@ app.post("/api/restore-signatures", (req, res) => {
     return res.status(400).json({ error: "Virheellinen pyyntö" });
   }
 
-  console.log(`Palautetaan allekirjoitukset IP:lle ${clientIp}, nimi: ${name}`);
+  console.log(`Restoring signatures for IP: ${clientIp}, name: ${name}`);
 
   signatures.set(clientIp, {
     name,
@@ -495,10 +498,10 @@ app.post("/api/restore-signatures", (req, res) => {
     createdAt: new Date().toISOString(),
   });
 
-  console.log("Kaikki tallennetut allekirjoitukset:");
+  console.log("All stored signatures:");
   signatures.forEach((value, key) => {
     console.log(
-      `IP: ${key}, Nimi: ${value.name}, Kuvia: ${value.images.length}`
+      `IP: ${key}, Name: ${value.name}, Images: ${value.images.length}`
     );
   });
 
@@ -512,12 +515,12 @@ app.get("/api/check-payment/:sessionId", async (req, res) => {
     const clientIp = getClientIpFormatted(req);
 
     console.log(
-      `Tarkistetaan maksun tila sessionId:lle ${sessionId}, IP: ${clientIp}`
+      `Checking payment status for sessionId: ${sessionId}, IP: ${clientIp}`
     );
 
     // Tarkista ensin, onko käyttäjä jo merkitty maksaneeksi
     if (paidIPs.has(clientIp)) {
-      console.log(`IP ${clientIp} on jo merkitty maksaneeksi`);
+      console.log(`IP ${clientIp} is already marked as paid`);
       return res.json({ success: true, status: "paid" });
     }
 
@@ -529,7 +532,7 @@ app.get("/api/check-payment/:sessionId", async (req, res) => {
         ip.split(".").slice(0, 3).join(".") ===
           clientIp.split(".").slice(0, 3).join(".")
       ) {
-        console.log(`IP ${clientIp} vastaa osittain maksettua IP:tä ${ip}`);
+        console.log(`IP ${clientIp} matches partially paid IP: ${ip}`);
         paidIPs.add(clientIp); // Lisää tämä IP myös maksettuihin
         return res.json({ success: true, status: "paid" });
       }
@@ -540,22 +543,22 @@ app.get("/api/check-payment/:sessionId", async (req, res) => {
 
     if (session.payment_status === "paid") {
       console.log(
-        `Maksu vahvistettu Stripe API:sta sessionId:lle ${sessionId}`
+        `Payment confirmed by Stripe API for sessionId: ${sessionId}`
       );
 
       // Merkitse IP maksetuksi
       paidIPs.add(clientIp);
-      console.log(`IP ${clientIp} merkitty maksetuksi Stripe API:n kautta`);
+      console.log(`IP ${clientIp} marked as paid through Stripe API`);
 
       return res.json({ success: true, status: "paid" });
     }
 
     return res.json({ success: true, status: session.payment_status });
   } catch (error) {
-    console.error("Virhe maksun tarkistuksessa:", error);
+    console.error("Error checking payment status:", error);
     return res
       .status(500)
-      .json({ success: false, error: "Virhe maksun tarkistuksessa" });
+      .json({ success: false, error: "Error checking payment status" });
   }
 });
 
@@ -578,14 +581,14 @@ app.post("/api/reset-user-data", (req, res) => {
     paidIPs.delete(clientIp);
   }
 
-  console.log(`Poistettu tiedot IP-osoitteelle: ${clientIp}`);
-  res.json({ success: true, message: "Käyttäjän tiedot poistettu." });
+  console.log(`Deleted data for IP: ${clientIp}`);
+  res.json({ success: true, message: "User data deleted." });
 });
 
 // Allekirjoitusten luonti ilman vesileimaa
 app.post("/api/create-clean-signatures", (req, res) => {
   const { name, color } = req.body;
-  console.log(`Luodaan puhtaat allekirjoitukset: nimi=${name}, väri=${color}`);
+  console.log(`Creating clean signatures: name=${name}, color=${color}`);
 
   if (!name) {
     return res.status(400).json({ error: "Nimi puuttuu" });

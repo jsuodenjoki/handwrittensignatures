@@ -770,7 +770,7 @@
 
       // Lisää tämä funktio allekirjoitusten vanhenemisajan asettamiseksi
       function setSignatureExpiry() {
-        const expiryTime = Date.now() + 1 * 60 * 1000; // Nykyinen aika + 1 minuuttia
+        const expiryTime = Date.now() + 10 * 60 * 1000; // Nykyinen aika + 1 minuuttia
         localStorage.setItem("signatureExpiry", expiryTime.toString());
         console.log(
           "Signature expiry time set:",
