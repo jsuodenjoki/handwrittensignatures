@@ -769,7 +769,40 @@
         return data ? JSON.parse(data) : null;
       }
 
-      // Muokataan createSignatures-funktiota
+      // Lisää tämä funktio allekirjoitusten vanhenemisajan asettamiseksi
+      function setSignatureExpiry() {
+        const expiryTime = Date.now() + 10 * 60 * 1000; // Nykyinen aika + 10 minuuttia
+        localStorage.setItem("signatureExpiry", expiryTime.toString());
+        console.log(
+          "Allekirjoitusten vanhenemisaika asetettu:",
+          new Date(expiryTime).toLocaleTimeString()
+        );
+      }
+
+      // Lisää tämä funktio allekirjoitusten vanhenemisen tarkistamiseksi
+      function isSignatureExpired() {
+        // Jos maksu on suoritettu, käytä maksun vanhenemisaikaa
+        if (getPaymentStatus()) {
+          return isPaymentExpired();
+        }
+
+        const expiryTime = localStorage.getItem("signatureExpiry");
+        if (!expiryTime) return false;
+
+        const now = Date.now();
+        const expired = now > parseInt(expiryTime);
+
+        console.log(
+          "Allekirjoitusten vanhenemisaika:",
+          new Date(parseInt(expiryTime)).toLocaleTimeString()
+        );
+        console.log("Nykyinen aika:", new Date(now).toLocaleTimeString());
+        console.log("Allekirjoitukset vanhentuneet:", expired);
+
+        return expired;
+      }
+
+      // Muokkaa createSignatures-funktiota asettamaan vanhenemisaika
       async function createSignatures() {
         const name = nameInput.value.trim();
         const color = document.querySelector(
@@ -781,7 +814,12 @@
           return;
         }
 
+        // Näytä latausviesti
+        statusMessage.textContent = "Luodaan allekirjoituksia...";
+        statusMessage.style.color = "#6e8efb"; // Sininen väri
+
         try {
+          // Luo allekirjoitukset
           const response = await fetch(`${API_URL}/api/create-signatures`, {
             method: "POST",
             headers: {
@@ -790,40 +828,38 @@
             body: JSON.stringify({ name, color }),
           });
 
-          if (!response.ok) {
-            throw new Error(
-              `Virhe allekirjoituksen luonnissa: ${response.status}`
-            );
-          }
-
           const data = await response.json();
 
-          // Tallenna allekirjoitukset localStorageen
-          saveSignaturesToLocal(name, data.images, color);
+          if (data.images && data.images.length > 0) {
+            // Tyhjennä aiemmat allekirjoitukset
+            signaturesContainer.innerHTML = "";
 
-          // Näytä allekirjoitukset
-          signaturesContainer.innerHTML = "";
-          data.images.forEach((imageData) => {
-            const signatureItem = document.createElement("div");
-            signatureItem.className = "signature-item";
+            // Lisää uudet allekirjoitukset
+            data.images.forEach((image, index) => {
+              const signatureDiv = document.createElement("div");
+              signatureDiv.className = "signature";
 
-            const img = document.createElement("img");
-            img.src = imageData;
-            img.alt = `${name} allekirjoitus`;
+              const img = document.createElement("img");
+              img.src = image;
+              img.alt = `Allekirjoitus ${index + 1}`;
 
-            signatureItem.appendChild(img);
-            signaturesContainer.appendChild(signatureItem);
-          });
+              signatureDiv.appendChild(img);
+              signaturesContainer.appendChild(signatureDiv);
+            });
 
-          // Näytä ostonappi
-          buyButton.style.display = "inline-block";
+            // Tallenna allekirjoitukset localStorageen
+            saveSignaturesToLocal(name, data.images, color);
 
-          // Näytä viesti
-          statusMessage.textContent = "Allekirjoitukset luotu onnistuneesti!";
-          statusMessage.style.color = "#4CAF50"; // Vihreä väri
+            // Aseta 10 minuutin vanhenemisaika
+            setSignatureExpiry();
 
-          // Tarkista tila
-          checkStatus();
+            // Näytä ostonappi
+            buyButton.style.display = "inline-block";
+
+            // Näytä viesti
+            statusMessage.textContent = "Allekirjoitukset luotu onnistuneesti!";
+            statusMessage.style.color = "#4CAF50"; // Vihreä väri
+          }
         } catch (error) {
           console.error("Virhe allekirjoitusten luonnissa:", error);
           statusMessage.textContent = "Virhe allekirjoitusten luonnissa.";
@@ -1031,12 +1067,12 @@
 
       // Muokataan resetAllData-funktiota
       async function resetAllData() {
-        // Tyhjennä localStorage
-        localStorage.removeItem("clientIp");
-        localStorage.removeItem("hasAutoDownloaded");
-        localStorage.removeItem("hasPaid");
+        // Poista kaikki tiedot localStoragesta
         localStorage.removeItem("signatures");
+        localStorage.removeItem("hasPaid");
         localStorage.removeItem("paymentExpiry");
+        localStorage.removeItem("signatureExpiry");
+        localStorage.removeItem("hasAutoDownloaded");
 
         // Tyhjennä allekirjoitukset
         signaturesContainer.innerHTML = "";
