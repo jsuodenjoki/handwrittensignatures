@@ -236,6 +236,12 @@ app.post("/api/create-signatures", (req, res) => {
     return res.status(400).json({ error: "Nimi tai clientIp puuttuu" });
   }
 
+  // Tarkista onko IP-osoite jo käytössä ja poista vanhat allekirjoitukset
+  if (userSignatures.has(clientIp)) {
+    console.log(`Updating existing signatures for IP: ${clientIp}`);
+    userSignatures.delete(clientIp);
+  }
+
   const signatureImages = [];
 
   for (const fontStyle of signatureFonts) {
@@ -272,6 +278,13 @@ app.get("/api/get-signatures", (req, res) => {
     `Available userSignatures keys: ${Array.from(userSignatures.keys())}`
   );
 
+  // Tarkista onko allekirjoituksia olemassa
+  if (userSignatures.size === 0) {
+    console.log("No signatures exist in the system");
+    return res.status(404).json({ error: "No signatures found" });
+  }
+
+  // Tarkista suora vastaavuus
   if (userSignatures.has(clientIp)) {
     console.log(`Found signatures for IP: ${clientIp}`);
     return res.json(userSignatures.get(clientIp));
