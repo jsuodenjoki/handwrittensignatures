@@ -1180,57 +1180,17 @@
         }
       }
 
-      // Korjataan createCheckoutSession-funktio
+      // Yksinkertaistettu createCheckoutSession-funktio
       async function createCheckoutSession() {
+        const signatures = getSignaturesFromLocal();
+        const { sessionId } = await getClientIp();
+
+        if (!signatures) {
+          alert("Create signatures first!");
+          return;
+        }
+
         try {
-          const signatures = getSignaturesFromLocal();
-          const { sessionId } = await getClientIp();
-
-          if (!signatures) {
-            console.error("No signatures found in localStorage");
-            alert("Create signatures first!");
-            return;
-          }
-
-          if (!sessionId) {
-            console.error("No session ID found");
-            alert("Session ID missing. Please refresh the page.");
-            return;
-          }
-
-          console.log("Creating checkout session with data:", {
-            name: signatures.name,
-            sessionId: sessionId,
-          });
-
-          // Näytä latausviesti
-          statusMessage.textContent = "Creating payment session...";
-          statusMessage.style.color = "#6e8efb"; // Sininen väri
-
-          // Tarkista onko allekirjoitukset tallennettu palvelimelle
-          const checkResponse = await fetch(
-            `${API_URL}/api/check-signatures?sessionId=${sessionId}`
-          );
-          const checkData = await checkResponse.json();
-
-          if (!checkData.hasSignatures) {
-            console.error("Signatures not found on server");
-            // Lähetä allekirjoitukset palvelimelle
-            await fetch(`${API_URL}/api/restore-signatures`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                name: signatures.name,
-                images: signatures.images,
-                color: signatures.color,
-                sessionId: sessionId,
-              }),
-            });
-            console.log("Signatures restored to server");
-          }
-
           const response = await fetch(
             `${API_URL}/api/create-checkout-session`,
             {
@@ -1245,28 +1205,17 @@
             }
           );
 
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(
-              `Server error: ${errorData.error || response.statusText}`
-            );
-          }
-
           const data = await response.json();
-          console.log("Checkout session created:", data);
 
           if (data.url) {
-            console.log("Redirecting to payment page:", data.url);
             window.location.href = data.url;
           } else {
             throw new Error("Checkout URL missing from response");
           }
         } catch (error) {
           console.error("Error handling payment:", error);
-          statusMessage.textContent = "Error creating payment session.";
-          statusMessage.style.color = "#f44336"; // Punainen väri
-          alert(`Error handling payment: ${error.message}`);
-          throw error; // Heitetään virhe eteenpäin
+          alert("Error handling payment.");
+          throw error;
         }
       }
 
@@ -1452,26 +1401,21 @@
         window.history.replaceState({}, document.title, url);
       }
 
-      // Korjataan buyButton-tapahtumankäsittelijä
-      // Poistetaan kaikki vanhat tapahtumankäsittelijät
-      const newBuyButton = buyButton.cloneNode(true);
-      buyButton.parentNode.replaceChild(newBuyButton, buyButton);
-
-      // Lisätään uusi tapahtumankäsittelijä
-      newBuyButton.addEventListener("click", function (event) {
-        event.preventDefault(); // Estä oletustoiminto
-        console.log("Buy button clicked directly");
+      // Yksinkertainen maksunapin tapahtumankäsittelijä
+      buyButton.addEventListener("click", async () => {
+        console.log("Buy button clicked");
 
         // Näytä latausviesti
         statusMessage.textContent = "Creating payment session...";
         statusMessage.style.color = "#6e8efb"; // Sininen väri
 
-        // Kutsu checkout-funktiota suoraan
-        createCheckoutSession().catch((error) => {
+        try {
+          await createCheckoutSession();
+        } catch (error) {
           console.error("Error in checkout:", error);
           statusMessage.textContent = "Error creating payment session.";
           statusMessage.style.color = "#f44336"; // Punainen väri
-        });
+        }
       });
 
       // Varmista, että tarkistus suoritetaan säännöllisesti
