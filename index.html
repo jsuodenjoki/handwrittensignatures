@@ -1190,6 +1190,7 @@
       // Muokataan createCheckoutSession-funktiota
       async function createCheckoutSession() {
         const signatures = getSignaturesFromLocal();
+        const sessionId = await getClientIp(); // Hae session ID
 
         if (!signatures) {
           alert("Create signatures first!");
@@ -1206,6 +1207,7 @@
               },
               body: JSON.stringify({
                 name: signatures.name,
+                sessionId: sessionId, // Lisää session ID pyyntöön
               }),
             }
           );
