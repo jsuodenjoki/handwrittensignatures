@@ -368,14 +368,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
 
     // Luo Stripe checkout session
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: [
-        "card",
-        "apple_pay",
-        "google_pay",
-        "paypal",
-        "klarna",
-        "mobilepay",
-      ],
+      payment_method_types: ["card", "paypal", "klarna"],
       line_items: [
         {
           price_data: {
