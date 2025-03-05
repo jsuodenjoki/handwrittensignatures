@@ -228,18 +228,14 @@ app.get("/api/check-signatures", (req, res) => {
 // Allekirjoitusten luonti
 app.post("/api/create-signatures", (req, res) => {
   const { name, color, clientIp } = req.body;
+  const actualClientIp = clientIp || getClientIpFormatted(req);
+
   console.log(
-    `Creating signatures: name=${name}, color=${color}, clientIp=${clientIp}`
+    `Luodaan allekirjoitukset: nimi=${name}, väri=${color}, clientIp=${actualClientIp}`
   );
 
-  if (!name || !clientIp) {
-    return res.status(400).json({ error: "Nimi tai clientIp puuttuu" });
-  }
-
-  // Tarkista onko IP-osoite jo käytössä ja poista vanhat allekirjoitukset
-  if (userSignatures.has(clientIp)) {
-    console.log(`Updating existing signatures for IP: ${clientIp}`);
-    userSignatures.delete(clientIp);
+  if (!name) {
+    return res.status(400).json({ error: "Nimi puuttuu" });
   }
 
   const signatureImages = [];
@@ -249,46 +245,43 @@ app.post("/api/create-signatures", (req, res) => {
     signatureImages.push(signatureImage);
   }
 
-  // Tallenna allekirjoitukset palvelimelle
-  userSignatures.set(clientIp, {
+  console.log(
+    `Tallennetaan allekirjoitukset IP:lle ${actualClientIp}, nimi: ${name}, väri: ${color}`
+  );
+
+  // Tallenna allekirjoitukset userSignatures-mappiin
+  userSignatures.set(actualClientIp, {
     name,
-    color,
     images: signatureImages,
+    color: color,
     createdAt: new Date().toISOString(),
   });
 
-  // Tallenna myös vanhaan signatures-mappiin yhteensopivuuden vuoksi
-  signatures.set(clientIp, {
-    name,
-    color,
-    images: signatureImages,
-    createdAt: new Date().toISOString(),
+  console.log("Kaikki tallennetut allekirjoitukset:");
+  userSignatures.forEach((value, key) => {
+    console.log(
+      `IP: ${key}, Nimi: ${value.name}, Väri: ${value.color}, Kuvia: ${value.images.length}`
+    );
   });
 
   // Aseta vanhenemisaika (10 minuuttia)
   const expiryTime = Date.now() + 10 * 60 * 1000;
-  expiryTimes.set(clientIp, expiryTime);
+  expiryTimes.set(actualClientIp, expiryTime);
 
-  console.log(`Signatures created and stored for IP: ${clientIp}`);
-  console.log(
-    `Current userSignatures keys: ${Array.from(userSignatures.keys())}`
-  );
-
-  // Palauta kuvat
   res.json({ images: signatureImages });
 });
 
 // Allekirjoitusten hakeminen
 app.get("/api/get-signatures", (req, res) => {
   const clientIp = req.query.clientIp || getClientIpFormatted(req);
-  console.log(`Getting signatures for IP: ${clientIp}`);
+  console.log(`Haetaan allekirjoituksia IP:lle ${clientIp}`);
   console.log(
-    `Available userSignatures keys: ${Array.from(userSignatures.keys())}`
+    `Kaikki tallennetut allekirjoitukset: ${Array.from(userSignatures.keys())}`
   );
 
   // Tarkistetaan ensin täsmällinen vastaavuus
   if (userSignatures.has(clientIp)) {
-    console.log(`Found signatures for IP: ${clientIp}`);
+    console.log(`Löydettiin allekirjoitukset IP:lle ${clientIp}`);
     return res.json(userSignatures.get(clientIp));
   }
 
@@ -300,44 +293,13 @@ app.get("/api/get-signatures", (req, res) => {
       ip.split(".").slice(0, 3).join(".") ===
         clientIp.split(".").slice(0, 3).join(".")
     ) {
-      console.log(`Found signatures for similar IP: ${ip}`);
+      console.log(`Löydettiin allekirjoitukset samankaltaiselle IP:lle: ${ip}`);
       return res.json(userSignatures.get(ip));
     }
   }
 
-  // Tarkistetaan vielä vanha signatures-map (yhteensopivuuden vuoksi)
-  if (signatures && signatures.size > 0) {
-    console.log("Checking old signatures map");
-
-    if (signatures.has(clientIp)) {
-      console.log(`Found signatures in old map for IP: ${clientIp}`);
-
-      // Kopioidaan vanhat allekirjoitukset uuteen mappiin
-      userSignatures.set(clientIp, signatures.get(clientIp));
-
-      return res.json(signatures.get(clientIp));
-    }
-
-    // Tarkista osittaiset vastaavuudet vanhasta mapista
-    for (const ip of signatures.keys()) {
-      if (
-        ip.includes(clientIp) ||
-        clientIp.includes(ip) ||
-        ip.split(".").slice(0, 3).join(".") ===
-          clientIp.split(".").slice(0, 3).join(".")
-      ) {
-        console.log(`Found signatures in old map for similar IP: ${ip}`);
-
-        // Kopioidaan vanhat allekirjoitukset uuteen mappiin
-        userSignatures.set(clientIp, signatures.get(ip));
-
-        return res.json(signatures.get(ip));
-      }
-    }
-  }
-
-  console.log(`No signatures found for IP: ${clientIp}`);
-  return res.status(404).json({ error: "No signatures found" });
+  console.log(`Allekirjoituksia ei löytynyt IP:lle ${clientIp}`);
+  return res.status(404).json({ error: "Allekirjoituksia ei löytynyt" });
 });
 
 // Allekirjoitusten lataus
