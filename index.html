@@ -1191,6 +1191,11 @@
         }
 
         try {
+          console.log("Creating checkout session with data:", {
+            name: signatures.name,
+            sessionId: sessionId,
+          });
+
           const response = await fetch(
             `${API_URL}/api/create-checkout-session`,
             {

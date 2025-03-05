@@ -330,30 +330,15 @@ app.post("/api/create-checkout-session", async (req, res) => {
   try {
     const { name, sessionId } = req.body;
 
+    console.log(
+      `Creating checkout session for ${name}, sessionId: ${sessionId}`
+    );
+
     if (!name) {
-      console.error("Name missing from checkout request");
       return res.status(400).json({ error: "Name is required" });
     }
 
-    if (!sessionId) {
-      console.error("SessionId missing from checkout request");
-      return res.status(400).json({ error: "SessionId is required" });
-    }
-
-    const userSessionId = sessionId;
-
-    console.log(
-      `Creating checkout session for ${name}, session ID: ${userSessionId}`
-    );
-
-    // Tarkista onko allekirjoituksia olemassa
-    if (!signatures.has(userSessionId)) {
-      console.error(`No signatures found for session: ${userSessionId}`);
-      return res
-        .status(400)
-        .json({ error: "No signatures found for this session" });
-    }
-
+    // Luo Stripe checkout session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
@@ -370,21 +355,18 @@ app.post("/api/create-checkout-session", async (req, res) => {
         },
       ],
       mode: "payment",
-      success_url: `${req.headers.origin}?success=true&sessionId=${userSessionId}`,
-      cancel_url: `${req.headers.origin}?canceled=true&sessionId=${userSessionId}`,
+      success_url: `${req.headers.origin}?success=true&sessionId=${sessionId}`,
+      cancel_url: `${req.headers.origin}?canceled=true&sessionId=${sessionId}`,
       metadata: {
-        sessionId: userSessionId,
+        sessionId: sessionId,
       },
     });
 
     console.log(`Checkout session created: ${session.id}, URL: ${session.url}`);
-    res.json({ url: session.url, sessionId: userSessionId });
+    res.json({ url: session.url });
   } catch (error) {
     console.error("Virhe checkout-session luonnissa:", error);
-    res.status(500).json({
-      error: "Virhe checkout-session luonnissa",
-      details: error.message,
-    });
+    res.status(500).json({ error: "Virhe checkout-session luonnissa" });
   }
 });
 
