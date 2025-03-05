@@ -395,7 +395,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
               name: "Signature Package",
               description: `Handwritten signatures for ${name}`,
             },
-            unit_amount: 500, // 5€ in cents
+            unit_amount: 100, // 5€ in cents
           },
           quantity: 1,
         },
