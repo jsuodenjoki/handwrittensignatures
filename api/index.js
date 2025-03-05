@@ -16,6 +16,7 @@ const paidIPs = new Set();
 const paymentTimes = new Map();
 const userSignatureData = new Map();
 const userPaymentData = new Map();
+const signatureExpiryTimes = new Map();
 
 //3. MIDDLEWARE MÄÄRITTELYT
 app.use(cors());
@@ -226,6 +227,15 @@ app.post("/api/create-signatures", (req, res) => {
     images: signatureImages,
     createdAt: new Date().toISOString(),
   });
+
+  // Asetetaan 10 minuutin vanhenemisaika allekirjoituksille
+  const expiryTime = Date.now() + 10 * 60 * 1000; // 10 minuuttia
+  signatureExpiryTimes.set(clientIp, expiryTime);
+  console.log(
+    `Signature expiry time set for IP ${clientIp}: ${new Date(
+      expiryTime
+    ).toLocaleTimeString()}`
+  );
 
   // Palauta kuvat suoraan
   res.json({ images: signatureImages });
@@ -579,14 +589,35 @@ app.post("/api/webhook", async (req, res) => {
 app.get("/api/get-user-data", (req, res) => {
   const clientIp = getClientIpFormatted(req);
 
+  // Tarkista onko allekirjoitukset vanhentuneet
+  const expiryTime = signatureExpiryTimes.get(clientIp);
+  const now = Date.now();
+
+  // Jos käyttäjä on maksanut, allekirjoitukset eivät vanhene 10 minuutin ajastimella
+  const hasPaid = paidIPs.has(clientIp);
+
+  // Jos allekirjoitukset ovat vanhentuneet ja käyttäjä ei ole maksanut, poista ne
+  if (expiryTime && now > expiryTime && !hasPaid) {
+    console.log(`Signatures expired for IP ${clientIp}, removing data`);
+    userSignatureData.delete(clientIp);
+    signatureExpiryTimes.delete(clientIp);
+    signatures.delete(clientIp);
+  }
+
   const signatureData = userSignatureData.get(clientIp) || null;
   const paymentData = userPaymentData.get(clientIp) || null;
-  const hasPaid = paidIPs.has(clientIp);
+
+  // Lisää vanhenemisaika vastaukseen
+  let expiryTimeLeft = null;
+  if (expiryTime && !hasPaid) {
+    expiryTimeLeft = Math.max(0, expiryTime - now);
+  }
 
   res.json({
     signatureData,
     paymentData,
     hasPaid,
+    expiryTimeLeft,
   });
 });
 
@@ -742,6 +773,10 @@ app.post("/api/reset-user-data", (req, res) => {
     userPaymentData.delete(clientIp);
   }
 
+  if (signatureExpiryTimes.has(clientIp)) {
+    signatureExpiryTimes.delete(clientIp);
+  }
+
   console.log(`Deleted data for IP: ${clientIp}`);
   res.json({ success: true, message: "User data deleted." });
 });
@@ -770,5 +805,38 @@ app.post("/api/create-clean-signatures", (req, res) => {
   // Palauta puhtaat kuvat
   res.json({ images: signatureImages });
 });
+
+// Lisätään ajastin, joka tarkistaa vanhentuneet allekirjoitukset säännöllisesti
+setInterval(() => {
+  const now = Date.now();
+
+  // Tarkista vanhentuneet allekirjoitukset
+  for (const [clientIp, expiryTime] of signatureExpiryTimes.entries()) {
+    // Jos käyttäjä on maksanut, allekirjoitukset eivät vanhene 10 minuutin ajastimella
+    const hasPaid = paidIPs.has(clientIp);
+
+    if (now > expiryTime && !hasPaid) {
+      console.log(`Cleaning up expired signatures for IP ${clientIp}`);
+      userSignatureData.delete(clientIp);
+      signatureExpiryTimes.delete(clientIp);
+      signatures.delete(clientIp);
+    }
+  }
+
+  // Tarkista vanhentuneet maksut (3 minuuttia maksusta)
+  for (const [clientIp, paymentTime] of paymentTimes.entries()) {
+    const paymentExpiryTime = paymentTime + 3 * 60 * 1000; // 3 minuuttia
+
+    if (now > paymentExpiryTime) {
+      console.log(`Cleaning up expired payment for IP ${clientIp}`);
+      paidIPs.delete(clientIp);
+      paymentTimes.delete(clientIp);
+      userPaymentData.delete(clientIp);
+      userSignatureData.delete(clientIp);
+      signatureExpiryTimes.delete(clientIp);
+      signatures.delete(clientIp);
+    }
+  }
+}, 30000); // Tarkista 30 sekunnin välein
 
 export default app;

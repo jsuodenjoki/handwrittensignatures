@@ -902,11 +902,13 @@
           const hasSignatures = userData.signatureData !== null;
           const hasPaid = userData.hasPaid;
           const canDownload = hasSignatures && hasPaid;
+          const expiryTimeLeft = userData.expiryTimeLeft;
 
           console.log("Checking status from server:");
           console.log("- Signatures:", hasSignatures);
           console.log("- Paid:", hasPaid);
           console.log("- Can download:", canDownload);
+          console.log("- Expiry time left:", expiryTimeLeft);
 
           if (hasSignatures) {
             // Näytä allekirjoitukset, jos niitä ei ole jo näytetty
@@ -975,6 +977,17 @@
                 statusMessage.textContent = "Signatures created!";
                 statusMessage.style.color = "#6e8efb"; // Sininen väri
                 buyButton.style.display = "inline-block";
+
+                // Näytä vanhenemisaika, jos se on saatavilla
+                if (expiryTimeLeft) {
+                  const minutes = Math.floor(expiryTimeLeft / 60000);
+                  const seconds = Math.floor((expiryTimeLeft % 60000) / 1000);
+
+                  // Lisää vanhenemisaika statusviestiin
+                  statusMessage.textContent += ` (Expires in ${minutes}:${
+                    seconds < 10 ? "0" : ""
+                  }${seconds})`;
+                }
 
                 // Piilota "Lataa uudelleen" -nappi ja reset-container
                 downloadAgainContainer.style.display = "none";
