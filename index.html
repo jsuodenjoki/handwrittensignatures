@@ -1292,15 +1292,22 @@
         if (getQueryParam("success") === "true") {
           console.log("✅ Payment successful, marking as paid...");
 
-          // Merkitse maksu onnistuneeksi heti localStorageen
-          savePaymentStatus(true);
-          console.log("Payment status saved to localStorage: true");
+          // Tarkista onko maksu jo merkitty suoritetuksi
+          const hasPaid = getPaymentStatus();
 
-          // Tallenna maksun aikaleima
-          savePaymentTimestamp();
+          // Merkitse maksu onnistuneeksi heti localStorageen, jos ei ole jo merkitty
+          if (!hasPaid) {
+            savePaymentStatus(true);
+            console.log("Payment status saved to localStorage: true");
 
-          // Nollaa automaattisen latauksen tila, jos käyttäjä on juuri maksanut
-          localStorage.removeItem("hasAutoDownloaded");
+            // Tallenna maksun aikaleima vain jos sitä ei ole jo asetettu
+            if (!localStorage.getItem("paymentExpiry")) {
+              savePaymentTimestamp();
+            }
+
+            // Nollaa automaattisen latauksen tila, jos käyttäjä on juuri maksanut
+            localStorage.removeItem("hasAutoDownloaded");
+          }
 
           // Tarkista tila heti
           checkStatus(true);
