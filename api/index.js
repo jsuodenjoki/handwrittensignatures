@@ -13,10 +13,6 @@ const stripe = stripePackage(process.env.STRIPE_SECRET_KEY);
 const app = express();
 const signatures = new Map();
 const paidIPs = new Set();
-const paymentTimes = new Map();
-const userSignatureData = new Map();
-const userPaymentData = new Map();
-const signatureExpiryTimes = new Map();
 
 //3. MIDDLEWARE MÄÄRITTELYT
 app.use(cors());
@@ -206,7 +202,6 @@ app.get("/api/check-signatures", (req, res) => {
 // Allekirjoitusten luonti
 app.post("/api/create-signatures", (req, res) => {
   const { name, color } = req.body;
-  const clientIp = getClientIpFormatted(req);
   console.log(`Creating signatures: name=${name}, color=${color}`);
 
   if (!name) {
@@ -220,24 +215,7 @@ app.post("/api/create-signatures", (req, res) => {
     signatureImages.push(signatureImage);
   }
 
-  // Tallennetaan allekirjoitukset palvelimelle
-  userSignatureData.set(clientIp, {
-    name,
-    color,
-    images: signatureImages,
-    createdAt: new Date().toISOString(),
-  });
-
-  // Asetetaan 10 minuutin vanhenemisaika allekirjoituksille
-  const expiryTime = Date.now() + 10 * 60 * 1000; // 10 minuuttia
-  signatureExpiryTimes.set(clientIp, expiryTime);
-  console.log(
-    `Signature expiry time set for IP ${clientIp}: ${new Date(
-      expiryTime
-    ).toLocaleTimeString()}`
-  );
-
-  // Palauta kuvat suoraan
+  // Palauta kuvat suoraan ilman tallennusta
   res.json({ images: signatureImages });
 });
 
@@ -387,7 +365,6 @@ Kiitos että käytit palveluamme!`;
 app.post("/api/create-checkout-session", async (req, res) => {
   try {
     const { name } = req.body;
-    const clientIp = getClientIpFormatted(req);
 
     // Luo Stripe checkout session
     const session = await stripe.checkout.sessions.create({
@@ -400,27 +377,17 @@ app.post("/api/create-checkout-session", async (req, res) => {
               name: "Handwritten Signatures",
               description: `Handwritten signatures for ${name}`,
             },
-            unit_amount: 100, // 5€ sentteinä
+            unit_amount: 500, // 1€ sentteinä
           },
           quantity: 1,
         },
       ],
       mode: "payment",
-      success_url: `${req.headers.origin}?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${req.headers.origin}?success=true`,
       cancel_url: `${req.headers.origin}?canceled=true`,
-      metadata: {
-        clientIp: clientIp, // Tallennetaan asiakkaan IP-osoite metadataan
-      },
     });
 
-    // Tallennetaan session tiedot palvelimelle
-    userPaymentData.set(clientIp, {
-      sessionId: session.id,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    });
-
-    res.json({ url: session.url, sessionId: session.id });
+    res.json({ url: session.url });
   } catch (error) {
     console.error("Virhe checkout-session luonnissa:", error);
     res.status(500).json({ error: "Virhe checkout-session luonnissa" });
@@ -534,94 +501,7 @@ app.post("/api/restore-signatures", (req, res) => {
   res.json({ success: true });
 });
 
-// Lisätään webhook Stripe-maksun käsittelyyn
-app.post("/api/webhook", async (req, res) => {
-  const sig = req.headers["stripe-signature"];
-  let event;
-
-  try {
-    event = stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
-  } catch (err) {
-    console.error(`Webhook Error: ${err.message}`);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  // Käsitellään onnistunut maksu
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object;
-
-    // Haetaan asiakkaan IP-osoite metadatasta
-    const clientIp = session.metadata?.clientIp;
-
-    if (clientIp) {
-      // Merkitään maksu suoritetuksi
-      paidIPs.add(clientIp);
-      paymentTimes.set(clientIp, Date.now());
-
-      // Päivitetään maksun tila palvelimelle
-      if (userPaymentData.has(clientIp)) {
-        const paymentData = userPaymentData.get(clientIp);
-        paymentData.status = "paid";
-        paymentData.paidAt = new Date().toISOString();
-        userPaymentData.set(clientIp, paymentData);
-      } else {
-        userPaymentData.set(clientIp, {
-          sessionId: session.id,
-          status: "paid",
-          paidAt: new Date().toISOString(),
-        });
-      }
-
-      console.log(`Payment successful for IP: ${clientIp}`);
-    } else {
-      console.error("Client IP not found in session metadata");
-    }
-  }
-
-  res.json({ received: true });
-});
-
-// Lisätään uusi reitti allekirjoitustietojen hakemiseen palvelimelta
-app.get("/api/get-user-data", (req, res) => {
-  const clientIp = getClientIpFormatted(req);
-
-  // Tarkista onko allekirjoitukset vanhentuneet
-  const expiryTime = signatureExpiryTimes.get(clientIp);
-  const now = Date.now();
-
-  // Jos käyttäjä on maksanut, allekirjoitukset eivät vanhene 10 minuutin ajastimella
-  const hasPaid = paidIPs.has(clientIp);
-
-  // Jos allekirjoitukset ovat vanhentuneet ja käyttäjä ei ole maksanut, poista ne
-  if (expiryTime && now > expiryTime && !hasPaid) {
-    console.log(`Signatures expired for IP ${clientIp}, removing data`);
-    userSignatureData.delete(clientIp);
-    signatureExpiryTimes.delete(clientIp);
-    signatures.delete(clientIp);
-  }
-
-  const signatureData = userSignatureData.get(clientIp) || null;
-  const paymentData = userPaymentData.get(clientIp) || null;
-
-  // Lisää vanhenemisaika vastaukseen
-  let expiryTimeLeft = null;
-  if (expiryTime && !hasPaid) {
-    expiryTimeLeft = Math.max(0, expiryTime - now);
-  }
-
-  res.json({
-    signatureData,
-    paymentData,
-    hasPaid,
-    expiryTimeLeft,
-  });
-});
-
-// Päivitetään maksun tarkistusreitti käyttämään palvelinpuolen tallennusta
+// Lisätään uusi reitti maksun tarkistukseen
 app.get("/api/check-payment/:sessionId", async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -634,16 +514,6 @@ app.get("/api/check-payment/:sessionId", async (req, res) => {
     // Tarkista ensin, onko käyttäjä jo merkitty maksaneeksi
     if (paidIPs.has(clientIp)) {
       console.log(`IP ${clientIp} is already marked as paid`);
-
-      // Päivitä maksutiedot palvelimelle, jos niitä ei vielä ole
-      if (!userPaymentData.has(clientIp)) {
-        userPaymentData.set(clientIp, {
-          sessionId,
-          status: "paid",
-          paidAt: new Date().toISOString(),
-        });
-      }
-
       return res.json({ success: true, status: "paid" });
     }
 
@@ -657,23 +527,6 @@ app.get("/api/check-payment/:sessionId", async (req, res) => {
       ) {
         console.log(`IP ${clientIp} matches partially paid IP: ${ip}`);
         paidIPs.add(clientIp); // Lisää tämä IP myös maksettuihin
-
-        // Päivitä maksutiedot palvelimelle
-        userPaymentData.set(clientIp, {
-          sessionId,
-          status: "paid",
-          paidAt: new Date().toISOString(),
-        });
-
-        return res.json({ success: true, status: "paid" });
-      }
-    }
-
-    // Tarkista palvelimelle tallennetut maksutiedot
-    if (userPaymentData.has(clientIp)) {
-      const paymentData = userPaymentData.get(clientIp);
-      if (paymentData.status === "paid") {
-        paidIPs.add(clientIp);
         return res.json({ success: true, status: "paid" });
       }
     }
@@ -688,26 +541,10 @@ app.get("/api/check-payment/:sessionId", async (req, res) => {
 
       // Merkitse IP maksetuksi
       paidIPs.add(clientIp);
-      paymentTimes.set(clientIp, Date.now());
-
-      // Päivitä maksutiedot palvelimelle
-      userPaymentData.set(clientIp, {
-        sessionId,
-        status: "paid",
-        paidAt: new Date().toISOString(),
-      });
-
       console.log(`IP ${clientIp} marked as paid through Stripe API`);
 
       return res.json({ success: true, status: "paid" });
     }
-
-    // Päivitä maksun tila palvelimelle
-    userPaymentData.set(clientIp, {
-      sessionId,
-      status: session.payment_status,
-      updatedAt: new Date().toISOString(),
-    });
 
     return res.json({ success: true, status: session.payment_status });
   } catch (error) {
@@ -718,63 +555,23 @@ app.get("/api/check-payment/:sessionId", async (req, res) => {
   }
 });
 
-// Päivitetään allekirjoitusten tallennusreitti
-app.post("/api/save-signatures", (req, res) => {
-  const { name, images, color } = req.body;
-  const clientIp = getClientIpFormatted(req);
+// Reset user data
+app.post("/api/reset-user-data", (req, res) => {
+  const { clientIp } = req.body;
 
-  if (!name || !images || !Array.isArray(images)) {
-    return res.status(400).json({ success: false, error: "Invalid request" });
+  if (!clientIp) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Client IP puuttuu." });
   }
 
-  // Tallenna allekirjoitukset Map-rakenteeseen
-  signatures.set(clientIp, {
-    name,
-    images,
-    color,
-    createdAt: new Date().toISOString(),
-  });
-
-  // Tallenna myös palvelinpuolen tietorakenteeseen
-  userSignatureData.set(clientIp, {
-    name,
-    color,
-    images,
-    createdAt: new Date().toISOString(),
-  });
-
-  console.log(`Signatures saved for IP: ${clientIp}, name: ${name}`);
-
-  res.json({ success: true });
-});
-
-// Päivitetään käyttäjätietojen nollausreitti
-app.post("/api/reset-user-data", (req, res) => {
-  const clientIp = getClientIpFormatted(req);
-
-  // Poista tiedot serverin tietorakenteista
+  // Poista tiedot serverin Mapista ja Setistä
   if (signatures.has(clientIp)) {
     signatures.delete(clientIp);
   }
 
   if (paidIPs.has(clientIp)) {
     paidIPs.delete(clientIp);
-  }
-
-  if (paymentTimes.has(clientIp)) {
-    paymentTimes.delete(clientIp);
-  }
-
-  if (userSignatureData.has(clientIp)) {
-    userSignatureData.delete(clientIp);
-  }
-
-  if (userPaymentData.has(clientIp)) {
-    userPaymentData.delete(clientIp);
-  }
-
-  if (signatureExpiryTimes.has(clientIp)) {
-    signatureExpiryTimes.delete(clientIp);
   }
 
   console.log(`Deleted data for IP: ${clientIp}`);
@@ -805,38 +602,5 @@ app.post("/api/create-clean-signatures", (req, res) => {
   // Palauta puhtaat kuvat
   res.json({ images: signatureImages });
 });
-
-// Lisätään ajastin, joka tarkistaa vanhentuneet allekirjoitukset säännöllisesti
-setInterval(() => {
-  const now = Date.now();
-
-  // Tarkista vanhentuneet allekirjoitukset
-  for (const [clientIp, expiryTime] of signatureExpiryTimes.entries()) {
-    // Jos käyttäjä on maksanut, allekirjoitukset eivät vanhene 10 minuutin ajastimella
-    const hasPaid = paidIPs.has(clientIp);
-
-    if (now > expiryTime && !hasPaid) {
-      console.log(`Cleaning up expired signatures for IP ${clientIp}`);
-      userSignatureData.delete(clientIp);
-      signatureExpiryTimes.delete(clientIp);
-      signatures.delete(clientIp);
-    }
-  }
-
-  // Tarkista vanhentuneet maksut (3 minuuttia maksusta)
-  for (const [clientIp, paymentTime] of paymentTimes.entries()) {
-    const paymentExpiryTime = paymentTime + 3 * 60 * 1000; // 3 minuuttia
-
-    if (now > paymentExpiryTime) {
-      console.log(`Cleaning up expired payment for IP ${clientIp}`);
-      paidIPs.delete(clientIp);
-      paymentTimes.delete(clientIp);
-      userPaymentData.delete(clientIp);
-      userSignatureData.delete(clientIp);
-      signatureExpiryTimes.delete(clientIp);
-      signatures.delete(clientIp);
-    }
-  }
-}, 30000); // Tarkista 30 sekunnin välein
 
 export default app;
