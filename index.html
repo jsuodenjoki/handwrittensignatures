@@ -288,17 +288,29 @@
       @media (max-width: 900px) {
         .signature-carousel-container {
           margin-bottom: 30px;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .signature-carousel {
+          padding: 10px 20px;
+          gap: 15px;
         }
 
         .carousel-item {
-          min-width: calc(50% - 20px);
+          min-width: 200px;
           height: 120px;
         }
       }
 
       @media (max-width: 600px) {
+        .signature-carousel {
+          padding: 10px 10px;
+        }
+
         .carousel-item {
-          min-width: calc(100% - 40px);
+          min-width: 180px;
+          height: 100px;
         }
       }
 
@@ -363,7 +375,6 @@
           type="text"
           id="nameInput"
           placeholder="Write your name here..."
-          style="width: 40%"
         />
       </div>
 
