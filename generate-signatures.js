@@ -81,16 +81,16 @@ process.on("uncaughtException", (err) => {
 // Luo allekirjoitukset jokaiselle nimelle
 exampleNames.forEach((name, index) => {
   try {
-    console.log(`Luodaan allekirjoitus nimelle: ${name}`);
+    // Luodaan allekirjoitus nimelle: name
     const buffer = createSignature(name, "OmaFontti3", "#6e8efb");
     const filename = `handwritten_signature_generator_example_${index + 1}.png`;
     fs.writeFileSync(path.join(signatureDir, filename), buffer);
-    console.log(`Luotu allekirjoitus: ${filename}`);
+    // Luotu allekirjoitus: filename
   } catch (error) {
-    console.error(`Virhe allekirjoituksen luonnissa (${name}):`, error);
+    // Virhe allekirjoituksen luonnissa (name): error
     // Heitetään virhe eteenpäin, jotta skripti keskeytyy
     throw error;
   }
 });
 
-console.log("Kaikki allekirjoitukset luotu onnistuneesti!");
+// Kaikki allekirjoitukset luotu onnistuneesti!

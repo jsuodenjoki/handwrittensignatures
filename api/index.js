@@ -42,13 +42,13 @@ const signatureFonts = [];
 try {
   if (fs.existsSync(fontsDir)) {
     const fontFiles = fs.readdirSync(fontsDir);
-    console.log("Available fonts:", fontFiles);
+    // Available fonts: fontFiles
 
     fontFiles.forEach((fontFile) => {
       if (fontFile.endsWith(".ttf")) {
         const fontName = fontFile.replace(".ttf", "").replace(/[-_]/g, " ");
         const fontFamily = fontName.replace(/\s+/g, "");
-        console.log(`Registering font: ${fontFile} named ${fontFamily}`);
+        // Registering font: fontFile named fontFamily
         registerFont(path.join(fontsDir, fontFile), { family: fontFamily });
 
         signatureFonts.push({
@@ -62,11 +62,11 @@ try {
       }
     });
   } else {
-    console.log("Fonts-kansiota ei löydy:", fontsDir);
+    // Fonts-kansiota ei löydy: fontsDir
   }
 
   if (signatureFonts.length === 0) {
-    console.log("No fonts found, using default fonts");
+    // No fonts found, using default fonts
     signatureFonts.push(
       { name: "Arial", font: "40px Arial, sans-serif" },
       { name: "Times New Roman", font: "40px 'Times New Roman', serif" },
@@ -74,7 +74,7 @@ try {
     );
   }
 } catch (error) {
-  console.error("Error loading fonts:", error);
+  // Error loading fonts
   signatureFonts.push(
     { name: "Arial", font: "40px Arial, sans-serif" },
     { name: "Times New Roman", font: "40px 'Times New Roman', serif" },
@@ -606,9 +606,10 @@ app.post("/api/create-clean-signatures", (req, res) => {
 
 // Lisää uusi reitti allekirjoitusten tallentamiseen
 app.post("/api/save-signatures", (req, res) => {
-  const { name, images, color, clientIp } = req.body;
+  const { name, images, color } = req.body;
+  const clientIp = getClientIpFormatted(req);
 
-  if (!name || !images || !Array.isArray(images) || !clientIp) {
+  if (!name || !images || !Array.isArray(images)) {
     return res.status(400).json({ success: false, error: "Invalid request" });
   }
 
@@ -622,24 +623,12 @@ app.post("/api/save-signatures", (req, res) => {
 
   console.log(`Signatures saved for IP: ${clientIp}, name: ${name}`);
 
-  // Aseta vanhenemisaika (10 minuuttia)
-  const expiryTime = new Date();
-  expiryTime.setMinutes(expiryTime.getMinutes() + 10);
-
-  // Tallenna vanhenemisaika
-  const expiryMap = new Map();
-  expiryMap.set(clientIp, expiryTime.getTime());
-
   res.json({ success: true });
 });
 
 // Lisää uusi reitti maksun tilan tarkistamiseen
-app.post("/api/check-payment-status", (req, res) => {
-  const { clientIp } = req.body;
-
-  if (!clientIp) {
-    return res.status(400).json({ success: false, error: "Client IP missing" });
-  }
+app.post("/api/verify-payment", (req, res) => {
+  const clientIp = getClientIpFormatted(req);
 
   // Tarkista onko käyttäjä maksanut
   const hasPaid = paidIPs.has(clientIp);
@@ -655,7 +644,7 @@ app.post("/api/check-payment-status", (req, res) => {
     // Jos maksettu, tarkista maksun vanhenemisaika (3 minuuttia maksusta)
     const paymentTime = paymentTimes.get(clientIp);
     if (paymentTime) {
-      const expiryTime = paymentTime + 3 * 60 * 1000; // 3 minuuttia
+      expiryTime = paymentTime + 3 * 60 * 1000; // 3 minuuttia
       isExpired = Date.now() > expiryTime;
 
       if (isExpired) {
@@ -670,7 +659,7 @@ app.post("/api/check-payment-status", (req, res) => {
     const signatureData = signatures.get(clientIp);
     if (signatureData && signatureData.createdAt) {
       const creationTime = new Date(signatureData.createdAt).getTime();
-      const expiryTime = creationTime + 10 * 60 * 1000; // 10 minuuttia
+      expiryTime = creationTime + 10 * 60 * 1000; // 10 minuuttia
       isExpired = Date.now() > expiryTime;
 
       if (isExpired) {
@@ -686,7 +675,34 @@ app.post("/api/check-payment-status", (req, res) => {
     hasSignatures,
     isExpired,
     expiryTime: expiryTime,
+    canDownload: hasPaid && hasSignatures && !isExpired,
   });
 });
+
+// Muokkaa webhook-käsittelijää tallentamaan maksun aikaleima
+app.post(
+  "/api/webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    // Olemassa oleva koodi...
+
+    // Lisää maksun aikaleima
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object;
+      const clientIp = session.metadata.clientIp;
+
+      if (clientIp) {
+        paidIPs.add(clientIp);
+
+        // Tallenna maksun aikaleima
+        paymentTimes.set(clientIp, Date.now());
+
+        console.log(`Payment completed for IP: ${clientIp}`);
+      }
+    }
+
+    // Olemassa oleva koodi...
+  }
+);
 
 export default app;
