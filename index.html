@@ -819,7 +819,7 @@
         });
       }
 
-      // Korjataan saveSignaturesToLocal-funktio käyttämään session ID:tä
+      // Korjataan saveSignaturesToLocal-funktio tallentamaan väri oikein
       function saveSignaturesToLocal(name, images, color) {
         const signatures = {
           name,
@@ -1180,7 +1180,7 @@
         }
       }
 
-      // Muokataan createCheckoutSession-funktiota käyttämään session ID:tä
+      // Korjataan createCheckoutSession-funktio
       async function createCheckoutSession() {
         const signatures = getSignaturesFromLocal();
         const { sessionId } = await getClientIp();
@@ -1191,6 +1191,12 @@
         }
 
         try {
+          console.log("Creating checkout session...");
+
+          // Näytä latausviesti
+          statusMessage.textContent = "Creating payment session...";
+          statusMessage.style.color = "#6e8efb"; // Sininen väri
+
           const response = await fetch(
             `${API_URL}/api/create-checkout-session`,
             {
@@ -1206,14 +1212,18 @@
           );
 
           const data = await response.json();
+          console.log("Checkout session created:", data);
 
           if (data.url) {
+            console.log("Redirecting to payment page:", data.url);
             window.location.href = data.url;
           } else {
             throw new Error("Checkout URL missing from response");
           }
         } catch (error) {
           console.error("Error handling payment:", error);
+          statusMessage.textContent = "Error creating payment session.";
+          statusMessage.style.color = "#f44336"; // Punainen väri
           alert("Error handling payment.");
         }
       }
@@ -1402,6 +1412,7 @@
 
       // Lisää tapahtumankäsittelijä ostonapille
       buyButton.addEventListener("click", async () => {
+        console.log("Buy button clicked");
         await createCheckoutSession();
       });
 
@@ -1451,6 +1462,16 @@
 
           // Täytä nimi-kenttä
           nameInput.value = signatures.name;
+
+          // Aseta väri oikein, jos se on tallennettu
+          if (signatures.color) {
+            const colorRadio = document.querySelector(
+              `input[name="color"][value="${signatures.color}"]`
+            );
+            if (colorRadio) {
+              colorRadio.checked = true;
+            }
+          }
 
           // Tarkista tila uudelleen
           checkStatus();

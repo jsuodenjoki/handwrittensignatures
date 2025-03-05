@@ -331,6 +331,10 @@ app.post("/api/create-checkout-session", async (req, res) => {
     const { name, sessionId } = req.body;
     const userSessionId = sessionId || getOrCreateSessionId(req);
 
+    console.log(
+      `Creating checkout session for ${name}, session ID: ${userSessionId}`
+    );
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
@@ -341,7 +345,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
               name: "Handwritten Signatures",
               description: `Handwritten signatures for ${name}`,
             },
-            unit_amount: 500,
+            unit_amount: 500, // 5€ sentteinä
           },
           quantity: 1,
         },
@@ -354,6 +358,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
       },
     });
 
+    console.log(`Checkout session created: ${session.id}, URL: ${session.url}`);
     res.json({ url: session.url, sessionId: userSessionId });
   } catch (error) {
     console.error("Virhe checkout-session luonnissa:", error);
