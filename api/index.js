@@ -12,25 +12,14 @@ import "dotenv/config";
 const stripe = stripePackage(process.env.STRIPE_SECRET_KEY);
 const app = express();
 const signatures = new Map();
-const paidIPs = new Set();
+const paidSessions = new Set();
 
 //3. MIDDLEWARE MÄÄRITTELYT
 app.use(cors());
 app.use("/api/webhook", express.raw({ type: "application/json" }));
 app.use(express.json());
 
-//4. IP-OSOITTEEN KÄSITTELYFUNKTIOT
-function getClientIp(req) {
-  return req.headers["x-forwarded-for"] || req.connection.remoteAddress;
-}
-
-function getClientIpFormatted(req) {
-  const ip = getClientIp(req);
-  const formattedIp = ip.includes(",") ? ip.split(",")[0].trim() : ip.trim();
-  return formattedIp.replace(/^::ffff:/, "");
-}
-
-//5. FONTTIEN REKISTERÖINTI JA HALLINTA
+//4. FONTTIEN REKISTERÖINTI JA HALLINTA
 registerFont(path.join(__dirname, "../public/fonts2/poppins.ttf"), {
   family: "Poppins",
 });
@@ -156,40 +145,19 @@ function createSignature(name, fontStyle, color = "black") {
 
 //7. API REITIT
 
-// IP-osoitteen hakureitti
-app.get("/api/get-client-ip", (req, res) => {
-  res.send(getClientIpFormatted(req));
-});
-
 // Allekirjoitusten tilan tarkistus
 app.get("/api/check-signatures", (req, res) => {
-  // Käytä joko URL-parametria tai fallback IP-osoitteeseen
-  const clientIp = req.query.clientIp || getClientIpFormatted(req);
-  const hasSignatures = signatures.has(clientIp);
+  const sessionId = req.query.sessionId;
 
-  // Tarkistetaan myös osittaiset IP-vastaavuudet
-  let hasPaid = paidIPs.has(clientIp);
-
-  if (!hasPaid) {
-    // Tarkistetaan osittaiset vastaavuudet
-    for (const ip of paidIPs) {
-      if (
-        ip.includes(clientIp) ||
-        clientIp.includes(ip) ||
-        ip.split(".").slice(0, 3).join(".") ===
-          clientIp.split(".").slice(0, 3).join(".")
-      ) {
-        hasPaid = true;
-        console.log(`IP ${clientIp} matches partially paid IP: ${ip}`);
-        // Lisätään tämä IP myös maksettuihin, jotta jatkossa tarkistus on nopeampi
-        paidIPs.add(clientIp);
-        break;
-      }
-    }
+  if (!sessionId) {
+    return res.status(400).json({ error: "Session ID puuttuu" });
   }
 
+  const hasSignatures = signatures.has(sessionId);
+  const hasPaid = paidSessions.has(sessionId);
+
   console.log(
-    `Checking status for IP: ${clientIp}: hasSignatures=${hasSignatures}, hasPaid=${hasPaid}`
+    `Checking status for session: ${sessionId}: hasSignatures=${hasSignatures}, hasPaid=${hasPaid}`
   );
 
   res.json({
@@ -221,84 +189,36 @@ app.post("/api/create-signatures", (req, res) => {
 
 // Allekirjoitusten hakeminen
 app.get("/api/get-signatures", (req, res) => {
-  // Käytä joko URL-parametria tai fallback IP-osoitteeseen
-  const clientIp = req.query.clientIp || getClientIpFormatted(req);
-  console.log(`Getting signatures for IP: ${clientIp}`);
-  console.log(`All stored signatures: ${Array.from(signatures.keys())}`);
+  const sessionId = req.query.sessionId;
 
-  // Tarkistetaan ensin täsmällinen vastaavuus
-  if (signatures.has(clientIp)) {
-    console.log(`Found signatures for IP: ${clientIp}`);
-    return res.json(signatures.get(clientIp));
+  if (!sessionId) {
+    return res.status(400).json({ error: "Session ID puuttuu" });
   }
 
-  // Jos ei löydy täsmällistä vastaavuutta, tarkistetaan osittaiset vastaavuudet
-  for (const ip of signatures.keys()) {
-    if (
-      ip.includes(clientIp) ||
-      clientIp.includes(ip) ||
-      ip.split(".").slice(0, 3).join(".") ===
-        clientIp.split(".").slice(0, 3).join(".")
-    ) {
-      console.log(`Found signatures for similar IP: ${ip}`);
-      return res.json(signatures.get(ip));
-    }
+  console.log(`Getting signatures for session: ${sessionId}`);
+
+  if (signatures.has(sessionId)) {
+    console.log(`Found signatures for session: ${sessionId}`);
+    return res.json(signatures.get(sessionId));
   }
 
-  console.log(`No signatures found for IP: ${clientIp}`);
+  console.log(`No signatures found for session: ${sessionId}`);
   return res.status(404).json({ error: "No signatures found" });
 });
 
 // Allekirjoitusten lataus
 app.get("/api/download-signatures", (req, res) => {
-  // Käytä joko URL-parametria tai fallback IP-osoitteeseen
-  const clientIp = req.query.clientIp || getClientIpFormatted(req);
+  const sessionId = req.query.sessionId;
 
-  // Tarkistetaan ensin täsmällinen vastaavuus
-  let hasSignatures = signatures.has(clientIp);
-  let hasPaid = paidIPs.has(clientIp);
-  let signatureIp = clientIp;
-
-  // Jos ei löydy täsmällistä vastaavuutta, tarkistetaan osittaiset vastaavuudet
-  if (!hasSignatures || !hasPaid) {
-    console.log("Searching for partial IP matches for download...");
-
-    // Tarkistetaan allekirjoitukset
-    if (!hasSignatures) {
-      for (const ip of signatures.keys()) {
-        if (
-          ip.includes(clientIp) ||
-          clientIp.includes(ip) ||
-          ip.split(".").slice(0, 3).join(".") ===
-            clientIp.split(".").slice(0, 3).join(".")
-        ) {
-          hasSignatures = true;
-          signatureIp = ip; // Tallennetaan löydetty IP
-          console.log(`Found signatures for similar IP: ${ip}`);
-          break;
-        }
-      }
-    }
-
-    // Tarkistetaan maksutila
-    if (!hasPaid) {
-      for (const ip of paidIPs) {
-        if (
-          ip.includes(clientIp) ||
-          clientIp.includes(ip) ||
-          ip.split(".").slice(0, 3).join(".") ===
-            clientIp.split(".").slice(0, 3).join(".")
-        ) {
-          hasPaid = true;
-          console.log(`Found payment status for similar IP: ${ip}`);
-          break;
-        }
-      }
-    }
+  if (!sessionId) {
+    return res.status(400).json({ error: "Session ID puuttuu" });
   }
 
+  const hasSignatures = signatures.has(sessionId);
+  const hasPaid = paidSessions.has(sessionId);
+
   console.log(
-    `Downloading for IP: ${clientIp}: hasSignatures=${hasSignatures}, hasPaid=${hasPaid}`
+    `Downloading for session: ${sessionId}: hasSignatures=${hasSignatures}, hasPaid=${hasPaid}`
   );
 
   if (!hasSignatures || !hasPaid) {
@@ -307,7 +227,7 @@ app.get("/api/download-signatures", (req, res) => {
       .json({ error: "No permission to download signatures" });
   }
 
-  const userSignatures = signatures.get(signatureIp);
+  const userSignatures = signatures.get(sessionId);
 
   // Luo ZIP-tiedosto
   res.setHeader("Content-Type", "application/zip");
@@ -357,92 +277,94 @@ Kiitos että käytit palveluamme!`;
 
   archive.finalize();
 
-  // Älä poista allekirjoituksia tai maksutilaa, jotta käyttäjä voi ladata ne uudelleen tarvittaessa
-  console.log(`Signatures downloaded successfully for IP: ${clientIp}`);
+  console.log(`Signatures downloaded successfully for session: ${sessionId}`);
 });
 
-// Muuta IP-osoitteen hakeminen session ID:n generoimiseksi
-app.get("/api/get-session-id", (req, res) => {
-  // Generoi satunnainen session ID
-  const sessionId = generateSessionId();
-  console.log("Generated new session ID:", sessionId);
-  res.send(sessionId);
-});
+// Allekirjoitusten palautus
+app.post("/api/restore-signatures", (req, res) => {
+  const { name, images, sessionId, color } = req.body;
 
-// Apufunktio session ID:n generoimiseen
-function generateSessionId() {
-  // Generoi 32 merkkiä pitkä satunnainen merkkijono
-  return Array(32)
-    .fill(0)
-    .map(() => Math.random().toString(36).charAt(2))
-    .join("");
-}
-
-// Muuta checkout-session luominen käyttämään session ID:tä
-app.post("/api/create-checkout-session", async (req, res) => {
-  try {
-    const { name } = req.body;
-    const sessionId = req.body.sessionId || "unknown";
-
-    // Luo Stripe checkout session
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "eur",
-            product_data: {
-              name: "Signature Package",
-              description: `Handwritten signatures for ${name}`,
-            },
-            unit_amount: 100, // 5€ in cents
-          },
-          quantity: 1,
-        },
-      ],
-      mode: "payment",
-      success_url: `${req.headers.origin}?success=true`,
-      cancel_url: `${req.headers.origin}?canceled=true`,
-      metadata: {
-        name: name,
-        sessionId: sessionId, // Käytä session ID:tä IP-osoitteen sijaan
-      },
-    });
-
-    res.json({ url: session.url });
-  } catch (error) {
-    console.error("Error creating checkout session:", error);
-    res.status(500).json({ error: "Failed to create checkout session" });
+  if (!name || !images || !Array.isArray(images) || !sessionId) {
+    return res.status(400).json({ error: "Virheellinen pyyntö" });
   }
-});
 
-// Muuta sähköpostin lähetys käyttämään session ID:tä
-app.post("/api/send-email", async (req, res) => {
-  try {
-    const { email, sessionId } = req.body;
+  console.log(`Restoring signatures for session: ${sessionId}, name: ${name}`);
 
-    // Käytä session ID:tä IP-osoitteen sijaan
-    console.log(`Sending email to ${email} for session ${sessionId}`);
-
-    // ... existing email sending code ...
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error("Error sending email:", error);
-    res.status(500).json({ success: false, error: "Failed to send email" });
-  }
-});
-
-// Debug-reitti
-app.get("/api/debug", (req, res) => {
-  const clientIp = getClientIpFormatted(req);
-  res.json({
-    clientIp,
-    hasSignatures: signatures.has(clientIp),
-    hasPaid: paidIPs.has(clientIp),
-    signaturesSize: signatures.size,
-    paidIPsSize: paidIPs.size,
+  signatures.set(sessionId, {
+    name,
+    images,
+    color,
+    createdAt: new Date().toISOString(),
   });
+
+  console.log("All stored signatures:");
+  signatures.forEach((value, key) => {
+    console.log(
+      `Session: ${key}, Name: ${value.name}, Images: ${value.images.length}`
+    );
+  });
+
+  res.json({ success: true });
+});
+
+// Lisätään uusi reitti maksun tarkistukseen
+app.get("/api/check-payment/:sessionId", async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    console.log(`Checking payment status for sessionId: ${sessionId}`);
+
+    // Tarkista ensin, onko käyttäjä jo merkitty maksaneeksi
+    if (paidSessions.has(sessionId)) {
+      console.log(`Session ${sessionId} is already marked as paid`);
+      return res.json({ success: true, status: "paid" });
+    }
+
+    // Jos ei löydy paikallisesti, tarkista Stripe API:sta
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (session.payment_status === "paid") {
+      console.log(
+        `Payment confirmed by Stripe API for sessionId: ${sessionId}`
+      );
+
+      // Merkitse sessio maksetuksi
+      paidSessions.add(sessionId);
+      console.log(`Session ${sessionId} marked as paid through Stripe API`);
+
+      return res.json({ success: true, status: "paid" });
+    }
+
+    return res.json({ success: true, status: session.payment_status });
+  } catch (error) {
+    console.error("Error checking payment status:", error);
+    return res
+      .status(500)
+      .json({ success: false, error: "Error checking payment status" });
+  }
+});
+
+// Reset user data
+app.post("/api/reset-user-data", (req, res) => {
+  const { sessionId } = req.body;
+
+  if (!sessionId) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Session ID puuttuu." });
+  }
+
+  // Poista tiedot serverin Mapista ja Setistä
+  if (signatures.has(sessionId)) {
+    signatures.delete(sessionId);
+  }
+
+  if (paidSessions.has(sessionId)) {
+    paidSessions.delete(sessionId);
+  }
+
+  console.log(`Deleted data for session: ${sessionId}`);
+  res.json({ success: true, message: "User data deleted." });
 });
 
 // Karusellin allekirjoitusten luonti
@@ -492,110 +414,6 @@ app.post("/api/create-signature-for-carousel", (req, res) => {
   res.json({ image: signatureImage });
 });
 
-// Allekirjoitusten palautus
-app.post("/api/restore-signatures", (req, res) => {
-  const { name, images } = req.body;
-  const clientIp = getClientIpFormatted(req);
-
-  if (!name || !images || !Array.isArray(images)) {
-    return res.status(400).json({ error: "Virheellinen pyyntö" });
-  }
-
-  console.log(`Restoring signatures for IP: ${clientIp}, name: ${name}`);
-
-  signatures.set(clientIp, {
-    name,
-    images,
-    createdAt: new Date().toISOString(),
-  });
-
-  console.log("All stored signatures:");
-  signatures.forEach((value, key) => {
-    console.log(
-      `IP: ${key}, Name: ${value.name}, Images: ${value.images.length}`
-    );
-  });
-
-  res.json({ success: true });
-});
-
-// Lisätään uusi reitti maksun tarkistukseen
-app.get("/api/check-payment/:sessionId", async (req, res) => {
-  try {
-    const { sessionId } = req.params;
-    const clientIp = getClientIpFormatted(req);
-
-    console.log(
-      `Checking payment status for sessionId: ${sessionId}, IP: ${clientIp}`
-    );
-
-    // Tarkista ensin, onko käyttäjä jo merkitty maksaneeksi
-    if (paidIPs.has(clientIp)) {
-      console.log(`IP ${clientIp} is already marked as paid`);
-      return res.json({ success: true, status: "paid" });
-    }
-
-    // Tarkista osittaiset vastaavuudet
-    for (const ip of paidIPs) {
-      if (
-        ip.includes(clientIp) ||
-        clientIp.includes(ip) ||
-        ip.split(".").slice(0, 3).join(".") ===
-          clientIp.split(".").slice(0, 3).join(".")
-      ) {
-        console.log(`IP ${clientIp} matches partially paid IP: ${ip}`);
-        paidIPs.add(clientIp); // Lisää tämä IP myös maksettuihin
-        return res.json({ success: true, status: "paid" });
-      }
-    }
-
-    // Jos ei löydy paikallisesti, tarkista Stripe API:sta
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-
-    if (session.payment_status === "paid") {
-      console.log(
-        `Payment confirmed by Stripe API for sessionId: ${sessionId}`
-      );
-
-      // Merkitse IP maksetuksi
-      paidIPs.add(clientIp);
-      console.log(`IP ${clientIp} marked as paid through Stripe API`);
-
-      return res.json({ success: true, status: "paid" });
-    }
-
-    return res.json({ success: true, status: session.payment_status });
-  } catch (error) {
-    console.error("Error checking payment status:", error);
-    return res
-      .status(500)
-      .json({ success: false, error: "Error checking payment status" });
-  }
-});
-
-// Reset user data
-app.post("/api/reset-user-data", (req, res) => {
-  const { clientIp } = req.body;
-
-  if (!clientIp) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Client IP puuttuu." });
-  }
-
-  // Poista tiedot serverin Mapista ja Setistä
-  if (signatures.has(clientIp)) {
-    signatures.delete(clientIp);
-  }
-
-  if (paidIPs.has(clientIp)) {
-    paidIPs.delete(clientIp);
-  }
-
-  console.log(`Deleted data for IP: ${clientIp}`);
-  res.json({ success: true, message: "User data deleted." });
-});
-
 // Allekirjoitusten luonti ilman vesileimaa
 app.post("/api/create-clean-signatures", (req, res) => {
   const { name, color } = req.body;
@@ -619,6 +437,37 @@ app.post("/api/create-clean-signatures", (req, res) => {
 
   // Palauta puhtaat kuvat
   res.json({ images: signatureImages });
+});
+
+// Webhook-käsittelijä Stripe-maksun vahvistamiseen
+app.post("/api/webhook", async (req, res) => {
+  const sig = req.headers["stripe-signature"];
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
+  } catch (err) {
+    console.error(`Webhook Error: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object;
+
+    // Käytä session ID:tä IP-osoitteen sijaan
+    const sessionId = session.metadata.sessionId;
+
+    if (sessionId) {
+      console.log(`Payment successful for session ID: ${sessionId}`);
+      paidSessions.add(sessionId);
+    }
+  }
+
+  res.json({ received: true });
 });
 
 export default app;
