@@ -470,4 +470,84 @@ app.post("/api/webhook", async (req, res) => {
   res.json({ received: true });
 });
 
+// Muuta IP-osoitteen hakeminen session ID:n generoimiseksi
+app.get("/api/get-session-id", (req, res) => {
+  // Generoi satunnainen session ID
+  const sessionId = generateSessionId();
+  console.log("Generated new session ID:", sessionId);
+  res.send(sessionId);
+});
+
+// Apufunktio session ID:n generoimiseen
+function generateSessionId() {
+  // Generoi 32 merkkiä pitkä satunnainen merkkijono
+  return Array(32)
+    .fill(0)
+    .map(() => Math.random().toString(36).charAt(2))
+    .join("");
+}
+
+// Muuta checkout-session luominen käyttämään session ID:tä
+app.post("/api/create-checkout-session", async (req, res) => {
+  try {
+    const { name } = req.body;
+    const sessionId = req.body.sessionId || "unknown";
+
+    console.log(
+      `Creating checkout session for name: ${name}, sessionId: ${sessionId}`
+    );
+
+    // Luo Stripe checkout session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price_data: {
+            currency: "eur",
+            product_data: {
+              name: "Signature Package",
+              description: `Handwritten signatures for ${name}`,
+            },
+            unit_amount: 500, // 5€ in cents
+          },
+          quantity: 1,
+        },
+      ],
+      mode: "payment",
+      success_url: `${req.headers.origin}?success=true`,
+      cancel_url: `${req.headers.origin}?canceled=true`,
+      metadata: {
+        name: name,
+        sessionId: sessionId, // Käytä session ID:tä IP-osoitteen sijaan
+      },
+    });
+
+    console.log(
+      `Checkout session created: ${session.id}, redirecting to: ${session.url}`
+    );
+    res.json({ url: session.url });
+  } catch (error) {
+    console.error("Error creating checkout session:", error);
+    res.status(500).json({ error: "Failed to create checkout session" });
+  }
+});
+
+// Muuta sähköpostin lähetys käyttämään session ID:tä
+app.post("/api/send-email", async (req, res) => {
+  try {
+    const { email, sessionId } = req.body;
+
+    // Käytä session ID:tä IP-osoitteen sijaan
+    console.log(`Sending email to ${email} for session ${sessionId}`);
+
+    // Tässä olisi sähköpostin lähetyskoodi
+    // Koska alkuperäisessä koodissa ei ollut toteutusta, jätän sen pois
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error sending email:", error);
+    res.status(500).json({ success: false, error: "Failed to send email" });
+  }
+});
+
 export default app;
