@@ -507,8 +507,8 @@
         "Oliver Green",
       ];
 
-      // Tallenna käyttäjän IP-osoite localStorageen
-      async function saveClientIp() {
+      // Muutetaan funktioiden nimet vastaamaan niiden toimintaa
+      async function saveSessionId() {
         try {
           // Tarkista onko sessionId jo olemassa
           let sessionId = localStorage.getItem("sessionId");
@@ -529,10 +529,10 @@
       }
 
       // Hae tallennettu session ID tai hae uusi
-      async function getClientIp() {
+      async function getSessionId() {
         let sessionId = localStorage.getItem("sessionId");
         if (!sessionId) {
-          sessionId = await saveClientIp();
+          sessionId = await saveSessionId();
         }
         return sessionId;
       }
@@ -585,7 +585,7 @@
         await document.fonts.ready;
 
         // Varmista että käyttäjän IP on tallennettu
-        await getClientIp();
+        await getSessionId();
 
         console.log("Initializing carousel using static images");
 
@@ -1168,6 +1168,7 @@
         localStorage.removeItem("paymentExpiry");
         localStorage.removeItem("signatureExpiry");
         localStorage.removeItem("hasAutoDownloaded");
+        // Älä poista sessionId:tä, jotta käyttäjä voidaan tunnistaa jatkossakin
 
         // Tyhjennä allekirjoitukset
         signaturesContainer.innerHTML = "";
@@ -1201,7 +1202,7 @@
       // Muokataan createCheckoutSession-funktiota
       async function createCheckoutSession() {
         const signatures = getSignaturesFromLocal();
-        const sessionId = await getClientIp(); // Hae session ID
+        const sessionId = await getSessionId(); // Käytä uutta funktiota
 
         if (!signatures) {
           alert("Create signatures first!");
@@ -1218,7 +1219,7 @@
               },
               body: JSON.stringify({
                 name: signatures.name,
-                sessionId: sessionId, // Lisää session ID pyyntöön
+                sessionId: sessionId,
               }),
             }
           );
@@ -1244,7 +1245,7 @@
       // Sähköpostin lähetys
       sendEmailButton.addEventListener("click", async () => {
         const email = emailInput.value.trim();
-        const sessionId = await getClientIp();
+        const sessionId = await getSessionId(); // Käytä uutta funktiota
 
         if (!email) {
           alert("Enter your email first!");
@@ -1345,7 +1346,7 @@
       // Käynnistä fonttien lataus ja alustus
       async function initialize() {
         // Tallenna IP-osoite heti alussa
-        await saveClientIp();
+        await saveSessionId();
         await loadFontsAndInitialize();
 
         // Tarkista maksun tila ensin
