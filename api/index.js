@@ -7,12 +7,14 @@ import path from "path";
 import archiver from "archiver";
 import { createCanvas, registerFont } from "canvas";
 import "dotenv/config";
+import { Resend } from "resend";
 
 //2. ALUSTETAAN MUUTTUJAT
 const stripe = stripePackage(process.env.STRIPE_SECRET_KEY);
 const app = express();
 const signatures = new Map();
 const paidSessions = new Set();
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 //3. MIDDLEWARE MÄÄRITTELYT
 app.use(cors());
@@ -532,7 +534,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
   }
 });
 
-// Muuta sähköpostin lähetys käyttämään session ID:tä
+// Muuta sähköpostin lähetys käyttämään session ID:tä ja Resend-palvelua
 app.post("/api/send-email", async (req, res) => {
   try {
     const { email, sessionId } = req.body;
@@ -540,9 +542,67 @@ app.post("/api/send-email", async (req, res) => {
     // Käytä session ID:tä IP-osoitteen sijaan
     console.log(`Sending email to ${email} for session ${sessionId}`);
 
-    // Tässä olisi sähköpostin lähetyskoodi
-    // Koska alkuperäisessä koodissa ei ollut toteutusta, jätän sen pois
+    // Tarkista onko käyttäjällä allekirjoituksia ja onko hän maksanut
+    const hasSignatures = signatures.has(sessionId);
+    const hasPaid = paidSessions.has(sessionId);
 
+    if (!hasSignatures || !hasPaid) {
+      return res.status(403).json({
+        success: false,
+        error: "No permission to send signatures via email",
+      });
+    }
+
+    const userSignatures = signatures.get(sessionId);
+
+    // Luo puhtaat allekirjoitukset ilman vesileimaa
+    const cleanSignatures = [];
+    for (const fontStyle of signatureFonts) {
+      const signatureImage = createSignatureWithoutWatermark(
+        userSignatures.name,
+        fontStyle,
+        userSignatures.color
+      );
+      cleanSignatures.push(signatureImage);
+    }
+
+    // Lähetä sähköposti Resend-palvelun kautta
+    const { data, error } = await resend.emails.send({
+      from: "Signature Generator <signatures@yourdomain.com>",
+      to: email,
+      subject: `Your Signatures for ${userSignatures.name}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h1 style="color: #6e8efb;">Your Signatures</h1>
+          <p>Hello,</p>
+          <p>Here are your signatures for <strong>${userSignatures.name}</strong>.</p>
+          <p>Thank you for using our service!</p>
+          <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
+            <p style="color: #888; font-size: 12px;">
+              This email was sent from Signature Generator. 
+              The signatures are attached to this email.
+            </p>
+          </div>
+        </div>
+      `,
+      attachments: cleanSignatures.map((image, index) => ({
+        filename: `signature-${index + 1}.png`,
+        content: Buffer.from(
+          image.replace(/^data:image\/png;base64,/, ""),
+          "base64"
+        ),
+        contentType: "image/png",
+      })),
+    });
+
+    if (error) {
+      console.error("Error sending email with Resend:", error);
+      return res
+        .status(500)
+        .json({ success: false, error: "Failed to send email" });
+    }
+
+    console.log("Email sent successfully:", data);
     res.json({ success: true });
   } catch (error) {
     console.error("Error sending email:", error);
