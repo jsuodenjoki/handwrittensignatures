@@ -1245,7 +1245,7 @@
       // Sähköpostin lähetys
       sendEmailButton.addEventListener("click", async () => {
         const email = emailInput.value.trim();
-        const sessionId = await getSessionId(); // Käytä uutta funktiota
+        const sessionId = await getSessionId();
 
         if (!email) {
           alert("Enter your email first!");
@@ -1253,13 +1253,30 @@
         }
 
         try {
+          // Näytä latausanimaatio tai teksti
+          sendEmailButton.disabled = true;
+          sendEmailButton.textContent = "Sending...";
+
           const response = await fetch(`${API_URL}/api/send-email`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ email, sessionId }),
+            body: JSON.stringify({
+              email,
+              sessionId,
+              // Lisää allekirjoitukset pyyntöön
+              signatures: getSignaturesFromLocal(),
+            }),
           });
+
+          // Palauta nappi normaaliksi
+          sendEmailButton.textContent = "Send signatures to email";
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Error sending email");
+          }
 
           const data = await response.json();
 
@@ -1288,7 +1305,9 @@
           }, 1000);
         } catch (error) {
           console.error("Error sending email:", error);
-          alert("Error sending email.");
+          alert(`Error sending email: ${error.message}`);
+          sendEmailButton.disabled = false;
+          sendEmailButton.textContent = "Send signatures to email";
         }
       });
 

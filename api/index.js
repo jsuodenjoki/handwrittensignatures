@@ -537,7 +537,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
 // Muuta sähköpostin lähetys käyttämään session ID:tä ja Resend-palvelua
 app.post("/api/send-email", async (req, res) => {
   try {
-    const { email, sessionId } = req.body;
+    const { email, sessionId, signatures: clientSignatures } = req.body;
 
     // Käytä session ID:tä IP-osoitteen sijaan
     console.log(`Sending email to ${email} for session ${sessionId}`);
@@ -546,14 +546,38 @@ app.post("/api/send-email", async (req, res) => {
     const hasSignatures = signatures.has(sessionId);
     const hasPaid = paidSessions.has(sessionId);
 
-    if (!hasSignatures || !hasPaid) {
+    console.log(
+      `Session ${sessionId} - hasSignatures: ${hasSignatures}, hasPaid: ${hasPaid}`
+    );
+
+    // Jos palvelimella ei ole allekirjoituksia, mutta client lähetti ne, tallenna ne
+    if (
+      !hasSignatures &&
+      clientSignatures &&
+      clientSignatures.name &&
+      clientSignatures.images
+    ) {
+      console.log(`Storing signatures from client for session ${sessionId}`);
+      signatures.set(sessionId, {
+        name: clientSignatures.name,
+        images: clientSignatures.images,
+        color: clientSignatures.color || "black",
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    // Tarkista uudelleen allekirjoitusten olemassaolo
+    const userSignatures = signatures.get(sessionId) || clientSignatures;
+
+    if (!userSignatures || !hasPaid) {
+      console.log(
+        `No permission to send email - userSignatures: ${!!userSignatures}, hasPaid: ${hasPaid}`
+      );
       return res.status(403).json({
         success: false,
         error: "No permission to send signatures via email",
       });
     }
-
-    const userSignatures = signatures.get(sessionId);
 
     // Luo puhtaat allekirjoitukset ilman vesileimaa
     const cleanSignatures = [];
@@ -561,10 +585,12 @@ app.post("/api/send-email", async (req, res) => {
       const signatureImage = createSignatureWithoutWatermark(
         userSignatures.name,
         fontStyle,
-        userSignatures.color
+        userSignatures.color || "black"
       );
       cleanSignatures.push(signatureImage);
     }
+
+    console.log(`Created ${cleanSignatures.length} clean signatures for email`);
 
     // Lähetä sähköposti Resend-palvelun kautta
     const { data, error } = await resend.emails.send({
