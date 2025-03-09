@@ -569,13 +569,10 @@ app.post("/api/send-email", async (req, res) => {
     // Käytä session ID:tä IP-osoitteen sijaan
     console.log(`Sending email to ${email} for session ${sessionId}`);
 
-    // Tarkista onko käyttäjällä allekirjoituksia ja onko hän maksanut
+    // Tarkista onko käyttäjällä allekirjoituksia
     const hasSignatures = signatures.has(sessionId);
-    const hasPaid = paidSessions.has(sessionId);
 
-    console.log(
-      `Session ${sessionId} - hasSignatures: ${hasSignatures}, hasPaid: ${hasPaid}`
-    );
+    console.log(`Session ${sessionId} - hasSignatures: ${hasSignatures}`);
 
     // Jos palvelimella ei ole allekirjoituksia, mutta client lähetti ne, tallenna ne
     if (
@@ -596,13 +593,11 @@ app.post("/api/send-email", async (req, res) => {
     // Tarkista uudelleen allekirjoitusten olemassaolo
     const userSignatures = signatures.get(sessionId) || clientSignatures;
 
-    if (!userSignatures || !hasPaid) {
-      console.log(
-        `No permission to send email - userSignatures: ${!!userSignatures}, hasPaid: ${hasPaid}`
-      );
+    if (!userSignatures) {
+      console.log(`No signatures found for session ${sessionId}`);
       return res.status(403).json({
         success: false,
-        error: "No permission to send signatures via email",
+        error: "No signatures found",
       });
     }
 
