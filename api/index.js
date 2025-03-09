@@ -568,7 +568,7 @@ app.post("/api/send-email", async (req, res) => {
 
     // Lähetä sähköposti Resend-palvelun kautta
     const { data, error } = await resend.emails.send({
-      from: "Signature Generator <signatures@yourdomain.com>",
+      from: "Signature Generator <support@handwrittensignaturegenerator.com>",
       to: email,
       subject: `Your Signatures for ${userSignatures.name}`,
       html: `
