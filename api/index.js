@@ -24,6 +24,17 @@ const transporter = nodemailer.createTransport({
     user: "support@handwrittensignaturegenerator.com", // Sähköpostiosoitteesi
     pass: process.env.EMAIL_PASSWORD, // Salasana ympäristömuuttujasta
   },
+  debug: true, // Lisää debug-tila
+  logger: true, // Lisää logger
+});
+
+// Testaa SMTP-yhteyttä käynnistyksen yhteydessä
+transporter.verify(function (error, success) {
+  if (error) {
+    console.error("SMTP connection error:", error);
+  } else {
+    console.log("SMTP server is ready to take our messages");
+  }
 });
 
 //3. MIDDLEWARE MÄÄRITTELYT
@@ -608,40 +619,55 @@ app.post("/api/send-email", async (req, res) => {
 
     console.log(`Created ${cleanSignatures.length} clean signatures for email`);
 
-    // Lähetä sähköposti Nodemailer + One.com SMTP:llä
-    const info = await transporter.sendMail({
-      from: '"Signature Generator" <support@handwrittensignaturegenerator.com>',
-      to: email,
-      subject: `Your Signatures for ${userSignatures.name}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h1 style="color: #6e8efb;">Your Signatures</h1>
-          <p>Hello,</p>
-          <p>Here are your signatures for <strong>${userSignatures.name}</strong>.</p>
-          <p>Thank you for using our service!</p>
-          <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
-            <p style="color: #888; font-size: 12px;">
-              This email was sent from Signature Generator. 
-              The signatures are attached to this email.
-            </p>
+    try {
+      // Lähetä sähköposti Nodemailer + One.com SMTP:llä
+      const info = await transporter.sendMail({
+        from: '"Signature Generator" <support@handwrittensignaturegenerator.com>',
+        to: email,
+        subject: `Your Signatures for ${userSignatures.name}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h1 style="color: #6e8efb;">Your Signatures</h1>
+            <p>Hello,</p>
+            <p>Here are your signatures for <strong>${userSignatures.name}</strong>.</p>
+            <p>Thank you for using our service!</p>
+            <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
+              <p style="color: #888; font-size: 12px;">
+                This email was sent from Signature Generator. 
+                The signatures are attached to this email.
+              </p>
+            </div>
           </div>
-        </div>
-      `,
-      attachments: cleanSignatures.map((image, index) => ({
-        filename: `signature-${index + 1}.png`,
-        content: Buffer.from(
-          image.replace(/^data:image\/png;base64,/, ""),
-          "base64"
-        ),
-        contentType: "image/png",
-      })),
-    });
+        `,
+        attachments: cleanSignatures.map((image, index) => ({
+          filename: `signature-${index + 1}.png`,
+          content: Buffer.from(
+            image.replace(/^data:image\/png;base64,/, ""),
+            "base64"
+          ),
+          contentType: "image/png",
+        })),
+      });
 
-    console.log("Email sent successfully:", info.messageId);
-    res.json({ success: true });
+      console.log("Email sent successfully:", info.messageId);
+      res.json({ success: true });
+    } catch (emailError) {
+      console.error("SMTP Error:", emailError);
+
+      // Palauta selkeä virheviesti
+      return res.status(500).json({
+        success: false,
+        error: "Failed to send email via SMTP",
+        details: emailError.message,
+      });
+    }
   } catch (error) {
-    console.error("Error sending email:", error);
-    res.status(500).json({ success: false, error: "Failed to send email" });
+    console.error("Error in email handler:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to process email request",
+      details: error.message,
+    });
   }
 });
 
