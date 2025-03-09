@@ -7,14 +7,24 @@ import path from "path";
 import archiver from "archiver";
 import { createCanvas, registerFont } from "canvas";
 import "dotenv/config";
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
 //2. ALUSTETAAN MUUTTUJAT
 const stripe = stripePackage(process.env.STRIPE_SECRET_KEY);
 const app = express();
 const signatures = new Map();
 const paidSessions = new Set();
-const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Luo transporter One.com SMTP-tiedoilla
+const transporter = nodemailer.createTransport({
+  host: "mailout.one.com", // One.com lähtevä palvelin
+  port: 587, // Suositeltu portti
+  secure: false, // false porttia 587 varten (STARTTLS)
+  auth: {
+    user: "support@handwrittensignaturegenerator.com", // Sähköpostiosoitteesi
+    pass: process.env.EMAIL_PASSWORD, // Salasana ympäristömuuttujasta
+  },
+});
 
 //3. MIDDLEWARE MÄÄRITTELYT
 app.use(cors());
@@ -540,7 +550,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
   }
 });
 
-// Muuta sähköpostin lähetys käyttämään session ID:tä ja Resend-palvelua
+// Muuta sähköpostin lähetys käyttämään One.com SMTP-palvelinta
 app.post("/api/send-email", async (req, res) => {
   try {
     const { email, sessionId, signatures: clientSignatures } = req.body;
@@ -598,9 +608,9 @@ app.post("/api/send-email", async (req, res) => {
 
     console.log(`Created ${cleanSignatures.length} clean signatures for email`);
 
-    // Lähetä sähköposti Resend-palvelun kautta
-    const { data, error } = await resend.emails.send({
-      from: "Signature Generator <support@handwrittensignaturegenerator.com>",
+    // Lähetä sähköposti Nodemailer + One.com SMTP:llä
+    const info = await transporter.sendMail({
+      from: '"Signature Generator" <support@handwrittensignaturegenerator.com>',
       to: email,
       subject: `Your Signatures for ${userSignatures.name}`,
       html: `
@@ -627,14 +637,7 @@ app.post("/api/send-email", async (req, res) => {
       })),
     });
 
-    if (error) {
-      console.error("Error sending email with Resend:", error);
-      return res
-        .status(500)
-        .json({ success: false, error: "Failed to send email" });
-    }
-
-    console.log("Email sent successfully:", data);
+    console.log("Email sent successfully:", info.messageId);
     res.json({ success: true });
   } catch (error) {
     console.error("Error sending email:", error);
