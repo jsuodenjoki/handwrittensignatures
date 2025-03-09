@@ -99,15 +99,40 @@ function createSignatureWithoutWatermark(name, fontStyle, color = "black") {
   // Tyhjennä canvas läpinäkyväksi (ei valkoista taustaa)
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Aseta fontti ja väri
+  // Määritä maksimileveys (90% canvaksen leveydestä)
+  const maxWidth = canvas.width * 0.9;
+
+  // Hae alkuperäinen fonttikoko
+  const originalFontSize = parseInt(fontStyle.font.match(/\d+/)[0]);
+  let fontSize = originalFontSize;
+
+  // Aseta alustava fontti
   ctx.font = fontStyle.font;
   ctx.fillStyle = color;
   ctx.textAlign = "center";
 
+  // Mittaa tekstin leveys
+  let textWidth = ctx.measureText(name).width;
+
+  // Jos teksti on liian leveä, pienennä fonttikokoa kunnes se mahtuu
+  if (textWidth > maxWidth) {
+    // Laske sopiva fonttikoko
+    fontSize = Math.floor(originalFontSize * (maxWidth / textWidth));
+
+    // Päivitä fontti uudella koolla
+    const newFont = fontStyle.font.replace(/\d+px/, `${fontSize}px`);
+    ctx.font = newFont;
+
+    // Mittaa uudelleen varmistaaksesi
+    textWidth = ctx.measureText(name).width;
+  }
+
+  // Mittaa tekstin korkeus
   const textMetrics = ctx.measureText(name);
   const actualHeight =
     textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
 
+  // Keskitä teksti pystysuunnassa
   const centerY =
     canvas.height / 2 +
     (textMetrics.actualBoundingBoxAscent -
@@ -125,7 +150,7 @@ function createSignature(name, fontStyle, color = "black") {
   const canvas = createCanvas(600, 200);
   const ctx = canvas.getContext("2d");
 
-  // Aseta valkoinen tausta
+  // Aseta valkoinen tausta esikatseluun (vesileimalla)
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -150,38 +175,48 @@ function createSignature(name, fontStyle, color = "black") {
     ctx.restore();
   });
 
-  // Asetetaan dynaaminen fonttikoko
-  let fontSize = 100; // Alkuperäinen fonttikoko
-  ctx.font = `${fontSize}px ${fontStyle.font}`;
+  // Määritä maksimileveys (90% canvaksen leveydestä)
+  const maxWidth = canvas.width * 0.9;
 
-  let textMetrics = ctx.measureText(name);
-  const maxWidth = canvas.width * 0.9; // Pieni marginaali reunoille
-  const maxHeight = canvas.height * 0.8; // Pieni marginaali korkeudelle
+  // Hae alkuperäinen fonttikoko
+  const originalFontSize = parseInt(fontStyle.font.match(/\d+/)[0]);
+  let fontSize = originalFontSize;
 
-  // Pienennä fonttia, kunnes teksti mahtuu canvasin sisään
-  while (
-    textMetrics.width > maxWidth ||
-    textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent >
-      maxHeight
-  ) {
-    fontSize -= 2;
-    ctx.font = `${fontSize}px ${fontStyle.font}`;
-    textMetrics = ctx.measureText(name);
-  }
-
-  // Keskitetään tekstin sijoittelu
+  // Aseta alustava fontti
+  ctx.font = fontStyle.font;
   ctx.fillStyle = color;
   ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
 
-  const centerX = canvas.width / 2;
+  // Mittaa tekstin leveys
+  let textWidth = ctx.measureText(name).width;
+
+  // Jos teksti on liian leveä, pienennä fonttikokoa kunnes se mahtuu
+  if (textWidth > maxWidth) {
+    // Laske sopiva fonttikoko
+    fontSize = Math.floor(originalFontSize * (maxWidth / textWidth));
+
+    // Päivitä fontti uudella koolla
+    const newFont = fontStyle.font.replace(/\d+px/, `${fontSize}px`);
+    ctx.font = newFont;
+
+    // Mittaa uudelleen varmistaaksesi
+    textWidth = ctx.measureText(name).width;
+  }
+
+  // Mittaa tekstin korkeus
+  const textMetrics = ctx.measureText(name);
+  const actualHeight =
+    textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
+
+  // Keskitä teksti pystysuunnassa
   const centerY =
     canvas.height / 2 +
     (textMetrics.actualBoundingBoxAscent -
       textMetrics.actualBoundingBoxDescent) /
       2;
 
-  ctx.fillText(name, centerX, centerY);
+  // Piirrä teksti
+  ctx.fillText(name, canvas.width / 2, centerY);
 
   return canvas.toDataURL("image/png");
 }
