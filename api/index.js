@@ -558,7 +558,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
   }
 });
 
-// Muuta sähköpostin lähetys käyttämään Gmail-palvelinta
+// Muuta sähköpostin lähetys käyttämään Gmail-palvelinta ja ZIP-tiedostoa
 app.post("/api/send-email", async (req, res) => {
   try {
     const { email, sessionId, signatures: clientSignatures } = req.body;
@@ -612,44 +612,86 @@ app.post("/api/send-email", async (req, res) => {
     console.log(`Created ${cleanSignatures.length} clean signatures for email`);
 
     try {
-      // Lähetä sähköposti Nodemailer + Gmail:llä
-      const info = await transporter.sendMail({
-        from: '"Signature Generator" <support@handwrittensignaturegenerator.com>',
-        to: email,
-        subject: `Your Signatures for ${userSignatures.name}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h1 style="color: #6e8efb;">Your Signatures</h1>
-            <p>Hello,</p>
-            <p>Here are your signatures for <strong>${userSignatures.name}</strong>.</p>
-            <p>Thank you for using our service!</p>
-            <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
-              <p style="color: #888; font-size: 12px;">
-                This email was sent from Signature Generator. 
-                The signatures are attached to this email.
-              </p>
-            </div>
-          </div>
-        `,
-        attachments: cleanSignatures.map((image, index) => ({
-          filename: `signature-${index + 1}.png`,
-          content: Buffer.from(
-            image.replace(/^data:image\/png;base64,/, ""),
-            "base64"
-          ),
-          contentType: "image/png",
-        })),
+      // Luo ZIP-tiedosto muistiin
+      const archive = archiver("zip", {
+        zlib: { level: 9 }, // Maksimipakkaus
       });
 
-      console.log("Email sent successfully:", info.messageId);
-      res.json({ success: true });
-    } catch (emailError) {
-      console.error("SMTP Error:", emailError);
+      // Luo puskuri ZIP-tiedostolle
+      const zipBuffer = [];
+      archive.on("data", (data) => {
+        zipBuffer.push(data);
+      });
 
-      // Palauta selkeä virheviesti
+      // Kun ZIP on valmis, lähetä sähköposti
+      archive.on("end", async () => {
+        try {
+          const zipContent = Buffer.concat(zipBuffer);
+
+          // Lähetä sähköposti Nodemailer + Gmail:llä yksinkertaisemmalla muotoilulla
+          const info = await transporter.sendMail({
+            from: '"Signature Generator" <handwrittensignaturegenerator@gmail.com>',
+            to: email,
+            subject: `Your Signatures for ${userSignatures.name}`,
+            text: `Hello,
+
+Here are your signatures for ${userSignatures.name}.
+
+The signatures are attached to this email as a ZIP file. Please extract the ZIP file to access your signatures.
+
+Thank you for using our service!
+
+--
+This email was sent from Signature Generator.`,
+            html: `
+              <div style="font-family: sans-serif;">
+                <p>Hello,</p>
+                <p>Here are your signatures for <b>${userSignatures.name}</b>.</p>
+                <p>The signatures are attached to this email as a ZIP file. Please extract the ZIP file to access your signatures.</p>
+                <p>Thank you for using our service!</p>
+                <p>--<br>This email was sent from Signature Generator.</p>
+              </div>
+            `,
+            attachments: [
+              {
+                filename: `signatures-${userSignatures.name.replace(
+                  /\s+/g,
+                  "-"
+                )}.zip`,
+                content: zipContent,
+                contentType: "application/zip",
+              },
+            ],
+          });
+
+          console.log("Email sent successfully:", info.messageId);
+          res.json({ success: true });
+        } catch (emailError) {
+          console.error("SMTP Error:", emailError);
+          return res.status(500).json({
+            success: false,
+            error: "Failed to send email via SMTP",
+            details: emailError.message,
+          });
+        }
+      });
+
+      // Lisää kuvat ZIP-tiedostoon
+      cleanSignatures.forEach((image, index) => {
+        const imgBuffer = Buffer.from(
+          image.replace(/^data:image\/png;base64,/, ""),
+          "base64"
+        );
+        archive.append(imgBuffer, { name: `signature-${index + 1}.png` });
+      });
+
+      // Viimeistele ZIP-tiedosto
+      archive.finalize();
+    } catch (emailError) {
+      console.error("Error creating ZIP or sending email:", emailError);
       return res.status(500).json({
         success: false,
-        error: "Failed to send email via SMTP",
+        error: "Failed to create ZIP or send email",
         details: emailError.message,
       });
     }
