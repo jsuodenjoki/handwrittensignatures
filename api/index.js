@@ -64,7 +64,9 @@ try {
           name: fontName.toLowerCase(),
           font:
             fontName.toLowerCase() === "omafontti1" ||
-            fontName.toLowerCase() === "omafontti3"
+            fontName.toLowerCase() === "omafontti3" ||
+            fontName.toLowerCase() === "omafontti4" ||
+            fontName.toLowerCase() === "omafontti5"
               ? `100px '${fontFamily}'`
               : `40px '${fontFamily}'`,
         });
