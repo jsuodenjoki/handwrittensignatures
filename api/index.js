@@ -77,9 +77,10 @@ function createSignatureWithoutWatermark(name, fontStyle, color = "black") {
   const canvas = createCanvas(600, 200);
   const ctx = canvas.getContext("2d");
 
-  ctx.fillStyle = "white";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Tyhjennä canvas läpinäkyväksi (ei valkoista taustaa)
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // Aseta fontti ja väri
   ctx.font = fontStyle.font;
   ctx.fillStyle = color;
   ctx.textAlign = "center";
@@ -94,8 +95,10 @@ function createSignatureWithoutWatermark(name, fontStyle, color = "black") {
       textMetrics.actualBoundingBoxDescent) /
       2;
 
+  // Piirrä teksti
   ctx.fillText(name, canvas.width / 2, centerY);
 
+  // Palauta PNG läpinäkyvällä taustalla
   return canvas.toDataURL("image/png");
 }
 
@@ -103,9 +106,11 @@ function createSignature(name, fontStyle, color = "black") {
   const canvas = createCanvas(600, 200);
   const ctx = canvas.getContext("2d");
 
+  // Aseta valkoinen tausta esikatseluun (vesileimalla)
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // Lisää vesileima
   ctx.font = "bold 16px 'Poppins'";
   ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
   ctx.textAlign = "center";
@@ -126,6 +131,7 @@ function createSignature(name, fontStyle, color = "black") {
     ctx.restore();
   });
 
+  // Piirrä allekirjoitus
   ctx.font = fontStyle.font;
   ctx.fillStyle = color;
   ctx.textAlign = "center";
