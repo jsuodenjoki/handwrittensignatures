@@ -15,12 +15,12 @@ const app = express();
 const signatures = new Map();
 const paidSessions = new Set();
 
-// Luo transporter Gmail SMTP-tiedoilla
+// Vaihtoehtoinen Gmail-konfiguraatio
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: "support@handwrittensignaturegenerator.com", // Gmail-osoitteesi
-    pass: process.env.EMAIL_PASSWORD, // Sovellussalasana (ei tavallinen salasana)
+    user: "support@handwrittensignaturegenerator.com", // Tavallinen Gmail-osoite
+    pass: process.env.EMAIL_PASSWORD, // Sovellussalasana
   },
   debug: true,
   logger: true,
