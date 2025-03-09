@@ -19,7 +19,7 @@ const paidSessions = new Set();
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: "handwrittensignaturegenerator@gmail.com", // Tavallinen Gmail-osoite
+    user: "support@handwrittensignaturegenerator.com", // Tavallinen Gmail-osoite
     pass: process.env.EMAIL_PASSWORD, // Sovellussalasana
   },
   debug: true,
@@ -630,7 +630,7 @@ app.post("/api/send-email", async (req, res) => {
 
           // Lähetä sähköposti Nodemailer + Gmail:llä yksinkertaisemmalla muotoilulla
           const info = await transporter.sendMail({
-            from: '"Signature Generator" <handwrittensignaturegenerator@gmail.com>',
+            from: '"Signature Generator" <support@handwrittensignaturegenerator.com>',
             to: email,
             subject: `Your Signatures for ${userSignatures.name}`,
             text: `Hello,
