@@ -125,7 +125,7 @@ function createSignature(name, fontStyle, color = "black") {
   const canvas = createCanvas(600, 200);
   const ctx = canvas.getContext("2d");
 
-  // Aseta valkoinen tausta esikatseluun (vesileimalla)
+  // Aseta valkoinen tausta
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -150,22 +150,38 @@ function createSignature(name, fontStyle, color = "black") {
     ctx.restore();
   });
 
-  // Piirrä allekirjoitus
-  ctx.font = fontStyle.font;
+  // Asetetaan dynaaminen fonttikoko
+  let fontSize = 100; // Alkuperäinen fonttikoko
+  ctx.font = `${fontSize}px ${fontStyle.font}`;
+
+  let textMetrics = ctx.measureText(name);
+  const maxWidth = canvas.width * 0.9; // Pieni marginaali reunoille
+  const maxHeight = canvas.height * 0.8; // Pieni marginaali korkeudelle
+
+  // Pienennä fonttia, kunnes teksti mahtuu canvasin sisään
+  while (
+    textMetrics.width > maxWidth ||
+    textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent >
+      maxHeight
+  ) {
+    fontSize -= 2;
+    ctx.font = `${fontSize}px ${fontStyle.font}`;
+    textMetrics = ctx.measureText(name);
+  }
+
+  // Keskitetään tekstin sijoittelu
   ctx.fillStyle = color;
   ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
 
-  const textMetrics = ctx.measureText(name);
-  const actualHeight =
-    textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
-
+  const centerX = canvas.width / 2;
   const centerY =
     canvas.height / 2 +
     (textMetrics.actualBoundingBoxAscent -
       textMetrics.actualBoundingBoxDescent) /
       2;
 
-  ctx.fillText(name, canvas.width / 2, centerY);
+  ctx.fillText(name, centerX, centerY);
 
   return canvas.toDataURL("image/png");
 }
