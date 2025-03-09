@@ -15,17 +15,15 @@ const app = express();
 const signatures = new Map();
 const paidSessions = new Set();
 
-// Luo transporter One.com SMTP-tiedoilla
+// Luo transporter Gmail SMTP-tiedoilla
 const transporter = nodemailer.createTransport({
-  host: "mailout.one.com", // One.com lähtevä palvelin
-  port: 587, // Suositeltu portti
-  secure: false, // false porttia 587 varten (STARTTLS)
+  service: "gmail",
   auth: {
-    user: "support@handwrittensignaturegenerator.com", // Sähköpostiosoitteesi
-    pass: process.env.EMAIL_PASSWORD, // Salasana ympäristömuuttujasta
+    user: "support@handwrittensignaturegenerator.com", // Gmail-osoitteesi
+    pass: process.env.EMAIL_PASSWORD, // Sovellussalasana (ei tavallinen salasana)
   },
-  debug: true, // Lisää debug-tila
-  logger: true, // Lisää logger
+  debug: true,
+  logger: true,
 });
 
 // Testaa SMTP-yhteyttä käynnistyksen yhteydessä
@@ -395,7 +393,6 @@ app.post("/api/reset-user-data", (req, res) => {
   console.log(`Deleted data for session: ${sessionId}`);
   res.json({ success: true, message: "User data deleted." });
 });
-
 // Karusellin allekirjoitusten luonti
 app.post("/api/create-signature-for-carousel", (req, res) => {
   const { name } = req.body;
@@ -561,7 +558,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
   }
 });
 
-// Muuta sähköpostin lähetys käyttämään One.com SMTP-palvelinta
+// Muuta sähköpostin lähetys käyttämään Gmail-palvelinta
 app.post("/api/send-email", async (req, res) => {
   try {
     const { email, sessionId, signatures: clientSignatures } = req.body;
@@ -615,7 +612,7 @@ app.post("/api/send-email", async (req, res) => {
     console.log(`Created ${cleanSignatures.length} clean signatures for email`);
 
     try {
-      // Lähetä sähköposti Nodemailer + One.com SMTP:llä
+      // Lähetä sähköposti Nodemailer + Gmail:llä
       const info = await transporter.sendMail({
         from: '"Signature Generator" <support@handwrittensignaturegenerator.com>',
         to: email,
@@ -665,5 +662,4 @@ app.post("/api/send-email", async (req, res) => {
     });
   }
 });
-
 export default app;
