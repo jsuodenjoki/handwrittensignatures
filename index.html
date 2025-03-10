@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Allekirjoitusgeneraattori</title>
+    <title>Handwritten Signature Generator</title>
     <link
       href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap"
       rel="stylesheet"
@@ -537,7 +537,7 @@
         "Oliver Green",
       ];
 
-      // Muutetaan funktioiden nimet vastaamaan niiden toimintaa
+      // Tallenna session ID localStorageen
       async function saveSessionId() {
         try {
           // Tarkista onko sessionId jo olemassa
@@ -550,12 +550,21 @@
             localStorage.setItem("sessionId", sessionId);
           }
 
-          console.log("Session ID saved to localStorage:", sessionId);
           return sessionId;
         } catch (error) {
-          console.error("Error saving session ID:", error);
           return null;
         }
+      }
+
+      // Tallenna maksutila localStorageen
+      function savePaymentStatus(isPaid) {
+        localStorage.setItem("hasPaid", isPaid ? "true" : "false");
+      }
+
+      // Tallenna maksun aikaleima
+      function savePaymentTimestamp() {
+        const expiryTime = Date.now() + 3 * 60 * 1000; // Nykyinen aika + 3 minuuttia
+        localStorage.setItem("paymentExpiry", expiryTime.toString());
       }
 
       // Hae tallennettu session ID tai hae uusi
@@ -567,25 +576,9 @@
         return sessionId;
       }
 
-      // Tallenna maksutila localStorageen
-      function savePaymentStatus(isPaid) {
-        localStorage.setItem("hasPaid", isPaid ? "true" : "false");
-        console.log("Payment status saved to localStorage:", isPaid);
-      }
-
       // Hae maksutila localStoragesta
       function getPaymentStatus() {
         return localStorage.getItem("hasPaid") === "true";
-      }
-
-      // Tallenna maksun aikaleima
-      function savePaymentTimestamp() {
-        const expiryTime = Date.now() + 3 * 60 * 1000; // Nykyinen aika + 3 minuuttia
-        localStorage.setItem("paymentExpiry", expiryTime.toString());
-        console.log(
-          "Payment expiry time saved:",
-          new Date(expiryTime).toLocaleTimeString()
-        );
       }
 
       // Tarkista onko maksu vanhentunut
@@ -595,13 +588,6 @@
 
         const now = Date.now();
         const expired = now > parseInt(expiryTime);
-
-        console.log(
-          "Payment expiry time:",
-          new Date(parseInt(expiryTime)).toLocaleTimeString()
-        );
-        console.log("Current time:", new Date(now).toLocaleTimeString());
-        console.log("Payment expired:", expired);
 
         return expired;
       }
@@ -966,7 +952,6 @@
             statusMessage.style.color = "#4CAF50"; // Vihreä väri
           }
         } catch (error) {
-          console.error("Error creating signatures:", error);
           statusMessage.textContent = "Error creating signatures.";
           statusMessage.style.color = "#f44336"; // Punainen väri
         }
@@ -1339,7 +1324,6 @@
             }
           }, 1000);
         } catch (error) {
-          console.error("Error sending email:", error);
           alert(`Error sending email: ${error.message}`);
           sendEmailButton.disabled = false;
           sendEmailButton.textContent = "Send signatures to email";
@@ -1367,10 +1351,7 @@
               name: "Oma Fontti",
               font: "100px 'OmaFontti1', cursive",
             });
-
-            console.log("Own font loaded successfully!");
           } catch (fontError) {
-            console.error("Error loading own font:", fontError);
             // Jos oman fontin lataus epäonnistuu, käytä järjestelmäfonttia
             signatureFonts.push({
               name: "Järjestelmäfontti",
@@ -1378,15 +1359,12 @@
             });
           }
 
-          console.log("Fonts loaded successfully:", signatureFonts);
-
           // Alusta karuselli vasta kun fontit on ladattu
           await initializeCarousel();
 
           // Tarkista onko käyttäjällä jo allekirjoituksia
           checkExistingSignatures();
         } catch (error) {
-          console.error("Error loading fonts:", error);
           // Virhetilanteessa alusta karuselli järjestelmäfontilla
           signatureFonts.length = 0;
           signatureFonts.push({
@@ -1423,21 +1401,15 @@
       async function checkPaymentStatus() {
         // Tarkista onko maksu vanhentunut
         if (isPaymentExpired()) {
-          console.log("⏰ Payment expired, deleting data...");
           await resetAllData();
           return;
         }
 
         if (getQueryParam("success") === "true") {
-          console.log("✅ Payment successful, marking as paid...");
-
-          // Tarkista onko maksu jo merkitty suoritetuksi
           const hasPaid = getPaymentStatus();
 
-          // Merkitse maksu onnistuneeksi heti localStorageen, jos ei ole jo merkitty
           if (!hasPaid) {
             savePaymentStatus(true);
-            console.log("Payment status saved to localStorage: true");
 
             // Tallenna maksun aikaleima vain jos sitä ei ole jo asetettu
             if (!localStorage.getItem("paymentExpiry")) {
@@ -1448,10 +1420,8 @@
             localStorage.removeItem("hasAutoDownloaded");
           }
 
-          // Tarkista tila heti
           checkStatus(true);
         } else if (getQueryParam("canceled") === "true") {
-          console.log("❌ Payment canceled.");
           statusMessage.textContent = "Payment canceled.";
         }
       }

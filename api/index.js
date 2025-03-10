@@ -29,9 +29,7 @@ const transporter = nodemailer.createTransport({
 // Testaa SMTP-yhteyttä käynnistyksen yhteydessä
 transporter.verify(function (error, success) {
   if (error) {
-    console.error("SMTP connection error:", error);
   } else {
-    console.log("SMTP server is ready to take our messages");
   }
 });
 
@@ -51,13 +49,11 @@ const signatureFonts = [];
 try {
   if (fs.existsSync(fontsDir)) {
     const fontFiles = fs.readdirSync(fontsDir);
-    console.log("Available fonts:", fontFiles);
 
     fontFiles.forEach((fontFile) => {
       if (fontFile.endsWith(".ttf")) {
         const fontName = fontFile.replace(".ttf", "").replace(/[-_]/g, " ");
         const fontFamily = fontName.replace(/\s+/g, "");
-        console.log(`Registering font: ${fontFile} named ${fontFamily}`);
         registerFont(path.join(fontsDir, fontFile), { family: fontFamily });
 
         signatureFonts.push({
@@ -73,12 +69,9 @@ try {
         });
       }
     });
-  } else {
-    console.log("Fonts-kansiota ei löydy:", fontsDir);
   }
 
   if (signatureFonts.length === 0) {
-    console.log("No fonts found, using default fonts");
     signatureFonts.push(
       { name: "Arial", font: "40px Arial, sans-serif" },
       { name: "Times New Roman", font: "40px 'Times New Roman', serif" },
@@ -86,7 +79,6 @@ try {
     );
   }
 } catch (error) {
-  console.error("Error loading fonts:", error);
   signatureFonts.push(
     { name: "Arial", font: "40px Arial, sans-serif" },
     { name: "Times New Roman", font: "40px 'Times New Roman', serif" },
@@ -236,10 +228,6 @@ app.get("/api/check-signatures", (req, res) => {
 
   const hasSignatures = signatures.has(sessionId);
   const hasPaid = paidSessions.has(sessionId);
-
-  console.log(
-    `Checking status for session: ${sessionId}: hasSignatures=${hasSignatures}, hasPaid=${hasPaid}`
-  );
 
   res.json({
     hasSignatures,
@@ -554,7 +542,6 @@ app.post("/api/webhook", async (req, res) => {
 app.get("/api/get-session-id", (req, res) => {
   // Generoi satunnainen session ID
   const sessionId = generateSessionId();
-  console.log("Generated new session ID:", sessionId);
   res.send(sessionId);
 });
 
@@ -572,10 +559,6 @@ app.post("/api/create-checkout-session", async (req, res) => {
   try {
     const { name } = req.body;
     const sessionId = req.body.sessionId || "unknown";
-
-    console.log(
-      `Creating checkout session for name: ${name}, sessionId: ${sessionId}`
-    );
 
     // Luo Stripe checkout session
     const session = await stripe.checkout.sessions.create({
@@ -602,12 +585,8 @@ app.post("/api/create-checkout-session", async (req, res) => {
       },
     });
 
-    console.log(
-      `Checkout session created: ${session.id}, redirecting to: ${session.url}`
-    );
     res.json({ url: session.url });
   } catch (error) {
-    console.error("Error creating checkout session:", error);
     res.status(500).json({ error: "Failed to create checkout session" });
   }
 });
@@ -617,13 +596,8 @@ app.post("/api/send-email", async (req, res) => {
   try {
     const { email, sessionId, signatures: clientSignatures } = req.body;
 
-    // Käytä session ID:tä IP-osoitteen sijaan
-    console.log(`Sending email to ${email} for session ${sessionId}`);
-
     // Tarkista onko käyttäjällä allekirjoituksia
     const hasSignatures = signatures.has(sessionId);
-
-    console.log(`Session ${sessionId} - hasSignatures: ${hasSignatures}`);
 
     // Jos palvelimella ei ole allekirjoituksia, mutta client lähetti ne, tallenna ne
     if (
@@ -632,7 +606,6 @@ app.post("/api/send-email", async (req, res) => {
       clientSignatures.name &&
       clientSignatures.images
     ) {
-      console.log(`Storing signatures from client for session ${sessionId}`);
       signatures.set(sessionId, {
         name: clientSignatures.name,
         images: clientSignatures.images,
@@ -645,7 +618,6 @@ app.post("/api/send-email", async (req, res) => {
     const userSignatures = signatures.get(sessionId) || clientSignatures;
 
     if (!userSignatures) {
-      console.log(`No signatures found for session ${sessionId}`);
       return res.status(403).json({
         success: false,
         error: "No signatures found",
@@ -662,8 +634,6 @@ app.post("/api/send-email", async (req, res) => {
       );
       cleanSignatures.push(signatureImage);
     }
-
-    console.log(`Created ${cleanSignatures.length} clean signatures for email`);
 
     try {
       // Luo ZIP-tiedosto muistiin
@@ -718,10 +688,8 @@ This email was sent from Signature Generator.`,
             ],
           });
 
-          console.log("Email sent successfully:", info.messageId);
           res.json({ success: true });
         } catch (emailError) {
-          console.error("SMTP Error:", emailError);
           return res.status(500).json({
             success: false,
             error: "Failed to send email via SMTP",
@@ -742,7 +710,6 @@ This email was sent from Signature Generator.`,
       // Viimeistele ZIP-tiedosto
       archive.finalize();
     } catch (emailError) {
-      console.error("Error creating ZIP or sending email:", emailError);
       return res.status(500).json({
         success: false,
         error: "Failed to create ZIP or send email",
@@ -750,7 +717,6 @@ This email was sent from Signature Generator.`,
       });
     }
   } catch (error) {
-    console.error("Error in email handler:", error);
     res.status(500).json({
       success: false,
       error: "Failed to process email request",
