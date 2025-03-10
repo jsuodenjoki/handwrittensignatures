@@ -63,12 +63,13 @@ try {
         signatureFonts.push({
           name: fontName.toLowerCase(),
           font:
-            fontName.toLowerCase() === "omafontti1" ||
-            fontName.toLowerCase() === "omafontti3" ||
-            fontName.toLowerCase() === "omafontti4" ||
-            fontName.toLowerCase() === "omafontti5"
-              ? `100px '${fontFamily}'`
-              : `40px '${fontFamily}'`,
+            fontName.toLowerCase() === "omafontti1"
+              ? `125px '${fontFamily}'` // omafontti1 saa koon 125px
+              : fontName.toLowerCase() === "omafontti3" ||
+                fontName.toLowerCase() === "omafontti4" ||
+                fontName.toLowerCase() === "omafontti5"
+              ? `100px '${fontFamily}'` // omafontti3, omafontti4 ja omafontti5 saavat koon 100px
+              : `40px '${fontFamily}'`, // kaikki muut saavat koon 40px
         });
       }
     });
