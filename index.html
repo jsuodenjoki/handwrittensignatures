@@ -271,6 +271,40 @@
         }
       }
 
+      .features {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr); /* Korjattu syntaksivirhe */
+        gap: 20px;
+        padding: 40px 20px;
+        max-width: 1200px; /* Varmistetaan, että elementit eivät mene liian leveäksi */
+        margin-left: auto;
+        margin-right: auto;
+      }
+      @media (max-width: 900px) {
+        .features {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+
+      @media (max-width: 600px) {
+        .features {
+          grid-template-columns: repeat(1, 1fr);
+        }
+      }
+
+      .feature {
+        text-align: center;
+        padding: 20px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+      }
+
+      .feature:hover {
+        transform: scale(1.05);
+        box-shadow: 0px 8px 15px rgba(255, 255, 255, 0.2);
+      }
+
       /* Karusellin tyylit */
       .signature-carousel-container {
         width: 100%;
@@ -471,6 +505,47 @@
       <button id="buyButton" class="button buy-button">
         Buy signatures (5€)
       </button>
+    </div>
+    <h2>Why to Use Our JFIF to PNG Converter?</h2>
+    <div class="features">
+      <div class="feature">
+        <h3>Easy Navigation</h3>
+        <p>
+          Quickly upload and convert single or multiple JFIF files with our
+          user-friendly interface.
+        </p>
+      </div>
+      <div class="feature">
+        <h3>High-Quality Conversions</h3>
+        <p>Ensure pristine clarity in JFIF to PNG conversions.</p>
+      </div>
+      <div class="feature">
+        <h3>Free Access</h3>
+        <p>
+          Access all conversion features completely free, with no hidden fees.
+        </p>
+      </div>
+      <div class="feature">
+        <h3>Secure and Confidential</h3>
+        <p>
+          We ensure your JFIF to PNG files are securely processed and
+          automatically deleted 8 hours after conversion.
+        </p>
+      </div>
+      <div class="feature">
+        <h3>Instant Access</h3>
+        <p>
+          Begin converting JFIF to PNG instantly with no registration or sign-up
+          needed.
+        </p>
+      </div>
+      <div class="feature">
+        <h3>Fast Bulk Conversion</h3>
+        <p>
+          Easily convert multiple JFIF files at once without compromising on
+          quality.
+        </p>
+      </div>
     </div>
 
     <div id="email-container" class="email-container">
