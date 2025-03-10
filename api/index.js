@@ -567,7 +567,7 @@ function generateSessionId() {
     .join("");
 }
 
-// Muuta checkout-session luominen käyttämään session ID:tä
+// Muokataan checkout-session luominen käyttämään Payment Linkkiä
 app.post("/api/create-checkout-session", async (req, res) => {
   try {
     const { name } = req.body;
@@ -577,7 +577,37 @@ app.post("/api/create-checkout-session", async (req, res) => {
       `Creating checkout session for name: ${name}, sessionId: ${sessionId}`
     );
 
-    // Luo Stripe checkout session
+    // Tarkista onko Payment Link määritetty
+    const paymentLink = process.env.STRIPE_PAYMENT_LINK;
+
+    if (paymentLink) {
+      // Käytä valmiiksi määritettyä Payment Linkkiä, jossa verot on konfiguroitu
+      console.log(`Using predefined payment link: ${paymentLink}`);
+
+      // Lisää asiakaskohtaiset tiedot URL-parametreina
+      const customizedLink = `${paymentLink}?client_reference_id=${sessionId}&prefilled_email=${encodeURIComponent(
+        req.body.email || ""
+      )}&metadata[name]=${encodeURIComponent(
+        name
+      )}&metadata[sessionId]=${sessionId}`;
+
+      console.log(`Redirecting to customized payment link: ${customizedLink}`);
+      return res.json({ url: customizedLink });
+    }
+
+    // Vaihtoehtoinen tapa: luo Checkout Session dynaamisesti verojen kanssa
+    console.log("No payment link defined, creating checkout session with tax");
+
+    // Hae verotiedot Stripe API:sta (varmista että verot on määritetty Stripe-paneelissa)
+    const taxRates = await stripe.taxRates.list({
+      active: true,
+      limit: 10,
+    });
+
+    // Käytä ensimmäistä aktiivista veroa, jos sellainen löytyy
+    const taxRateIds = taxRates.data.length > 0 ? [taxRates.data[0].id] : [];
+
+    // Luo Stripe checkout session verojen kanssa
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
@@ -588,17 +618,22 @@ app.post("/api/create-checkout-session", async (req, res) => {
               name: "Signature Package",
               description: `Handwritten signatures for ${name}`,
             },
-            unit_amount: 100, // 5€ in cents
+            unit_amount: 100, // 1€ in cents
+            tax_behavior: "exclusive", // Vero lisätään hintaan
           },
           quantity: 1,
+          tax_rates: taxRateIds, // Lisää verot
         },
       ],
+      automatic_tax: {
+        enabled: true, // Käytä automaattista verolaskentaa
+      },
       mode: "payment",
       success_url: `${req.headers.origin}?success=true`,
       cancel_url: `${req.headers.origin}?canceled=true`,
       metadata: {
         name: name,
-        sessionId: sessionId, // Käytä session ID:tä IP-osoitteen sijaan
+        sessionId: sessionId,
       },
     });
 
