@@ -243,7 +243,42 @@
         display: none;
       }
 
-      @media (max-width: 900px) {
+      /* Karusellityylit */
+      .carousel {
+        width: 100%;
+        max-width: 600px;
+        height: 150px;
+        margin: 0 auto;
+        position: relative;
+        overflow: hidden;
+        margin-bottom: 30px;
+      }
+
+      .carousel-item {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.5s ease-in-out;
+      }
+
+      .carousel-item.active {
+        opacity: 1;
+      }
+
+      .carousel-item img {
+        max-width: 100%;
+        max-height: 100%;
+        border-radius: 8px;
+      }
+
+      /* Responsiiviset tyylit */
+      @media (max-width: 768px) {
         .gradient-bg {
           top: -10%;
           height: 50vh;
@@ -433,19 +468,19 @@
     <h1>Handwritten Signature Generator</h1>
     <p>Generate beautiful handwritten signatures easily</p>
 
-    <!-- Lisätään allekirjoituskaruselli -->
-    <div class="signature-carousel-container">
-      <div class="signature-carousel">
-        <!-- Karusellin sisältö täytetään JavaScriptillä -->
-      </div>
-    </div>
+    <!-- Karuselli esimerkkiallekirjoituksille -->
+    <div id="signatureCarousel" class="carousel"></div>
 
     <div class="container">
+      <h1>Signature Generator</h1>
+      <p>Create beautiful handwritten signatures in seconds</p>
+
       <div class="input-group">
         <input
           type="text"
           id="nameInput"
-          placeholder="Write your name here..."
+          placeholder="Enter your name"
+          required
         />
       </div>
 
@@ -1107,6 +1142,100 @@
           checkStatus();
         }
       });
+
+      // Alusta karuselli
+      async function initializeCarousel() {
+        try {
+          // Tyhjennä karuselli
+          const signatureCarousel =
+            document.getElementById("signatureCarousel");
+          if (!signatureCarousel) return;
+
+          signatureCarousel.innerHTML = "";
+
+          // Luo esimerkkiallekirjoitukset karuselliin
+          exampleNames.forEach((name) => {
+            // Valitse satunnainen fontti
+            const randomFont =
+              signatureFonts[Math.floor(Math.random() * signatureFonts.length)];
+
+            // Luo canvas
+            const canvas = document.createElement("canvas");
+            canvas.width = 250;
+            canvas.height = 100;
+            const ctx = canvas.getContext("2d");
+
+            // Aseta valkoinen tausta
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Aseta fontti
+            ctx.font = randomFont.font;
+            ctx.fillStyle = "black";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+
+            // Piirrä teksti
+            ctx.fillText(name, canvas.width / 2, canvas.height / 2);
+
+            // Luo karusellielementti
+            const carouselItem = document.createElement("div");
+            carouselItem.className = "carousel-item";
+
+            // Luo kuva
+            const img = document.createElement("img");
+            img.src = canvas.toDataURL("image/png");
+            img.alt = name;
+
+            // Lisää kuva karusellielementtiin
+            carouselItem.appendChild(img);
+
+            // Lisää karusellielementti karuselliin
+            signatureCarousel.appendChild(carouselItem);
+          });
+
+          // Käynnistä karuselli
+          startCarousel();
+        } catch (error) {
+          console.error("Error initializing carousel:", error);
+        }
+      }
+
+      // Käynnistä karuselli
+      function startCarousel() {
+        const signatureCarousel = document.getElementById("signatureCarousel");
+        if (!signatureCarousel) return;
+
+        const carouselItems =
+          signatureCarousel.querySelectorAll(".carousel-item");
+        if (carouselItems.length === 0) return;
+
+        let currentIndex = 0;
+
+        // Näytä ensimmäinen elementti
+        carouselItems[0].classList.add("active");
+
+        // Vaihda elementtiä 3 sekunnin välein
+        setInterval(() => {
+          // Piilota nykyinen elementti
+          carouselItems[currentIndex].classList.remove("active");
+
+          // Siirry seuraavaan elementtiin
+          currentIndex = (currentIndex + 1) % carouselItems.length;
+
+          // Näytä seuraava elementti
+          carouselItems[currentIndex].classList.add("active");
+        }, 3000);
+      }
+
+      // Tarkista onko käyttäjällä jo allekirjoituksia
+      function checkExistingSignatures() {
+        const signatures = getSignaturesFromLocal();
+        if (signatures) {
+          // Näytä allekirjoitukset
+          updateUI({ hasSignatures: true, hasPaid: false, canDownload: false });
+        }
+      }
     </script>
   </body>
 </html>
