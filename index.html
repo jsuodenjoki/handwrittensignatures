@@ -929,6 +929,9 @@
 
           const data = await response.json();
 
+          // Varmista että signaturesContainer-elementti saa oikean tyylin
+          signaturesContainer.classList.add("signaturesContainer");
+
           if (data.images && data.images.length > 0) {
             // Tyhjennä aiemmat allekirjoitukset
             signaturesContainer.innerHTML = "";
@@ -936,7 +939,7 @@
             // Lisää uudet allekirjoitukset
             data.images.forEach((image, index) => {
               const signatureDiv = document.createElement("div");
-              signatureDiv.className = "signature signaturesContainer";
+              signatureDiv.className = "signature";
 
               const img = document.createElement("img");
               img.src = image;
