@@ -279,6 +279,8 @@
         max-width: 1200px;
         margin-left: auto;
         margin-right: auto;
+        width: 100%;
+        box-sizing: border-box;
       }
 
       @media (max-width: 900px) {
@@ -331,6 +333,8 @@
         -webkit-text-fill-color: transparent;
         margin: 40px 0 10px;
         text-align: center;
+        width: 100%;
+        max-width: 100%;
       }
 
       /* Karusellin tyylit */
@@ -492,8 +496,8 @@
         max-width: 800px;
         margin: 30px auto 50px;
         padding: 0 20px;
-        margin-left: auto;
-        margin-right: auto;
+        width: 100%;
+        box-sizing: border-box;
       }
 
       .step {
@@ -559,6 +563,37 @@
           margin-right: 0;
           margin-bottom: 15px;
         }
+      }
+
+      /* Korjataan keskitys kaikille pääelementeille */
+      .container,
+      .features,
+      .process-steps,
+      .email-container,
+      #download-again-container,
+      #reset-container {
+        max-width: 800px;
+        margin-left: auto;
+        margin-right: auto;
+        box-sizing: border-box;
+        width: 100%;
+        padding-left: 20px;
+        padding-right: 20px;
+      }
+
+      /* Varmistetaan että otsikot ovat keskitettyjä */
+      h1,
+      h2.features-title {
+        text-align: center;
+        width: 100%;
+        max-width: 100%;
+      }
+
+      /* Varmistetaan että kuvaus on keskitetty */
+      p {
+        text-align: center;
+        width: 100%;
+        max-width: 100%;
       }
     </style>
   </head>
