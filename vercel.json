@@ -23,8 +23,6 @@
     { "src": "/fonts/(.*)", "dest": "/public/fonts/$1" },
     { "src": "/api/(.*)", "dest": "/api/index.js" },
     { "handle": "filesystem" },
-    { "src": "/favicon.ico", "dest": "/app/favicon.ico" },
-    { "src": "/apple-touch-icon.png", "dest": "/app/apple-touch-icon.png" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
