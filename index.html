@@ -1537,20 +1537,121 @@
         await createSignatures();
       });
 
-      // Sähköpostin lähetys
-      sendEmailButton.addEventListener("click", async () => {
-        const email = emailInput.value.trim();
-        const sessionId = await getSessionId();
+      // Tallenna sähköpostin lähetysaika
+      async function saveEmailSentTime() {
+        try {
+          const sessionId = await getSessionId();
+          const currentTime = Date.now();
 
-        if (!email) {
-          alert("Enter your email first!");
+          // Tallenna lähetysaika palvelimelle
+          await fetch(`${API_URL}/api/save-user-data`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              sessionId,
+              key: "emailSentTime",
+              value: currentTime,
+            }),
+          });
+
+          return currentTime;
+        } catch (error) {
+          console.error("Error saving email sent time:", error);
+          return null;
+        }
+      }
+
+      // Hae sähköpostin lähetysaika
+      async function getEmailSentTime() {
+        try {
+          const sessionId = await getSessionId();
+
+          // Hae lähetysaika palvelimelta
+          const response = await fetch(
+            `${API_URL}/api/get-user-data?sessionId=${sessionId}&key=emailSentTime`
+          );
+          const data = await response.json();
+
+          if (data.success && data.value) {
+            return data.value;
+          }
+
+          return null;
+        } catch (error) {
+          console.error("Error getting email sent time:", error);
+          return null;
+        }
+      }
+
+      // Päivitä sähköpostin ajastin
+      async function updateEmailTimer() {
+        const emailSentTime = await getEmailSentTime();
+
+        if (!emailSentTime) {
+          emailTimer.classList.add("hidden");
           return;
         }
 
-        try {
-          // Näytä latausanimaatio tai teksti
+        const now = Date.now();
+        const elapsedSeconds = Math.floor((now - emailSentTime) / 1000);
+        const cooldownSeconds = 60; // 1 minuutin cooldown
+
+        if (elapsedSeconds >= cooldownSeconds) {
+          // Cooldown on ohi
+          sendEmailButton.disabled = false;
+          emailTimer.classList.add("hidden");
+        } else {
+          // Cooldown on vielä käynnissä
+          const remainingSeconds = cooldownSeconds - elapsedSeconds;
+          emailTimer.textContent = `You can send another email in ${remainingSeconds} seconds`;
+          emailTimer.classList.remove("hidden");
           sendEmailButton.disabled = true;
-          sendEmailButton.textContent = "Sending...";
+
+          // Jatka ajastimen päivitystä
+          setTimeout(updateEmailTimer, 1000);
+        }
+      }
+
+      // Muokataan sendEmailButton click-tapahtumankäsittelijää
+      sendEmailButton.addEventListener("click", async () => {
+        const email = emailInput.value.trim();
+
+        if (!email) {
+          alert("Please enter your email address");
+          return;
+        }
+
+        if (!validateEmail(email)) {
+          alert("Please enter a valid email address");
+          return;
+        }
+
+        // Tarkista onko cooldown aktiivinen
+        const emailSentTime = await getEmailSentTime();
+        if (emailSentTime) {
+          const now = Date.now();
+          const elapsedSeconds = Math.floor((now - emailSentTime) / 1000);
+          const cooldownSeconds = 60; // 1 minuutin cooldown
+
+          if (elapsedSeconds < cooldownSeconds) {
+            const remainingSeconds = cooldownSeconds - elapsedSeconds;
+            alert(
+              `Please wait ${remainingSeconds} seconds before sending another email`
+            );
+            return;
+          }
+        }
+
+        // Poista nappi käytöstä lähetyksen ajaksi
+        sendEmailButton.disabled = true;
+        sendEmailButton.textContent = "Sending...";
+
+        try {
+          // Lähetä sähköposti
+          const sessionId = await getSessionId();
+          const signatures = await getSignaturesFromServer();
 
           const response = await fetch(`${API_URL}/api/send-email`, {
             method: "POST",
@@ -1560,107 +1661,44 @@
             body: JSON.stringify({
               email,
               sessionId,
-              // Lisää allekirjoitukset pyyntöön
-              signatures: getSignaturesFromLocal(),
+              signatures,
             }),
           });
-
-          // Palauta nappi normaaliksi
-          sendEmailButton.textContent = "Send signatures to email";
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || "Error sending email");
-          }
 
           const data = await response.json();
 
           if (data.success) {
-            alert("Signatures sent to your email!");
+            // Tallenna lähetysaika
+            await saveEmailSentTime();
+
+            // Näytä viesti
+            sendEmailButton.textContent = "Email sent!";
+            setTimeout(() => {
+              sendEmailButton.textContent = "Send signatures to email";
+            }, 3000);
+
+            // Käynnistä ajastin
+            updateEmailTimer();
           } else {
-            alert("Error sending email.");
+            throw new Error(data.error || "Failed to send email");
           }
-
-          // Estä napin painaminen 60 sekunnin ajan
-          sendEmailButton.disabled = true;
-          let timeLeft = 60;
-
-          emailTimer.textContent = `You can send the email again in ${timeLeft} seconds.`;
-          emailTimer.classList.remove("hidden");
-
-          const timerInterval = setInterval(() => {
-            timeLeft--;
-            emailTimer.textContent = `You can send the email again in ${timeLeft} seconds.`;
-
-            if (timeLeft === 0) {
-              clearInterval(timerInterval);
-              emailTimer.classList.add("hidden");
-              sendEmailButton.disabled = false;
-            }
-          }, 1000);
         } catch (error) {
           console.error("Error sending email:", error);
-          alert(`Error sending email: ${error.message}`);
+          alert("Failed to send email. Please try again later.");
           sendEmailButton.disabled = false;
           sendEmailButton.textContent = "Send signatures to email";
         }
       });
 
-      // Lataa oma fontti dynaamisesti ja alusta karuselli vasta kun fontti on ladattu
-      async function loadFontsAndInitialize() {
-        try {
-          // Tyhjennä fonttilistaus ensin
-          signatureFonts.length = 0;
-
-          // Lataa vain oma fontti
-          try {
-            const fontFace = new FontFace(
-              "OmaFontti1",
-              `url(/fonts/omafontti1.ttf)`
-            );
-
-            const loadedFace = await fontFace.load();
-            document.fonts.add(loadedFace);
-
-            // Lisää oma fontti fonttilistaan suuremmalla fonttikoolla
-            signatureFonts.push({
-              name: "Oma Fontti",
-              font: "100px 'OmaFontti1', cursive",
-            });
-
-            console.log("Own font loaded successfully!");
-          } catch (fontError) {
-            console.error("Error loading own font:", fontError);
-            // Jos oman fontin lataus epäonnistuu, käytä järjestelmäfonttia
-            signatureFonts.push({
-              name: "Järjestelmäfontti",
-              font: "60px Arial, sans-serif",
-            });
-          }
-
-          console.log("Fonts loaded successfully:", signatureFonts);
-
-          // Alusta karuselli vasta kun fontit on ladattu
-          await initializeCarousel();
-
-          // Tarkista onko käyttäjällä jo allekirjoituksia
-          checkExistingSignatures();
-        } catch (error) {
-          console.error("Error loading fonts:", error);
-          // Virhetilanteessa alusta karuselli järjestelmäfontilla
-          signatureFonts.length = 0;
-          signatureFonts.push({
-            name: "Järjestelmäfontti",
-            font: "60px Arial, sans-serif",
-          });
-          initializeCarousel();
-        }
+      // Tarkista sähköpostin tila sivun latautuessa
+      async function checkEmailStatus() {
+        await updateEmailTimer();
       }
 
-      // Käynnistä fonttien lataus ja alustus
+      // Lisää tämä initialize-funktioon
       async function initialize() {
         // Tallenna IP-osoite heti alussa
-        await saveSessionId();
+        await getSessionId();
         await loadFontsAndInitialize();
 
         // Tarkista maksun tila ensin
@@ -1668,6 +1706,9 @@
 
         // Tarkista tila vasta kun IP on tallennettu
         await checkStatus();
+
+        // Tarkista sähköpostin tila
+        await checkEmailStatus();
       }
 
       // Käynnistä sovellus
