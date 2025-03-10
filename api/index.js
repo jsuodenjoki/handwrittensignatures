@@ -14,6 +14,9 @@ const stripe = stripePackage(process.env.STRIPE_SECRET_KEY);
 const app = express();
 const signatures = new Map();
 const paidSessions = new Set();
+const sessionExpiries = new Map();
+const signatureExpiries = new Map();
+const autoDownloadStates = new Set();
 
 // Vaihtoehtoinen Gmail-konfiguraatio
 const transporter = nodemailer.createTransport({
@@ -250,8 +253,10 @@ app.get("/api/check-signatures", (req, res) => {
 
 // Allekirjoitusten luonti
 app.post("/api/create-signatures", (req, res) => {
-  const { name, color } = req.body;
-  console.log(`Creating signatures: name=${name}, color=${color}`);
+  const { name, color, sessionId } = req.body;
+  console.log(
+    `Creating signatures: name=${name}, color=${color}, sessionId=${sessionId}`
+  );
 
   if (!name) {
     return res.status(400).json({ error: "Nimi puuttuu" });
@@ -264,8 +269,29 @@ app.post("/api/create-signatures", (req, res) => {
     signatureImages.push(signatureImage);
   }
 
-  // Palauta kuvat suoraan ilman tallennusta
-  res.json({ images: signatureImages });
+  if (sessionId) {
+    signatures.set(sessionId, {
+      name,
+      images: signatureImages,
+      color,
+      createdAt: new Date().toISOString(),
+    });
+
+    const expiryTime = Date.now() + 10 * 60 * 1000;
+    signatureExpiries.set(sessionId, expiryTime);
+
+    console.log(
+      `Saved signatures for session ${sessionId}, expires at ${new Date(
+        expiryTime
+      ).toLocaleTimeString()}`
+    );
+  }
+
+  res.json({
+    success: true,
+    images: signatureImages,
+    expiryTime: sessionId ? signatureExpiries.get(sessionId) : null,
+  });
 });
 
 // Allekirjoitusten hakeminen
@@ -273,18 +299,25 @@ app.get("/api/get-signatures", (req, res) => {
   const sessionId = req.query.sessionId;
 
   if (!sessionId) {
-    return res.status(400).json({ error: "Session ID puuttuu" });
+    return res.status(400).json({ error: "No session ID provided" });
   }
 
-  console.log(`Getting signatures for session: ${sessionId}`);
+  const expiryTime = signatureExpiries.get(sessionId);
+  const now = Date.now();
 
-  if (signatures.has(sessionId)) {
-    console.log(`Found signatures for session: ${sessionId}`);
-    return res.json(signatures.get(sessionId));
+  if (expiryTime && now > expiryTime) {
+    signatures.delete(sessionId);
+    signatureExpiries.delete(sessionId);
+    return res.json({ hasSignatures: false });
   }
 
-  console.log(`No signatures found for session: ${sessionId}`);
-  return res.status(404).json({ error: "No signatures found" });
+  const userSignatures = signatures.get(sessionId);
+
+  res.json({
+    hasSignatures: !!userSignatures,
+    signatures: userSignatures || null,
+    expiryTime: expiryTime || null,
+  });
 });
 
 // Allekirjoitusten lataus
@@ -538,12 +571,22 @@ app.post("/api/webhook", async (req, res) => {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
 
-    // Käytä session ID:tä IP-osoitteen sijaan
-    const sessionId = session.metadata.sessionId;
+    if (session.payment_status === "paid") {
+      const sessionId = session.metadata.sessionId;
 
-    if (sessionId) {
-      console.log(`Payment successful for session ID: ${sessionId}`);
-      paidSessions.add(sessionId);
+      if (sessionId) {
+        console.log(`Payment successful for session ID: ${sessionId}`);
+        paidSessions.add(sessionId);
+
+        const expiryTime = Date.now() + 3 * 60 * 1000;
+        sessionExpiries.set(sessionId, expiryTime);
+
+        console.log(
+          `Payment for session ${sessionId} expires at ${new Date(
+            expiryTime
+          ).toLocaleTimeString()}`
+        );
+      }
     }
   }
 
@@ -758,4 +801,88 @@ This email was sent from Signature Generator.`,
     });
   }
 });
+
+// Tarkista onko käyttäjä maksanut
+app.get("/api/check-status", (req, res) => {
+  const sessionId = req.query.sessionId;
+
+  if (!sessionId) {
+    return res.status(400).json({ error: "No session ID provided" });
+  }
+
+  const hasSignatures = signatures.has(sessionId);
+  const hasPaid = paidSessions.has(sessionId);
+
+  const signatureExpiryTime = signatureExpiries.get(sessionId);
+  const now = Date.now();
+  const signaturesExpired = signatureExpiryTime && now > signatureExpiryTime;
+
+  const paymentExpiryTime = sessionExpiries.get(sessionId);
+  const paymentExpired = paymentExpiryTime && now > paymentExpiryTime;
+
+  if (signaturesExpired) {
+    signatures.delete(sessionId);
+    signatureExpiries.delete(sessionId);
+  }
+
+  if (paymentExpired) {
+    paidSessions.delete(sessionId);
+    sessionExpiries.delete(sessionId);
+  }
+
+  const hasAutoDownloaded = autoDownloadStates.has(sessionId);
+
+  console.log(
+    `Checking status for session: ${sessionId}: hasSignatures=${
+      hasSignatures && !signaturesExpired
+    }, hasPaid=${
+      hasPaid && !paymentExpired
+    }, autoDownloaded=${hasAutoDownloaded}`
+  );
+
+  res.json({
+    hasSignatures: hasSignatures && !signaturesExpired,
+    hasPaid: hasPaid && !paymentExpired,
+    canDownload:
+      hasPaid && !paymentExpired && hasSignatures && !signaturesExpired,
+    hasAutoDownloaded,
+    signatureExpiryTime: signatureExpiryTime || null,
+    paymentExpiryTime: paymentExpiryTime || null,
+  });
+});
+
+// Lisätään endpoint automaattisen latauksen tilan asettamiseen
+app.post("/api/set-auto-downloaded", (req, res) => {
+  const { sessionId } = req.body;
+
+  if (!sessionId) {
+    return res.status(400).json({ error: "No session ID provided" });
+  }
+
+  autoDownloadStates.add(sessionId);
+  console.log(`Set auto-downloaded state for session ${sessionId}`);
+
+  res.json({ success: true });
+});
+
+// Lisätään endpoint kaikkien tietojen resetoimiseen
+app.post("/api/reset-all-data", (req, res) => {
+  const { sessionId } = req.body;
+
+  if (!sessionId) {
+    return res.status(400).json({ error: "No session ID provided" });
+  }
+
+  // Poista kaikki tiedot
+  signatures.delete(sessionId);
+  paidSessions.delete(sessionId);
+  signatureExpiries.delete(sessionId);
+  sessionExpiries.delete(sessionId);
+  autoDownloadStates.delete(sessionId);
+
+  console.log(`Reset all data for session ${sessionId}`);
+
+  res.json({ success: true });
+});
+
 export default app;
