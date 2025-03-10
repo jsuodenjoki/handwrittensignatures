@@ -238,22 +238,35 @@ app.get("/api/check-signatures", (req, res) => {
 
 // Allekirjoitusten luonti
 app.post("/api/create-signatures", (req, res) => {
-  const { name, color } = req.body;
-  console.log(`Creating signatures: name=${name}, color=${color}`);
+  try {
+    const { name, color = "black", sessionId } = req.body;
 
-  if (!name) {
-    return res.status(400).json({ error: "Nimi puuttuu" });
+    if (!name) {
+      return res.status(400).json({ error: "Name is required" });
+    }
+
+    const images = [];
+
+    // Luo allekirjoitus jokaisella fontilla
+    for (const fontStyle of signatureFonts) {
+      const signatureImage = createSignature(name, fontStyle, color);
+      images.push(signatureImage);
+    }
+
+    // Tallenna allekirjoitukset muistiin
+    if (sessionId) {
+      signatures.set(sessionId, {
+        name,
+        images,
+        color,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    res.json({ success: true, images });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to create signatures" });
   }
-
-  const signatureImages = [];
-
-  for (const fontStyle of signatureFonts) {
-    const signatureImage = createSignature(name, fontStyle, color);
-    signatureImages.push(signatureImage);
-  }
-
-  // Palauta kuvat suoraan ilman tallennusta
-  res.json({ images: signatureImages });
 });
 
 // Allekirjoitusten hakeminen
@@ -507,7 +520,7 @@ app.post("/api/create-clean-signatures", (req, res) => {
   res.json({ images: signatureImages });
 });
 
-// Webhook-käsittelijä Stripe-maksun vahvistamiseen
+// Webhook-käsittelijä Stripe-maksuilmoituksille
 app.post("/api/webhook", async (req, res) => {
   const sig = req.headers["stripe-signature"];
   let event;
@@ -519,19 +532,22 @@ app.post("/api/webhook", async (req, res) => {
       process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err) {
-    console.error(`Webhook Error: ${err.message}`);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
+  // Käsittele eri tapahtumatyypit
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
 
-    // Käytä session ID:tä IP-osoitteen sijaan
-    const sessionId = session.metadata.sessionId;
+    // Varmista että maksu on onnistunut
+    if (session.payment_status === "paid") {
+      // Merkitse käyttäjä maksaneeksi
+      // Käytä session ID:tä IP-osoitteen sijaan
+      const sessionId = session.metadata.sessionId;
 
-    if (sessionId) {
-      console.log(`Payment successful for session ID: ${sessionId}`);
-      paidSessions.add(sessionId);
+      if (sessionId) {
+        paidSessions.add(sessionId);
+      }
     }
   }
 
@@ -724,4 +740,22 @@ This email was sent from Signature Generator.`,
     });
   }
 });
+
+// Tarkista onko käyttäjä maksanut
+app.get("/api/check-status", (req, res) => {
+  const sessionId = req.query.sessionId;
+
+  if (!sessionId) {
+    return res.status(400).json({ error: "No session ID provided" });
+  }
+
+  const hasSignatures = signatures.has(sessionId);
+  const hasPaid = paidSessions.has(sessionId);
+
+  res.json({
+    hasSignatures,
+    hasPaid,
+  });
+});
+
 export default app;
