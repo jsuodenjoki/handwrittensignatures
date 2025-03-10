@@ -14,9 +14,7 @@ const stripe = stripePackage(process.env.STRIPE_SECRET_KEY);
 const app = express();
 const signatures = new Map();
 const paidSessions = new Set();
-const sessionExpiries = new Map();
-const signatureExpiries = new Map();
-const autoDownloadStates = new Set();
+const sessionData = new Map(); // Lisätään uusi Map käyttäjätietojen tallentamiseen
 
 // Vaihtoehtoinen Gmail-konfiguraatio
 const transporter = nodemailer.createTransport({
@@ -32,9 +30,7 @@ const transporter = nodemailer.createTransport({
 // Testaa SMTP-yhteyttä käynnistyksen yhteydessä
 transporter.verify(function (error, success) {
   if (error) {
-    console.error("SMTP connection error:", error);
   } else {
-    console.log("SMTP server is ready to take our messages");
   }
 });
 
@@ -54,13 +50,11 @@ const signatureFonts = [];
 try {
   if (fs.existsSync(fontsDir)) {
     const fontFiles = fs.readdirSync(fontsDir);
-    console.log("Available fonts:", fontFiles);
 
     fontFiles.forEach((fontFile) => {
       if (fontFile.endsWith(".ttf")) {
         const fontName = fontFile.replace(".ttf", "").replace(/[-_]/g, " ");
         const fontFamily = fontName.replace(/\s+/g, "");
-        console.log(`Registering font: ${fontFile} named ${fontFamily}`);
         registerFont(path.join(fontsDir, fontFile), { family: fontFamily });
 
         signatureFonts.push({
@@ -76,12 +70,9 @@ try {
         });
       }
     });
-  } else {
-    console.log("Fonts-kansiota ei löydy:", fontsDir);
   }
 
   if (signatureFonts.length === 0) {
-    console.log("No fonts found, using default fonts");
     signatureFonts.push(
       { name: "Arial", font: "40px Arial, sans-serif" },
       { name: "Times New Roman", font: "40px 'Times New Roman', serif" },
@@ -89,7 +80,6 @@ try {
     );
   }
 } catch (error) {
-  console.error("Error loading fonts:", error);
   signatureFonts.push(
     { name: "Arial", font: "40px Arial, sans-serif" },
     { name: "Times New Roman", font: "40px 'Times New Roman', serif" },
@@ -240,10 +230,6 @@ app.get("/api/check-signatures", (req, res) => {
   const hasSignatures = signatures.has(sessionId);
   const hasPaid = paidSessions.has(sessionId);
 
-  console.log(
-    `Checking status for session: ${sessionId}: hasSignatures=${hasSignatures}, hasPaid=${hasPaid}`
-  );
-
   res.json({
     hasSignatures,
     hasPaid,
@@ -253,45 +239,49 @@ app.get("/api/check-signatures", (req, res) => {
 
 // Allekirjoitusten luonti
 app.post("/api/create-signatures", (req, res) => {
-  const { name, color, sessionId } = req.body;
-  console.log(
-    `Creating signatures: name=${name}, color=${color}, sessionId=${sessionId}`
-  );
+  try {
+    const { name, color = "black", sessionId } = req.body;
 
-  if (!name) {
-    return res.status(400).json({ error: "Nimi puuttuu" });
+    if (!name) {
+      return res.status(400).json({ error: "Name is required" });
+    }
+
+    const images = [];
+
+    // Luo allekirjoitus jokaisella fontilla
+    for (const fontStyle of signatureFonts) {
+      const signatureImage = createSignature(name, fontStyle, color);
+      images.push(signatureImage);
+    }
+
+    // Tallenna allekirjoitukset muistiin
+    if (sessionId) {
+      signatures.set(sessionId, {
+        name,
+        images,
+        color,
+        createdAt: new Date().toISOString(),
+      });
+
+      // Aseta allekirjoitusten vanhenemisaika (10 minuuttia)
+      if (!sessionData.has(sessionId)) {
+        sessionData.set(sessionId, new Map());
+      }
+
+      const expiryTime = Date.now() + 10 * 60 * 1000;
+      sessionData.get(sessionId).set("signatureExpiry", expiryTime);
+
+      console.log(
+        `Set signature expiry for session ${sessionId}: ${new Date(
+          expiryTime
+        ).toISOString()}`
+      );
+    }
+
+    res.json({ success: true, images });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to create signatures" });
   }
-
-  const signatureImages = [];
-
-  for (const fontStyle of signatureFonts) {
-    const signatureImage = createSignature(name, fontStyle, color);
-    signatureImages.push(signatureImage);
-  }
-
-  if (sessionId) {
-    signatures.set(sessionId, {
-      name,
-      images: signatureImages,
-      color,
-      createdAt: new Date().toISOString(),
-    });
-
-    const expiryTime = Date.now() + 10 * 60 * 1000;
-    signatureExpiries.set(sessionId, expiryTime);
-
-    console.log(
-      `Saved signatures for session ${sessionId}, expires at ${new Date(
-        expiryTime
-      ).toLocaleTimeString()}`
-    );
-  }
-
-  res.json({
-    success: true,
-    images: signatureImages,
-    expiryTime: sessionId ? signatureExpiries.get(sessionId) : null,
-  });
 });
 
 // Allekirjoitusten hakeminen
@@ -299,25 +289,18 @@ app.get("/api/get-signatures", (req, res) => {
   const sessionId = req.query.sessionId;
 
   if (!sessionId) {
-    return res.status(400).json({ error: "No session ID provided" });
+    return res.status(400).json({ error: "Session ID puuttuu" });
   }
 
-  const expiryTime = signatureExpiries.get(sessionId);
-  const now = Date.now();
+  console.log(`Getting signatures for session: ${sessionId}`);
 
-  if (expiryTime && now > expiryTime) {
-    signatures.delete(sessionId);
-    signatureExpiries.delete(sessionId);
-    return res.json({ hasSignatures: false });
+  if (signatures.has(sessionId)) {
+    console.log(`Found signatures for session: ${sessionId}`);
+    return res.json(signatures.get(sessionId));
   }
 
-  const userSignatures = signatures.get(sessionId);
-
-  res.json({
-    hasSignatures: !!userSignatures,
-    signatures: userSignatures || null,
-    expiryTime: expiryTime || null,
-  });
+  console.log(`No signatures found for session: ${sessionId}`);
+  return res.status(404).json({ error: "No signatures found" });
 });
 
 // Allekirjoitusten lataus
@@ -477,9 +460,15 @@ app.post("/api/reset-user-data", (req, res) => {
     paidSessions.delete(sessionId);
   }
 
+  // Poista myös sessionData
+  if (sessionData.has(sessionId)) {
+    sessionData.delete(sessionId);
+  }
+
   console.log(`Deleted data for session: ${sessionId}`);
   res.json({ success: true, message: "User data deleted." });
 });
+
 // Karusellin allekirjoitusten luonti
 app.post("/api/create-signature-for-carousel", (req, res) => {
   const { name } = req.body;
@@ -552,7 +541,7 @@ app.post("/api/create-clean-signatures", (req, res) => {
   res.json({ images: signatureImages });
 });
 
-// Webhook-käsittelijä Stripe-maksun vahvistamiseen
+// Webhook-käsittelijä Stripe-maksuilmoituksille
 app.post("/api/webhook", async (req, res) => {
   const sig = req.headers["stripe-signature"];
   let event;
@@ -564,27 +553,33 @@ app.post("/api/webhook", async (req, res) => {
       process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err) {
-    console.error(`Webhook Error: ${err.message}`);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
+  // Käsittele eri tapahtumatyypit
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
 
+    // Varmista että maksu on onnistunut
     if (session.payment_status === "paid") {
+      // Merkitse käyttäjä maksaneeksi
       const sessionId = session.metadata.sessionId;
 
       if (sessionId) {
-        console.log(`Payment successful for session ID: ${sessionId}`);
         paidSessions.add(sessionId);
 
+        // Aseta maksun vanhenemisaika (3 minuuttia)
+        if (!sessionData.has(sessionId)) {
+          sessionData.set(sessionId, new Map());
+        }
+
         const expiryTime = Date.now() + 3 * 60 * 1000;
-        sessionExpiries.set(sessionId, expiryTime);
+        sessionData.get(sessionId).set("paymentExpiry", expiryTime);
 
         console.log(
-          `Payment for session ${sessionId} expires at ${new Date(
+          `Payment confirmed for session ${sessionId}, expiry set to ${new Date(
             expiryTime
-          ).toLocaleTimeString()}`
+          ).toISOString()}`
         );
       }
     }
@@ -597,7 +592,6 @@ app.post("/api/webhook", async (req, res) => {
 app.get("/api/get-session-id", (req, res) => {
   // Generoi satunnainen session ID
   const sessionId = generateSessionId();
-  console.log("Generated new session ID:", sessionId);
   res.send(sessionId);
 });
 
@@ -615,10 +609,6 @@ app.post("/api/create-checkout-session", async (req, res) => {
   try {
     const { name } = req.body;
     const sessionId = req.body.sessionId || "unknown";
-
-    console.log(
-      `Creating checkout session for name: ${name}, sessionId: ${sessionId}`
-    );
 
     // Luo Stripe checkout session
     const session = await stripe.checkout.sessions.create({
@@ -645,12 +635,8 @@ app.post("/api/create-checkout-session", async (req, res) => {
       },
     });
 
-    console.log(
-      `Checkout session created: ${session.id}, redirecting to: ${session.url}`
-    );
     res.json({ url: session.url });
   } catch (error) {
-    console.error("Error creating checkout session:", error);
     res.status(500).json({ error: "Failed to create checkout session" });
   }
 });
@@ -660,13 +646,8 @@ app.post("/api/send-email", async (req, res) => {
   try {
     const { email, sessionId, signatures: clientSignatures } = req.body;
 
-    // Käytä session ID:tä IP-osoitteen sijaan
-    console.log(`Sending email to ${email} for session ${sessionId}`);
-
     // Tarkista onko käyttäjällä allekirjoituksia
     const hasSignatures = signatures.has(sessionId);
-
-    console.log(`Session ${sessionId} - hasSignatures: ${hasSignatures}`);
 
     // Jos palvelimella ei ole allekirjoituksia, mutta client lähetti ne, tallenna ne
     if (
@@ -675,7 +656,6 @@ app.post("/api/send-email", async (req, res) => {
       clientSignatures.name &&
       clientSignatures.images
     ) {
-      console.log(`Storing signatures from client for session ${sessionId}`);
       signatures.set(sessionId, {
         name: clientSignatures.name,
         images: clientSignatures.images,
@@ -688,7 +668,6 @@ app.post("/api/send-email", async (req, res) => {
     const userSignatures = signatures.get(sessionId) || clientSignatures;
 
     if (!userSignatures) {
-      console.log(`No signatures found for session ${sessionId}`);
       return res.status(403).json({
         success: false,
         error: "No signatures found",
@@ -705,8 +684,6 @@ app.post("/api/send-email", async (req, res) => {
       );
       cleanSignatures.push(signatureImage);
     }
-
-    console.log(`Created ${cleanSignatures.length} clean signatures for email`);
 
     try {
       // Luo ZIP-tiedosto muistiin
@@ -761,10 +738,8 @@ This email was sent from Signature Generator.`,
             ],
           });
 
-          console.log("Email sent successfully:", info.messageId);
           res.json({ success: true });
         } catch (emailError) {
-          console.error("SMTP Error:", emailError);
           return res.status(500).json({
             success: false,
             error: "Failed to send email via SMTP",
@@ -785,7 +760,6 @@ This email was sent from Signature Generator.`,
       // Viimeistele ZIP-tiedosto
       archive.finalize();
     } catch (emailError) {
-      console.error("Error creating ZIP or sending email:", emailError);
       return res.status(500).json({
         success: false,
         error: "Failed to create ZIP or send email",
@@ -793,7 +767,6 @@ This email was sent from Signature Generator.`,
       });
     }
   } catch (error) {
-    console.error("Error in email handler:", error);
     res.status(500).json({
       success: false,
       error: "Failed to process email request",
@@ -813,76 +786,320 @@ app.get("/api/check-status", (req, res) => {
   const hasSignatures = signatures.has(sessionId);
   const hasPaid = paidSessions.has(sessionId);
 
-  const signatureExpiryTime = signatureExpiries.get(sessionId);
-  const now = Date.now();
-  const signaturesExpired = signatureExpiryTime && now > signatureExpiryTime;
-
-  const paymentExpiryTime = sessionExpiries.get(sessionId);
-  const paymentExpired = paymentExpiryTime && now > paymentExpiryTime;
-
-  if (signaturesExpired) {
-    signatures.delete(sessionId);
-    signatureExpiries.delete(sessionId);
-  }
-
-  if (paymentExpired) {
-    paidSessions.delete(sessionId);
-    sessionExpiries.delete(sessionId);
-  }
-
-  const hasAutoDownloaded = autoDownloadStates.has(sessionId);
-
-  console.log(
-    `Checking status for session: ${sessionId}: hasSignatures=${
-      hasSignatures && !signaturesExpired
-    }, hasPaid=${
-      hasPaid && !paymentExpired
-    }, autoDownloaded=${hasAutoDownloaded}`
-  );
-
   res.json({
-    hasSignatures: hasSignatures && !signaturesExpired,
-    hasPaid: hasPaid && !paymentExpired,
-    canDownload:
-      hasPaid && !paymentExpired && hasSignatures && !signaturesExpired,
-    hasAutoDownloaded,
-    signatureExpiryTime: signatureExpiryTime || null,
-    paymentExpiryTime: paymentExpiryTime || null,
+    hasSignatures,
+    hasPaid,
   });
 });
 
-// Lisätään endpoint automaattisen latauksen tilan asettamiseen
-app.post("/api/set-auto-downloaded", (req, res) => {
-  const { sessionId } = req.body;
+// Uusi reitti käyttäjätietojen tallentamiseen
+app.post("/api/save-user-data", (req, res) => {
+  try {
+    const { sessionId, key, value } = req.body;
 
-  if (!sessionId) {
-    return res.status(400).json({ error: "No session ID provided" });
+    if (!sessionId || !key) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Session ID and key are required" });
+    }
+
+    // Alusta käyttäjän tiedot, jos niitä ei ole vielä
+    if (!sessionData.has(sessionId)) {
+      sessionData.set(sessionId, new Map());
+    }
+
+    // Tallenna arvo
+    sessionData.get(sessionId).set(key, value);
+
+    console.log(
+      `Saved data for session ${sessionId}: ${key} = ${JSON.stringify(value)}`
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error saving user data:", error);
+    res.status(500).json({ success: false, error: "Failed to save user data" });
   }
-
-  autoDownloadStates.add(sessionId);
-  console.log(`Set auto-downloaded state for session ${sessionId}`);
-
-  res.json({ success: true });
 });
 
-// Lisätään endpoint kaikkien tietojen resetoimiseen
-app.post("/api/reset-all-data", (req, res) => {
-  const { sessionId } = req.body;
+// Uusi reitti käyttäjätietojen hakemiseen
+app.get("/api/get-user-data", (req, res) => {
+  try {
+    const { sessionId, key } = req.query;
 
-  if (!sessionId) {
-    return res.status(400).json({ error: "No session ID provided" });
+    if (!sessionId || !key) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Session ID and key are required" });
+    }
+
+    // Tarkista onko käyttäjällä tietoja
+    if (!sessionData.has(sessionId) || !sessionData.get(sessionId).has(key)) {
+      return res.json({ success: true, value: null });
+    }
+
+    // Hae arvo
+    const value = sessionData.get(sessionId).get(key);
+
+    res.json({ success: true, value });
+  } catch (error) {
+    console.error("Error getting user data:", error);
+    res.status(500).json({ success: false, error: "Failed to get user data" });
   }
+});
 
-  // Poista kaikki tiedot
-  signatures.delete(sessionId);
-  paidSessions.delete(sessionId);
-  signatureExpiries.delete(sessionId);
-  sessionExpiries.delete(sessionId);
-  autoDownloadStates.delete(sessionId);
+// Uusi reitti käyttäjätietojen poistamiseen
+app.post("/api/delete-user-data", (req, res) => {
+  try {
+    const { sessionId, key } = req.body;
 
-  console.log(`Reset all data for session ${sessionId}`);
+    if (!sessionId) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Session ID is required" });
+    }
 
-  res.json({ success: true });
+    if (key) {
+      // Poista tietty avain
+      if (sessionData.has(sessionId) && sessionData.get(sessionId).has(key)) {
+        sessionData.get(sessionId).delete(key);
+        console.log(`Deleted data for session ${sessionId}: ${key}`);
+      }
+    } else {
+      // Poista kaikki käyttäjän tiedot
+      sessionData.delete(sessionId);
+      console.log(`Deleted all data for session ${sessionId}`);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting user data:", error);
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to delete user data" });
+  }
+});
+
+// Uusi reitti käyttäjän tilan tarkistamiseen
+app.get("/api/check-user-status", async (req, res) => {
+  try {
+    const { sessionId } = req.query;
+
+    if (!sessionId) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Session ID is required" });
+    }
+
+    // Tarkista onko käyttäjällä allekirjoituksia
+    const hasSignatures = signatures.has(sessionId);
+
+    // Tarkista onko käyttäjä maksanut
+    const hasPaid = paidSessions.has(sessionId);
+
+    // Tarkista onko allekirjoitukset vanhentuneet
+    let isExpired = false;
+
+    if (sessionData.has(sessionId)) {
+      const userData = sessionData.get(sessionId);
+
+      if (userData.has("signatureExpiry")) {
+        const expiryTime = userData.get("signatureExpiry");
+        isExpired = Date.now() > expiryTime;
+      }
+
+      if (userData.has("paymentExpiry") && hasPaid) {
+        const expiryTime = userData.get("paymentExpiry");
+        isExpired = Date.now() > expiryTime;
+      }
+    }
+
+    // Jos tiedot ovat vanhentuneet, poista ne
+    if (isExpired) {
+      if (signatures.has(sessionId)) {
+        signatures.delete(sessionId);
+      }
+
+      if (paidSessions.has(sessionId)) {
+        paidSessions.delete(sessionId);
+      }
+
+      sessionData.delete(sessionId);
+
+      return res.json({
+        success: true,
+        hasSignatures: false,
+        hasPaid: false,
+        isExpired: true,
+      });
+    }
+
+    res.json({
+      success: true,
+      hasSignatures,
+      hasPaid,
+      canDownload: hasSignatures && hasPaid,
+      isExpired,
+    });
+  } catch (error) {
+    console.error("Error checking user status:", error);
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to check user status" });
+  }
+});
+
+// Uusi reitti maksun aikaleiman asettamiseen
+app.post("/api/set-payment-timestamp", (req, res) => {
+  try {
+    const { sessionId } = req.body;
+
+    if (!sessionId) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Session ID is required" });
+    }
+
+    // Aseta maksun aikaleima (3 minuuttia nykyhetkestä)
+    const expiryTime = Date.now() + 3 * 60 * 1000;
+
+    // Alusta käyttäjän tiedot, jos niitä ei ole vielä
+    if (!sessionData.has(sessionId)) {
+      sessionData.set(sessionId, new Map());
+    }
+
+    // Tallenna aikaleima
+    sessionData.get(sessionId).set("paymentExpiry", expiryTime);
+
+    console.log(
+      `Set payment expiry for session ${sessionId}: ${new Date(
+        expiryTime
+      ).toISOString()}`
+    );
+
+    res.json({ success: true, expiryTime });
+  } catch (error) {
+    console.error("Error setting payment timestamp:", error);
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to set payment timestamp" });
+  }
+});
+
+// Uusi reitti allekirjoitusten aikaleiman asettamiseen
+app.post("/api/set-signature-expiry", (req, res) => {
+  try {
+    const { sessionId } = req.body;
+
+    if (!sessionId) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Session ID is required" });
+    }
+
+    // Aseta allekirjoitusten aikaleima (10 minuuttia nykyhetkestä)
+    const expiryTime = Date.now() + 10 * 60 * 1000;
+
+    // Alusta käyttäjän tiedot, jos niitä ei ole vielä
+    if (!sessionData.has(sessionId)) {
+      sessionData.set(sessionId, new Map());
+    }
+
+    // Tallenna aikaleima
+    sessionData.get(sessionId).set("signatureExpiry", expiryTime);
+
+    console.log(
+      `Set signature expiry for session ${sessionId}: ${new Date(
+        expiryTime
+      ).toISOString()}`
+    );
+
+    res.json({ success: true, expiryTime });
+  } catch (error) {
+    console.error("Error setting signature expiry:", error);
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to set signature expiry" });
+  }
+});
+
+// Uusi reitti maksun tilan päivittämiseen
+app.post("/api/update-payment-status", (req, res) => {
+  try {
+    const { sessionId, isPaid } = req.body;
+
+    if (!sessionId) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Session ID is required" });
+    }
+
+    // Päivitä maksun tila
+    if (isPaid) {
+      paidSessions.add(sessionId);
+
+      // Aseta maksun vanhenemisaika (3 minuuttia)
+      if (!sessionData.has(sessionId)) {
+        sessionData.set(sessionId, new Map());
+      }
+
+      const expiryTime = Date.now() + 3 * 60 * 1000;
+      sessionData.get(sessionId).set("paymentExpiry", expiryTime);
+
+      console.log(
+        `Payment status updated for session ${sessionId}, expiry set to ${new Date(
+          expiryTime
+        ).toISOString()}`
+      );
+    } else {
+      paidSessions.delete(sessionId);
+
+      // Poista maksun vanhenemisaika
+      if (sessionData.has(sessionId)) {
+        sessionData.get(sessionId).delete("paymentExpiry");
+      }
+
+      console.log(`Payment status removed for session ${sessionId}`);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error updating payment status:", error);
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to update payment status" });
+  }
+});
+
+// Uusi reitti maksun vanhenemisajan hakemiseen
+app.get("/api/get-payment-expiry", (req, res) => {
+  try {
+    const { sessionId } = req.query;
+
+    if (!sessionId) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Session ID is required" });
+    }
+
+    // Tarkista onko käyttäjällä tietoja
+    if (
+      !sessionData.has(sessionId) ||
+      !sessionData.get(sessionId).has("paymentExpiry")
+    ) {
+      return res.json({ success: true, expiryTime: null });
+    }
+
+    // Hae vanhenemisaika
+    const expiryTime = sessionData.get(sessionId).get("paymentExpiry");
+
+    res.json({ success: true, expiryTime });
+  } catch (error) {
+    console.error("Error getting payment expiry:", error);
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to get payment expiry" });
+  }
 });
 
 export default app;

@@ -243,42 +243,7 @@
         display: none;
       }
 
-      /* Karusellityylit */
-      .carousel {
-        width: 100%;
-        max-width: 600px;
-        height: 150px;
-        margin: 0 auto;
-        position: relative;
-        overflow: hidden;
-        margin-bottom: 30px;
-      }
-
-      .carousel-item {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        opacity: 0;
-        transition: opacity 0.5s ease-in-out;
-      }
-
-      .carousel-item.active {
-        opacity: 1;
-      }
-
-      .carousel-item img {
-        max-width: 100%;
-        max-height: 100%;
-        border-radius: 8px;
-      }
-
-      /* Responsiiviset tyylit */
-      @media (max-width: 768px) {
+      @media (max-width: 900px) {
         .gradient-bg {
           top: -10%;
           height: 50vh;
@@ -468,19 +433,19 @@
     <h1>Handwritten Signature Generator</h1>
     <p>Generate beautiful handwritten signatures easily</p>
 
-    <!-- Karuselli esimerkkiallekirjoituksille -->
-    <div id="signatureCarousel" class="carousel"></div>
+    <!-- Lisätään allekirjoituskaruselli -->
+    <div class="signature-carousel-container">
+      <div class="signature-carousel">
+        <!-- Karusellin sisältö täytetään JavaScriptillä -->
+      </div>
+    </div>
 
     <div class="container">
-      <h1>Signature Generator</h1>
-      <p>Create beautiful handwritten signatures in seconds</p>
-
       <div class="input-group">
         <input
           type="text"
           id="nameInput"
-          placeholder="Enter your name"
-          required
+          placeholder="Write your name here..."
         />
       </div>
 
@@ -536,7 +501,9 @@
 
     <script>
       const API_URL =
-        window.location.hostname === "localhost" ? "http://localhost:3000" : "";
+        window.location.hostname === "localhost"
+          ? "http://localhost:3000"
+          : window.location.origin;
 
       console.log("API_URL asetettu:", API_URL);
 
@@ -597,7 +564,7 @@
         "Oliver Green",
       ];
 
-      // Hae session ID
+      // Muutetaan funktioiden nimet vastaamaan niiden toimintaa
       async function saveSessionId() {
         try {
           // Tarkista onko sessionId jo olemassa
@@ -610,8 +577,10 @@
             localStorage.setItem("sessionId", sessionId);
           }
 
+          console.log("Session ID saved to localStorage:", sessionId);
           return sessionId;
         } catch (error) {
+          console.error("Error saving session ID:", error);
           return null;
         }
       }
@@ -619,74 +588,682 @@
       // Hae tallennettu session ID tai hae uusi
       async function getSessionId() {
         let sessionId = localStorage.getItem("sessionId");
-
         if (!sessionId) {
           sessionId = await saveSessionId();
         }
-
         return sessionId;
       }
 
-      // Tallenna allekirjoitukset localStorageen
-      function saveSignaturesToLocal(name, images, color) {
-        localStorage.setItem(
-          "signatures",
-          JSON.stringify({
-            name,
-            images,
-            color,
-            createdAt: new Date().toISOString(),
-          })
-        );
+      // Tallenna maksutila
+      async function savePaymentStatus(isPaid) {
+        try {
+          const sessionId = await getSessionId();
+
+          // Lähetä pyyntö palvelimelle maksun tilan päivittämiseksi
+          const response = await fetch(`${API_URL}/api/update-payment-status`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ sessionId, isPaid }),
+          });
+
+          const data = await response.json();
+
+          if (!data.success) {
+            throw new Error("Failed to update payment status");
+          }
+
+          console.log("Payment status updated on server");
+
+          // Jos maksu on suoritettu, aseta maksun vanhenemisaika
+          if (isPaid) {
+            await setPaymentTimestamp();
+          }
+        } catch (error) {
+          console.error("Error saving payment status:", error);
+        }
       }
 
-      // Hae allekirjoitukset localStoragesta
-      function getSignaturesFromLocal() {
-        const signatures = localStorage.getItem("signatures");
-        return signatures ? JSON.parse(signatures) : null;
+      // Hae maksutila
+      async function getPaymentStatus() {
+        try {
+          const sessionId = await getSessionId();
+
+          // Hae käyttäjän tila palvelimelta
+          const response = await fetch(
+            `${API_URL}/api/check-user-status?sessionId=${sessionId}`
+          );
+          const data = await response.json();
+
+          if (!data.success) {
+            throw new Error("Failed to check payment status");
+          }
+
+          return data.hasPaid;
+        } catch (error) {
+          console.error("Error getting payment status:", error);
+          return false;
+        }
       }
 
-      // Tarkista sovelluksen tila
+      // Tarkista onko maksu vanhentunut
+      async function isPaymentExpired() {
+        try {
+          const sessionId = await getSessionId();
+
+          // Hae käyttäjän tila palvelimelta
+          const response = await fetch(
+            `${API_URL}/api/check-user-status?sessionId=${sessionId}`
+          );
+          const data = await response.json();
+
+          if (!data.success) {
+            throw new Error("Failed to check payment expiry");
+          }
+
+          return data.isExpired;
+        } catch (error) {
+          console.error("Error checking payment expiry:", error);
+          return false;
+        }
+      }
+
+      // Tarkista maksun tila sivun latautuessa
+      async function checkPaymentStatus() {
+        try {
+          // Tarkista onko maksu vanhentunut
+          const sessionId = await getSessionId();
+          const response = await fetch(
+            `${API_URL}/api/check-user-status?sessionId=${sessionId}`
+          );
+          const data = await response.json();
+
+          if (!data.success) {
+            throw new Error("Failed to check user status");
+          }
+
+          // Jos tiedot ovat vanhentuneet, resetoi kaikki
+          if (data.isExpired) {
+            console.log("⏰ Data expired, deleting data...");
+            await resetAllData();
+            return;
+          }
+
+          if (getQueryParam("success") === "true") {
+            console.log("✅ Payment successful, checking status...");
+
+            // Tarkista tila palvelimelta
+            const paymentResponse = await fetch(
+              `${API_URL}/api/check-payment/${sessionId}`
+            );
+            const paymentData = await paymentResponse.json();
+
+            if (paymentData.success && paymentData.status === "paid") {
+              console.log("Payment confirmed by server");
+
+              // Tarkista tila heti
+              await checkStatus(true);
+            }
+          } else if (getQueryParam("canceled") === "true") {
+            console.log("❌ Payment canceled.");
+            statusMessage.textContent = "Payment canceled.";
+          }
+        } catch (error) {
+          console.error("Error checking payment status:", error);
+        }
+      }
+
+      // Funktio ajastimen päivittämiseen
+      async function updateResetTimer() {
+        try {
+          const sessionId = await getSessionId();
+
+          // Hae käyttäjän tila palvelimelta
+          const response = await fetch(
+            `${API_URL}/api/check-user-status?sessionId=${sessionId}`
+          );
+          const data = await response.json();
+
+          if (!data.success || !data.hasPaid) {
+            resetTimer.textContent =
+              "Data will be automatically deleted in 3:00 minutes";
+            return;
+          }
+
+          // Hae maksun vanhenemisaika
+          const expiryResponse = await fetch(
+            `${API_URL}/api/get-payment-expiry?sessionId=${sessionId}`
+          );
+          const expiryData = await expiryResponse.json();
+
+          if (!expiryData.success || !expiryData.expiryTime) {
+            resetTimer.textContent =
+              "Data will be automatically deleted in 3:00 minutes";
+            return;
+          }
+
+          const now = Date.now();
+          const timeLeft = Math.max(0, expiryData.expiryTime - now);
+
+          // Muunna millisekunnit minuuteiksi ja sekunneiksi
+          const minutes = Math.floor(timeLeft / 60000);
+          const seconds = Math.floor((timeLeft % 60000) / 1000);
+
+          resetTimer.textContent = `Data will be automatically deleted in ${minutes}:${
+            seconds < 10 ? "0" : ""
+          }${seconds} minutes`;
+
+          if (timeLeft <= 0) {
+            clearInterval(resetTimerInterval);
+            resetAllData();
+          }
+        } catch (error) {
+          console.error("Error updating reset timer:", error);
+        }
+      }
+
+      // Tarkista onko automaattinen lataus jo suoritettu
+      async function hasAutoDownloaded() {
+        try {
+          const sessionId = await getSessionId();
+
+          const response = await fetch(
+            `${API_URL}/api/get-user-data?sessionId=${sessionId}&key=hasAutoDownloaded`
+          );
+          const data = await response.json();
+
+          return data.success && data.value === true;
+        } catch (error) {
+          console.error("Error checking auto download status:", error);
+          return false;
+        }
+      }
+
+      // Merkitse automaattinen lataus suoritetuksi
+      async function markAutoDownloaded() {
+        try {
+          const sessionId = await getSessionId();
+
+          await fetch(`${API_URL}/api/save-user-data`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              sessionId,
+              key: "hasAutoDownloaded",
+              value: true,
+            }),
+          });
+        } catch (error) {
+          console.error("Error marking auto download:", error);
+        }
+      }
+
+      // Muokataan checkStatus-funktiota käyttämään vain palvelinpuolen tarkistuksia
       async function checkStatus(forceCheck = false) {
         try {
           const sessionId = await getSessionId();
 
-          // Hae tila palvelimelta
+          // Hae käyttäjän tila palvelimelta
           const response = await fetch(
-            `${API_URL}/api/check-status?sessionId=${sessionId}`
+            `${API_URL}/api/check-user-status?sessionId=${sessionId}`
           );
+          const data = await response.json();
 
-          if (!response.ok) {
-            throw new Error("Failed to check status");
+          if (!data.success) {
+            throw new Error("Failed to check user status");
           }
 
-          const status = await response.json();
+          // Jos tiedot ovat vanhentuneet, resetoi kaikki
+          if (data.isExpired) {
+            console.log("Data expired, resetting...");
+            await resetAllData();
+            return null;
+          }
 
-          // Päivitä käyttöliittymä tilan mukaan
-          updateUI(status);
+          console.log("Status updated:", data);
 
-          // Jos käyttäjä on maksanut ja allekirjoitukset ovat olemassa, näytä latausnappi
-          if (status.canDownload) {
-            downloadAgainContainer.classList.remove("hidden");
+          if (data.hasSignatures) {
+            if (data.hasPaid && data.canDownload) {
+              console.log(
+                "Payment confirmed, signatures available for download"
+              );
+              statusMessage.textContent =
+                "Payment successful! Signatures available for download.";
+              statusMessage.style.color = "#4CAF50"; // Vihreä väri
+              buyButton.style.display = "none";
 
-            // Jos ei ole vielä ladattu automaattisesti ja forceCheck on true (maksu juuri tehty)
-            if (!status.hasAutoDownloaded && forceCheck) {
-              await downloadSignatures();
+              // Näytä "Lataa uudelleen" -nappi
+              downloadAgainContainer.style.display = "block";
 
-              // Merkitse automaattinen lataus tehdyksi
-              await fetch(`${API_URL}/api/set-auto-downloaded`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  sessionId,
-                }),
-              });
+              // Näytä sähköpostikenttä
+              emailContainer.style.display = "block";
+
+              // Näytä reset-container ja käynnistä ajastin
+              resetContainer.style.display = "block";
+
+              // Käynnistä ajastin vain jos sitä ei ole jo käynnistetty
+              if (!resetTimerInterval) {
+                resetTimeLeft = 180; // 3 minuuttia
+                await updateResetTimer(); // Päivitä heti kerran
+                resetTimerInterval = setInterval(updateResetTimer, 1000);
+              }
+
+              // Tarkista onko automaattinen lataus jo suoritettu
+              const autoDownloaded = await hasAutoDownloaded();
+
+              if (forceCheck && !autoDownloaded) {
+                // Merkitse automaattinen lataus suoritetuksi
+                await markAutoDownloaded();
+
+                // Viive ennen latausta, jotta käyttäjä näkee viestin
+                setTimeout(() => {
+                  downloadSignatures();
+                }, 1000);
+              }
+            } else {
+              // Näytä viesti vain jos käyttäjä on luonut allekirjoitukset
+              if (signaturesContainer.innerHTML.trim() !== "") {
+                statusMessage.textContent = "Signatures created!";
+                statusMessage.style.color = "#6e8efb"; // Sininen väri
+                buyButton.style.display = "inline-block";
+
+                // Piilota "Lataa uudelleen" -nappi ja reset-container
+                downloadAgainContainer.style.display = "none";
+                resetContainer.style.display = "none";
+
+                // Pysäytä ajastin
+                if (resetTimerInterval) {
+                  clearInterval(resetTimerInterval);
+                  resetTimerInterval = null;
+                }
+              }
+            }
+          } else {
+            // Ei allekirjoituksia, piilota ostonappi
+            buyButton.style.display = "none";
+            statusMessage.textContent = "";
+
+            // Piilota "Lataa uudelleen" -nappi ja reset-container
+            downloadAgainContainer.style.display = "none";
+            resetContainer.style.display = "none";
+
+            // Pysäytä ajastin
+            if (resetTimerInterval) {
+              clearInterval(resetTimerInterval);
+              resetTimerInterval = null;
             }
           }
+
+          return data;
         } catch (error) {
           console.error("Error checking status:", error);
+          return null;
+        }
+      }
+
+      // Luo allekirjoitukset karuselliin
+      async function initializeCarousel() {
+        // Tyhjennä karuselli
+        signatureCarousel.innerHTML = "";
+
+        // Odota että fontit on ladattu
+        await document.fonts.ready;
+
+        // Varmista että käyttäjän IP on tallennettu
+        await getSessionId();
+
+        console.log("Initializing carousel using static images");
+
+        // Luo esimerkkiallekirjoitukset ja lisää ne karuselliin
+        const signatures = [];
+
+        // Käytä staattisia kuvia
+        try {
+          // Käytä kaikkia 26 kuvaa
+          const totalImages = 26;
+
+          for (let i = 0; i < totalImages; i++) {
+            // Käytä exampleNames-taulukon nimiä, jos saatavilla, muuten käytä geneerisiä nimiä
+            const name =
+              i < exampleNames.length ? exampleNames[i] : `Esimerkki ${i + 1}`;
+
+            // Käytä staattista kuvaa
+            const imagePath = `/signatures/handwritten_signature_generator_example_${
+              i + 1
+            }.png`;
+
+            signatures.push({
+              name,
+              image: imagePath,
+              font: "Oma Fontti",
+            });
+          }
+
+          // Jos ei saatu yhtään allekirjoitusta, näytä virheilmoitus
+          if (signatures.length === 0) {
+            const message = document.createElement("div");
+            message.className = "carousel-item";
+            message.textContent = "Failed to load example signatures.";
+            signatureCarousel.appendChild(message);
+            return;
+          }
+
+          console.log(`Loaded ${signatures.length} example signatures`);
+
+          // Lisää allekirjoitukset karuselliin
+          for (const signature of signatures) {
+            const carouselItem = document.createElement("div");
+            carouselItem.className = "carousel-item";
+            carouselItem.dataset.name = signature.name;
+
+            // Luo div-elementti kuvan ympärille keskitystä varten
+            const imgContainer = document.createElement("div");
+            imgContainer.style.width = "100%";
+            imgContainer.style.height = "100%";
+            imgContainer.style.display = "flex";
+            imgContainer.style.alignItems = "center";
+            imgContainer.style.justifyContent = "center";
+
+            const img = document.createElement("img");
+            img.src = signature.image;
+            img.alt = `${signature.name} signature (${signature.font})`;
+            img.style.maxWidth = "100%";
+            img.style.maxHeight = "100%";
+            img.style.objectFit = "contain";
+
+            imgContainer.appendChild(img);
+            carouselItem.appendChild(imgContainer);
+            signatureCarousel.appendChild(carouselItem);
+          }
+
+          // Lisää samat allekirjoitukset uudelleen, jotta karuselli näyttää jatkuvalta
+          for (const signature of signatures) {
+            const carouselItem = document.createElement("div");
+            carouselItem.className = "carousel-item";
+            carouselItem.dataset.name = signature.name;
+
+            // Luo div-elementti kuvan ympärille keskitystä varten
+            const imgContainer = document.createElement("div");
+            imgContainer.style.width = "100%";
+            imgContainer.style.height = "100%";
+            imgContainer.style.display = "flex";
+            imgContainer.style.alignItems = "center";
+            imgContainer.style.justifyContent = "center";
+            imgContainer.style.opacity = "0.5";
+
+            const img = document.createElement("img");
+            img.src = signature.image;
+            img.alt = `Handwritten signature genetator example with the name of ${signature.name}`;
+            img.style.maxWidth = "100%";
+            img.style.maxHeight = "100%";
+            img.style.objectFit = "contain";
+
+            imgContainer.appendChild(img);
+            carouselItem.appendChild(imgContainer);
+            signatureCarousel.appendChild(carouselItem);
+          }
+
+          // Käynnistä karusellin animaatio
+          startCarouselAnimation();
+        } catch (error) {
+          console.error("Virhe karusellin alustuksessa:", error);
+          const message = document.createElement("div");
+          message.className = "carousel-item";
+          message.textContent = "Error loading example signatures.";
+          signatureCarousel.appendChild(message);
+        }
+      }
+
+      // Karusellin animaatio
+      let carouselPosition = 0;
+      let carouselAnimationId;
+      let isResetting = false;
+
+      function startCarouselAnimation() {
+        if (carouselAnimationId) {
+          cancelAnimationFrame(carouselAnimationId);
+        }
+
+        const items = signatureCarousel.querySelectorAll(".carousel-item");
+        const totalItems = items.length;
+        const visibleItems = 3; // Näkyvien elementtien määrä
+        const itemWidth = 280; // Elementin leveys + marginaali
+        const duration = 60000; // Koko kierroksen kesto millisekunteina
+        const step = ((itemWidth * exampleNames.length) / duration) * 16.7; // Siirtymä per frame
+        const containerWidth = document.querySelector(
+          ".signature-carousel-container"
+        ).offsetWidth;
+
+        // Aseta alkuposition niin, että ensimmäinen elementti on näkyvissä
+        carouselPosition = 0;
+
+        function animateCarousel() {
+          if (!isResetting) {
+            carouselPosition -= step;
+
+            // Kun karuselli on liikkunut tarpeeksi, valmistele paluu alkuun
+            if (carouselPosition <= -itemWidth * exampleNames.length) {
+              isResetting = true;
+
+              // Poista transition väliaikaisesti
+              signatureCarousel.style.transition = "none";
+
+              // Aseta timeout, jotta transition-muutos ehtii vaikuttaa
+              setTimeout(() => {
+                // Nollaa positio
+                carouselPosition = 0;
+                signatureCarousel.style.transform = `translate3d(${carouselPosition}px, 0, 0)`;
+
+                // Palauta transition pienen viiveen jälkeen
+                setTimeout(() => {
+                  signatureCarousel.style.transition = "transform 0.5s ease";
+                  isResetting = false;
+                }, 20);
+              }, 20);
+            }
+          }
+
+          // Päivitä karusellin sijainti
+          if (!isResetting) {
+            signatureCarousel.style.transform = `translate3d(${carouselPosition}px, 0, 0)`;
+
+            // Päivitä elementtien läpinäkyvyys sijainnin perusteella
+            updateItemsOpacity(containerWidth);
+          }
+
+          carouselAnimationId = requestAnimationFrame(animateCarousel);
+        }
+
+        carouselAnimationId = requestAnimationFrame(animateCarousel);
+      }
+
+      // Optimoi updateItemsOpacity-funktiota
+      function updateItemsOpacity(containerWidth) {
+        const items = signatureCarousel.querySelectorAll(".carousel-item");
+        const fadeZone = 150;
+        const isMobile = window.innerWidth <= 900;
+
+        // Käytä requestAnimationFrame optimoimaan animaatiot
+        requestAnimationFrame(() => {
+          // Poista active-luokka kaikilta
+          items.forEach((item) => item.classList.remove("active"));
+
+          items.forEach((item) => {
+            const rect = item.getBoundingClientRect();
+            const containerRect =
+              signatureCarousel.parentElement.getBoundingClientRect();
+
+            // Laske keskikohta
+            const itemCenter = rect.left + rect.width / 2;
+            const containerCenter =
+              containerRect.left + containerRect.width / 2;
+            const distanceFromCenter = Math.abs(itemCenter - containerCenter);
+
+            // Oletusarvot
+            let opacity = 1;
+            let scale = 1;
+
+            // Jos mobiili, käytä yksinkertaisempaa logiikkaa
+            if (isMobile) {
+              // Vähennä animaatioiden määrää mobiilissa
+              // Käytä vain kolmea tilaa: aktiivinen, lähellä, kaukana
+              if (distanceFromCenter < rect.width / 2) {
+                // Keskellä oleva elementti
+                item.classList.add("active");
+                opacity = 1;
+                scale = 1.05;
+              } else if (distanceFromCenter < rect.width * 1.5) {
+                // Lähellä keskustaa olevat elementit
+                opacity = 0.6;
+                scale = 0.95;
+              } else {
+                // Kaukana olevat elementit
+                opacity = 0.3;
+                scale = 0.9;
+              }
+            } else {
+              // Työpöytäversio
+              const distanceFromLeft = rect.left - containerRect.left;
+              const distanceFromRight = containerRect.right - rect.right;
+
+              if (distanceFromLeft < fadeZone) {
+                opacity = distanceFromLeft / fadeZone;
+                scale = 0.9 + 0.1 * opacity;
+              } else if (distanceFromRight < fadeZone) {
+                opacity = distanceFromRight / fadeZone;
+                scale = 0.9 + 0.1 * opacity;
+              }
+            }
+
+            // Rajoita läpinäkyvyys välille 0.1-1 ja aseta se
+            opacity = Math.max(0.1, Math.min(1, opacity));
+
+            // Käytä transform: translate3d() hardware-acceleration varten
+            item.style.opacity = opacity;
+            item.style.transform = `translate3d(0,0,0) scale(${scale})`;
+          });
+        });
+      }
+
+      // Tallenna allekirjoitukset localStorageen
+      async function saveSignaturesToLocal(name, images, color) {
+        try {
+          const sessionId = await getSessionId();
+
+          // Tallenna allekirjoitukset palvelimelle
+          await saveUserData("signatures", {
+            name,
+            images,
+            color,
+            createdAt: new Date().toISOString(),
+          });
+
+          console.log("Signatures saved to server with color:", color);
+
+          // Aseta allekirjoitusten vanhenemisaika
+          await setSignatureExpiry();
+        } catch (error) {
+          console.error("Error saving signatures:", error);
+        }
+      }
+
+      // Hae allekirjoitukset localStoragesta
+      async function getSignaturesFromLocal() {
+        try {
+          return await getUserData("signatures");
+        } catch (error) {
+          console.error("Error getting signatures:", error);
+          return null;
+        }
+      }
+
+      // Lisää tämä funktio allekirjoitusten vanhenemisajan asettamiseksi
+      async function setSignatureExpiry() {
+        try {
+          const sessionId = await getSessionId();
+
+          const response = await fetch(`${API_URL}/api/set-signature-expiry`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ sessionId }),
+          });
+
+          const data = await response.json();
+          return data.success;
+        } catch (error) {
+          console.error("Error setting signature expiry:", error);
+          return false;
+        }
+      }
+
+      // Muokataan createSignatures-funktiota
+      async function createSignatures() {
+        const name = nameInput.value.trim();
+        const color = document.querySelector(
+          'input[name="color"]:checked'
+        ).value;
+
+        if (!name) {
+          alert("Write your name first!");
+          return;
+        }
+
+        // Näytä latausviesti
+        statusMessage.textContent = "Creating signatures...";
+        statusMessage.style.color = "#6e8efb"; // Sininen väri
+
+        try {
+          const sessionId = await getSessionId();
+
+          // Luo allekirjoitukset
+          const response = await fetch(`${API_URL}/api/create-signatures`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ name, color, sessionId }),
+          });
+
+          const data = await response.json();
+
+          // Varmista että signaturesContainer-elementti saa oikean tyylin
+          signaturesContainer.classList.add("signatures-container");
+
+          if (data.images && data.images.length > 0) {
+            // Tyhjennä aiemmat allekirjoitukset
+            signaturesContainer.innerHTML = "";
+
+            // Lisää uudet allekirjoitukset
+            data.images.forEach((image, index) => {
+              const signatureDiv = document.createElement("div");
+              signatureDiv.className = "signature-item";
+
+              const img = document.createElement("img");
+              img.src = image;
+              img.alt = `Signature ${index + 1}`;
+              img.style.maxWidth = "100%";
+              img.style.height = "auto";
+
+              signatureDiv.appendChild(img);
+              signaturesContainer.appendChild(signatureDiv);
+            });
+
+            // Näytä ostonappi
+            buyButton.style.display = "inline-block";
+
+            // Näytä viesti
+            statusMessage.textContent = "Signatures created successfully!";
+            statusMessage.style.color = "#4CAF50"; // Vihreä väri
+          }
+        } catch (error) {
+          console.error("Error creating signatures:", error);
+          statusMessage.textContent = "Error creating signatures.";
+          statusMessage.style.color = "#f44336"; // Punainen väri
         }
       }
 
@@ -694,7 +1271,7 @@
       async function downloadSignatures() {
         try {
           // Hae allekirjoitukset localStoragesta
-          const signatures = getSignaturesFromLocal();
+          const signatures = await getSignaturesFromLocal();
 
           if (!signatures || !signatures.images || !signatures.images.length) {
             throw new Error("No signatures found in localStorage");
@@ -767,150 +1344,143 @@
       }
 
       // Muokataan checkExistingSignatures-funktiota
-      function checkExistingSignatures() {
-        const signatures = getSignaturesFromLocal();
-
-        if (signatures && signatures.images && signatures.images.length > 0) {
-          console.log("Found existing signatures:", signatures);
-
-          // Näytä allekirjoitukset
-          signaturesContainer.innerHTML = "";
-          signatures.images.forEach((imageData) => {
-            const signatureItem = document.createElement("div");
-            signatureItem.className = "signature-item";
-
-            const img = document.createElement("img");
-            img.src = imageData;
-            img.alt = `${signatures.name} signature`;
-
-            signatureItem.appendChild(img);
-            signaturesContainer.appendChild(signatureItem);
-          });
-
-          // Täytä nimi-kenttä
-          nameInput.value = signatures.name;
-
-          // Aseta tallennettu väri
-          if (signatures.color) {
-            // Etsi oikea värivaihtoehto ja valitse se
-            const colorRadio = document.querySelector(
-              `input[name="color"][value="${signatures.color}"]`
-            );
-            if (colorRadio) {
-              colorRadio.checked = true;
-            }
-          }
-
-          // Tarkista tila uudelleen
-          checkStatus();
-
-          return true;
-        }
-
-        return false;
-      }
-
-      // Luo allekirjoitukset
-      async function createSignatures() {
-        const name = nameInput.value.trim();
-        const color = document.querySelector(
-          'input[name="color"]:checked'
-        ).value;
-
-        if (!name) {
-          alert("Write your name first!");
-          return;
-        }
-
-        // Näytä latausviesti
-        statusMessage.textContent = "Creating signatures...";
-        statusMessage.style.color = "#6e8efb"; // Sininen väri
-
+      async function checkExistingSignatures() {
         try {
-          // Luo allekirjoitukset
-          const sessionId = await getSessionId();
-          const response = await fetch(`${API_URL}/api/create-signatures`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ name, color, sessionId }),
-          });
+          const signatures = await getSignaturesFromLocal();
 
-          const data = await response.json();
+          if (signatures && signatures.images && signatures.images.length > 0) {
+            console.log("Found existing signatures:", signatures);
 
-          // Varmista että signaturesContainer-elementti saa oikean tyylin
-          signaturesContainer.classList.add("signatures-container");
-
-          if (data.images && data.images.length > 0) {
-            // Tyhjennä aiemmat allekirjoitukset
+            // Näytä allekirjoitukset
             signaturesContainer.innerHTML = "";
-
-            // Lisää uudet allekirjoitukset
-            data.images.forEach((image, index) => {
-              const signatureDiv = document.createElement("div");
-              signatureDiv.className = "signature-item";
+            signatures.images.forEach((imageData) => {
+              const signatureItem = document.createElement("div");
+              signatureItem.className = "signature-item";
 
               const img = document.createElement("img");
-              img.src = image;
-              img.alt = `Signature ${index + 1}`;
-              img.style.maxWidth = "100%";
-              img.style.height = "auto";
+              img.src = imageData;
+              img.alt = `${signatures.name} signature`;
 
-              signatureDiv.appendChild(img);
-              signaturesContainer.appendChild(signatureDiv);
+              signatureItem.appendChild(img);
+              signaturesContainer.appendChild(signatureItem);
             });
 
-            // Tallenna allekirjoitukset localStorageen
-            saveSignaturesToLocal(name, data.images, color);
+            // Täytä nimi-kenttä
+            nameInput.value = signatures.name;
 
-            // Näytä ostonappi
-            buyButton.style.display = "inline-block";
+            // Aseta tallennettu väri
+            if (signatures.color) {
+              // Etsi oikea värivaihtoehto ja valitse se
+              const colorRadio = document.querySelector(
+                `input[name="color"][value="${signatures.color}"]`
+              );
+              if (colorRadio) {
+                colorRadio.checked = true;
+              }
+            }
 
-            // Näytä viesti
-            statusMessage.textContent = "Signatures created successfully!";
-            statusMessage.style.color = "#4CAF50"; // Vihreä väri
+            // Tarkista tila uudelleen
+            await checkStatus();
+
+            return true;
           }
+
+          return false;
         } catch (error) {
-          statusMessage.textContent = "Error creating signatures.";
-          statusMessage.style.color = "#f44336"; // Punainen väri
+          console.error("Error checking existing signatures:", error);
+          return false;
         }
       }
 
-      // Resetoi kaikki data
+      // Muokataan resetAllData-funktiota
       async function resetAllData() {
-        const sessionId = await getSessionId();
-
         try {
-          // Lähetä pyyntö palvelimelle
-          await fetch(`${API_URL}/api/reset-all-data`, {
+          const sessionId = await getSessionId();
+
+          // Poista kaikki tiedot palvelimelta
+          const response = await fetch(`${API_URL}/api/reset-user-data`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({
-              sessionId,
-            }),
+            body: JSON.stringify({ sessionId }),
           });
+
+          // Tyhjennä allekirjoitukset
+          signaturesContainer.innerHTML = "";
+
+          // Tyhjennä nimi
+          nameInput.value = "";
+
+          // Piilota napit ja viestit
+          buyButton.style.display = "none";
+          downloadAgainContainer.style.display = "none";
+          emailContainer.style.display = "none";
+          resetContainer.style.display = "none";
+
+          // Näytä viesti
+          statusMessage.textContent =
+            "Data deleted. Redirecting to homepage...";
+          statusMessage.style.color = "#4CAF50"; // Vihreä väri
+
+          // Pysäytä ajastin
+          if (resetTimerInterval) {
+            clearInterval(resetTimerInterval);
+          }
+
+          // Pieni viive ennen ohjausta etusivulle
+          setTimeout(() => {
+            // Ohjaa käyttäjä etusivulle ja pakota sivu latautumaan uudelleen
+            window.location.href =
+              window.location.origin + window.location.pathname + "?reset=true";
+          }, 1500);
         } catch (error) {
           console.error("Error resetting data:", error);
         }
+      }
 
-        // Poista allekirjoitukset
-        localStorage.removeItem("signatures");
+      // Muokataan createCheckoutSession-funktiota
+      async function createCheckoutSession() {
+        const signatures = await getSignaturesFromLocal();
+        const sessionId = await getSessionId(); // Käytä uutta funktiota
 
-        // Päivitä käyttöliittymä
-        updateUI({ hasSignatures: false, hasPaid: false, canDownload: false });
-
-        // Pysäytä ajastin
-        if (resetTimerInterval) {
-          clearInterval(resetTimerInterval);
-          resetTimerInterval = null;
+        if (!signatures) {
+          alert("Create signatures first!");
+          return;
         }
 
-        // Piilota ajastin
-        resetTimer.classList.add("hidden");
+        try {
+          const response = await fetch(
+            `${API_URL}/api/create-checkout-session`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                name: signatures.name,
+                sessionId: sessionId,
+              }),
+            }
+          );
+
+          const data = await response.json();
+
+          if (data.url) {
+            window.location.href = data.url;
+          } else {
+            throw new Error("Checkout URL missing from response");
+          }
+        } catch (error) {
+          console.error("Error handling payment:", error);
+          alert("Error handling payment.");
+        }
       }
+
+      // Lisää tapahtumankäsittelijä painikkeelle
+      generateSignaturesButton.addEventListener("click", async () => {
+        await createSignatures();
+      });
 
       // Sähköpostin lähetys
       sendEmailButton.addEventListener("click", async () => {
@@ -936,7 +1506,7 @@
               email,
               sessionId,
               // Lisää allekirjoitukset pyyntöön
-              signatures: getSignaturesFromLocal(),
+              signatures: await getSignaturesFromLocal(),
             }),
           });
 
@@ -1019,7 +1589,7 @@
           await initializeCarousel();
 
           // Tarkista onko käyttäjällä jo allekirjoituksia
-          checkExistingSignatures();
+          await checkExistingSignatures();
         } catch (error) {
           console.error("Error loading fonts:", error);
           // Virhetilanteessa alusta karuselli järjestelmäfontilla
@@ -1035,10 +1605,13 @@
       // Käynnistä fonttien lataus ja alustus
       async function initialize() {
         // Tallenna IP-osoite heti alussa
-        await saveSessionId();
+        await getSessionId();
         await loadFontsAndInitialize();
 
         // Tarkista maksun tila ensin
+        await checkPaymentStatus();
+
+        // Tarkista tila vasta kun IP on tallennettu
         await checkStatus();
       }
 
@@ -1049,16 +1622,6 @@
       function getQueryParam(name) {
         const urlParams = new URLSearchParams(window.location.search);
         return urlParams.get(name);
-      }
-
-      // Tarkista maksun tila sivun latautuessa
-      async function checkPaymentStatus() {
-        if (getQueryParam("success") === "true") {
-          // Tarkista tila heti
-          checkStatus(true);
-        } else if (getQueryParam("canceled") === "true") {
-          statusMessage.textContent = "Payment canceled.";
-        }
       }
 
       // Lisää tapahtumankäsittelijä "Lataa uudelleen" -napille
@@ -1075,33 +1638,6 @@
       // Ajastimen muuttujat
       let resetTimerInterval;
       let resetTimeLeft = 180; // 3 minuuttia sekunteina
-
-      // Funktio ajastimen päivittämiseen
-      function updateResetTimer() {
-        // Hae jäljellä oleva aika localStoragesta
-        const expiryTime = localStorage.getItem("paymentExpiry");
-        if (!expiryTime) {
-          resetTimer.textContent =
-            "Data will be automatically deleted in 3:00 minutes";
-          return;
-        }
-
-        const now = Date.now();
-        const timeLeft = Math.max(0, parseInt(expiryTime) - now);
-
-        // Muunna millisekunnit minuuteiksi ja sekunneiksi
-        const minutes = Math.floor(timeLeft / 60000);
-        const seconds = Math.floor((timeLeft % 60000) / 1000);
-
-        resetTimer.textContent = `Data will be automatically deleted in ${minutes}:${
-          seconds < 10 ? "0" : ""
-        }${seconds} minutes`;
-
-        if (timeLeft <= 0) {
-          clearInterval(resetTimerInterval);
-          resetAllData();
-        }
-      }
 
       // Lisää tapahtumankäsittelijä "Luo lisää allekirjoituksia" -napille
       resetButton.addEventListener("click", resetAllData);
@@ -1142,100 +1678,6 @@
           checkStatus();
         }
       });
-
-      // Alusta karuselli
-      async function initializeCarousel() {
-        try {
-          // Tyhjennä karuselli
-          const signatureCarousel =
-            document.getElementById("signatureCarousel");
-          if (!signatureCarousel) return;
-
-          signatureCarousel.innerHTML = "";
-
-          // Luo esimerkkiallekirjoitukset karuselliin
-          exampleNames.forEach((name) => {
-            // Valitse satunnainen fontti
-            const randomFont =
-              signatureFonts[Math.floor(Math.random() * signatureFonts.length)];
-
-            // Luo canvas
-            const canvas = document.createElement("canvas");
-            canvas.width = 250;
-            canvas.height = 100;
-            const ctx = canvas.getContext("2d");
-
-            // Aseta valkoinen tausta
-            ctx.fillStyle = "white";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Aseta fontti
-            ctx.font = randomFont.font;
-            ctx.fillStyle = "black";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-
-            // Piirrä teksti
-            ctx.fillText(name, canvas.width / 2, canvas.height / 2);
-
-            // Luo karusellielementti
-            const carouselItem = document.createElement("div");
-            carouselItem.className = "carousel-item";
-
-            // Luo kuva
-            const img = document.createElement("img");
-            img.src = canvas.toDataURL("image/png");
-            img.alt = name;
-
-            // Lisää kuva karusellielementtiin
-            carouselItem.appendChild(img);
-
-            // Lisää karusellielementti karuselliin
-            signatureCarousel.appendChild(carouselItem);
-          });
-
-          // Käynnistä karuselli
-          startCarousel();
-        } catch (error) {
-          console.error("Error initializing carousel:", error);
-        }
-      }
-
-      // Käynnistä karuselli
-      function startCarousel() {
-        const signatureCarousel = document.getElementById("signatureCarousel");
-        if (!signatureCarousel) return;
-
-        const carouselItems =
-          signatureCarousel.querySelectorAll(".carousel-item");
-        if (carouselItems.length === 0) return;
-
-        let currentIndex = 0;
-
-        // Näytä ensimmäinen elementti
-        carouselItems[0].classList.add("active");
-
-        // Vaihda elementtiä 3 sekunnin välein
-        setInterval(() => {
-          // Piilota nykyinen elementti
-          carouselItems[currentIndex].classList.remove("active");
-
-          // Siirry seuraavaan elementtiin
-          currentIndex = (currentIndex + 1) % carouselItems.length;
-
-          // Näytä seuraava elementti
-          carouselItems[currentIndex].classList.add("active");
-        }, 3000);
-      }
-
-      // Tarkista onko käyttäjällä jo allekirjoituksia
-      function checkExistingSignatures() {
-        const signatures = getSignaturesFromLocal();
-        if (signatures) {
-          // Näytä allekirjoitukset
-          updateUI({ hasSignatures: true, hasPaid: false, canDownload: false });
-        }
-      }
     </script>
   </body>
 </html>
