@@ -368,6 +368,35 @@
       .color-options input[type="radio"]:checked + .color-circle {
         border: 2px solid #6e8efb;
       }
+
+      /* Allekirjoituskontti */
+      .signaturesContainer {
+        background-color: #f5f5f5;
+        border-radius: 8px;
+        padding: 20px;
+        margin-top: 20px;
+        max-width: 100%;
+        overflow: hidden;
+      }
+
+      /* Allekirjoitus */
+      .signature {
+        background-color: white;
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        max-width: 100%;
+        overflow: hidden;
+      }
+
+      /* Varmista että kuvat eivät koskaan mene yli ruudun */
+      .signature img {
+        max-width: 100%;
+        height: auto;
+        display: block;
+        margin: 0 auto;
+      }
     </style>
   </head>
   <body>
@@ -907,11 +936,13 @@
             // Lisää uudet allekirjoitukset
             data.images.forEach((image, index) => {
               const signatureDiv = document.createElement("div");
-              signatureDiv.className = "signature";
+              signatureDiv.className = "signature signaturesContainer";
 
               const img = document.createElement("img");
               img.src = image;
               img.alt = `Signature ${index + 1}`;
+              img.style.maxWidth = "100%";
+              img.style.height = "auto";
 
               signatureDiv.appendChild(img);
               signaturesContainer.appendChild(signatureDiv);
@@ -929,6 +960,9 @@
             // Näytä viesti
             statusMessage.textContent = "Signatures created successfully!";
             statusMessage.style.color = "#4CAF50"; // Vihreä väri
+
+            // Varmista että signaturesContainer-elementti saa oikean tyylin
+            signaturesContainer.classList.add("signaturesContainer");
           }
         } catch (error) {
           console.error("Error creating signatures:", error);
