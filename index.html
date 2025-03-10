@@ -2,10 +2,7 @@
 <html lang="fi">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Allekirjoitusgeneraattori</title>
     <link
       href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap"
@@ -370,29 +367,6 @@
 
       .color-options input[type="radio"]:checked + .color-circle {
         border: 2px solid #6e8efb;
-      }
-
-      /* Lisää nämä tyylit allekirjoituskuville */
-      .signature-image {
-        max-width: 100%;
-        height: auto;
-        display: block;
-        margin: 0 auto;
-      }
-
-      /* Varmista että allekirjoituskontti mukautuu mobiililaitteille */
-      .signature-container {
-        width: 100%;
-        max-width: 600px;
-        margin: 0 auto;
-        padding: 10px;
-        box-sizing: border-box;
-      }
-
-      /* Varmista että kuvat eivät koskaan mene yli ruudun */
-      img {
-        max-width: 100%;
-        height: auto;
       }
     </style>
   </head>
@@ -901,88 +875,65 @@
       // Muokkaa createSignatures-funktiota asettamaan vanhenemisaika
       async function createSignatures() {
         const name = nameInput.value.trim();
+        const color = document.querySelector(
+          'input[name="color"]:checked'
+        ).value;
+
         if (!name) {
-          alert("Please enter your name first!");
+          alert("Write your name first!");
           return;
         }
 
+        // Näytä latausviesti
+        statusMessage.textContent = "Creating signatures...";
+        statusMessage.style.color = "#6e8efb"; // Sininen väri
+
         try {
-          // Näytä latausanimaatio
-          generateSignaturesButton.disabled = true;
-          generateSignaturesButton.textContent = "Creating...";
-          signaturesContainer.innerHTML =
-            '<div class="loading">Creating your signatures...</div>';
-
-          // Hae session ID
-          const sessionId = await getSessionId();
-
-          // Lähetä pyyntö palvelimelle
+          // Luo allekirjoitukset
           const response = await fetch(`${API_URL}/api/create-signatures`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({
-              name,
-              sessionId,
-              color: document.querySelector('input[name="color"]:checked')
-                .value,
-            }),
+            body: JSON.stringify({ name, color }),
           });
-
-          // Palauta nappi normaaliksi
-          generateSignaturesButton.textContent = "Create signatures";
-          generateSignaturesButton.disabled = false;
-
-          if (!response.ok) {
-            throw new Error("Failed to create signatures");
-          }
 
           const data = await response.json();
 
-          if (data.success) {
-            // Tyhjennä allekirjoituskontti
+          if (data.images && data.images.length > 0) {
+            // Tyhjennä aiemmat allekirjoitukset
             signaturesContainer.innerHTML = "";
 
-            // Lisää allekirjoitukset oikeilla CSS-luokilla
-            data.signatures.forEach((signatureUrl, index) => {
+            // Lisää uudet allekirjoitukset
+            data.images.forEach((image, index) => {
               const signatureDiv = document.createElement("div");
-              signatureDiv.className = "signature-container";
+              signatureDiv.className = "signature";
 
               const img = document.createElement("img");
-              img.src = signatureUrl;
+              img.src = image;
               img.alt = `Signature ${index + 1}`;
-              img.className = "signature-image"; // Tärkeä luokka mobiiliyhteensopivuudelle
 
               signatureDiv.appendChild(img);
               signaturesContainer.appendChild(signatureDiv);
             });
 
             // Tallenna allekirjoitukset localStorageen
-            localStorage.setItem(
-              "signatures",
-              JSON.stringify({
-                name,
-                images: data.signatures,
-                color: document.querySelector('input[name="color"]:checked')
-                  .value,
-                createdAt: new Date().toISOString(),
-              })
-            );
+            saveSignaturesToLocal(name, data.images, color);
 
-            // Näytä osto- ja sähköpostipainikkeet
-            buyButton.classList.remove("hidden");
-            emailContainer.classList.remove("hidden");
-            statusMessage.textContent = "Signatures created!";
-            statusMessage.style.color = "#4CAF50";
-          } else {
-            throw new Error(data.error || "Failed to create signatures");
+            // Aseta 10 minuutin vanhenemisaika
+            setSignatureExpiry();
+
+            // Näytä ostonappi
+            buyButton.style.display = "inline-block";
+
+            // Näytä viesti
+            statusMessage.textContent = "Signatures created successfully!";
+            statusMessage.style.color = "#4CAF50"; // Vihreä väri
           }
         } catch (error) {
           console.error("Error creating signatures:", error);
-          signaturesContainer.innerHTML = `<div class="error">Error: ${error.message}</div>`;
           statusMessage.textContent = "Error creating signatures.";
-          statusMessage.style.color = "#f44336";
+          statusMessage.style.color = "#f44336"; // Punainen väri
         }
       }
 
