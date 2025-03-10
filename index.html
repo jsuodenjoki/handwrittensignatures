@@ -933,10 +933,13 @@
             // Tyhjennä aiemmat allekirjoitukset
             signaturesContainer.innerHTML = "";
 
+            // Varmista että signaturesContainer-elementti saa oikean tyylin
+            signaturesContainer.classList.add("signaturesContainer");
+
             // Lisää uudet allekirjoitukset
             data.images.forEach((image, index) => {
               const signatureDiv = document.createElement("div");
-              signatureDiv.className = "signature signaturesContainer";
+              signatureDiv.className = "signature";
 
               const img = document.createElement("img");
               img.src = image;
@@ -960,9 +963,6 @@
             // Näytä viesti
             statusMessage.textContent = "Signatures created successfully!";
             statusMessage.style.color = "#4CAF50"; // Vihreä väri
-
-            // Varmista että signaturesContainer-elementti saa oikean tyylin
-            signaturesContainer.classList.add("signaturesContainer");
           }
         } catch (error) {
           console.error("Error creating signatures:", error);
