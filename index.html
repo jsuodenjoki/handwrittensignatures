@@ -933,13 +933,10 @@
             // Tyhjennä aiemmat allekirjoitukset
             signaturesContainer.innerHTML = "";
 
-            // Varmista että signaturesContainer-elementti saa oikean tyylin
-            signaturesContainer.classList.add("signaturesContainer");
-
             // Lisää uudet allekirjoitukset
             data.images.forEach((image, index) => {
               const signatureDiv = document.createElement("div");
-              signatureDiv.className = "signature";
+              signatureDiv.className = "signature signaturesContainer";
 
               const img = document.createElement("img");
               img.src = image;
