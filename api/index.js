@@ -44,7 +44,7 @@ app.use(express.json());
 const requestLimits = new Map(); // Session ID -> {count: pyyntöjen määrä, timestamp: viimeisin pyyntö}
 const ipLimits = new Map(); // IP-osoite -> {count: pyyntöjen määrä, timestamp: viimeisin pyyntö}
 
-// Middleware käyttörajoitusten tarkistamiseen - TÄRKEÄ: Tämä on ennen reittien määrittelyä
+// Middleware käyttörajoitusten tarkistamiseen
 const rateLimitMiddleware = (req, res, next) => {
   // Ohita webhook-pyynnöt
   if (req.path === "/api/webhook") {
@@ -52,11 +52,19 @@ const rateLimitMiddleware = (req, res, next) => {
   }
 
   const sessionId = req.body.sessionId || req.query.sessionId || "unknown";
-  const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
+
+  // Korjattu IP-osoitteen tunnistus
+  const forwardedFor = req.headers["x-forwarded-for"];
+  const ip = forwardedFor
+    ? forwardedFor.split(",")[0].trim()
+    : req.ip || "unknown";
+
   const now = Date.now();
 
   console.log(
-    `Rate limit check - IP: ${ip}, SessionID: ${sessionId}, Path: ${req.path}`
+    `Rate limit check - Real IP: ${ip}, SessionID: ${sessionId}, Path: ${
+      req.path
+    }, Headers: ${JSON.stringify(req.headers)}`
   );
 
   // Tarkista IP-rajoitukset
@@ -122,49 +130,12 @@ const rateLimitMiddleware = (req, res, next) => {
   next();
 };
 
-// Puhdista vanhat rajoitustiedot säännöllisesti
-setInterval(() => {
-  const now = Date.now();
-
-  // Puhdista session-rajoitukset
-  for (const [sessionId, limit] of requestLimits.entries()) {
-    // Poista yli 2 tuntia vanhat tiedot
-    if (now - limit.timestamp > 2 * 60 * 60 * 1000) {
-      requestLimits.delete(sessionId);
-    }
+// TÄRKEÄÄ: Lisää globaali middleware ENNEN reittejä
+app.use("/api/*", (req, res, next) => {
+  if (req.path === "/api/webhook") {
+    return next();
   }
-
-  // Puhdista IP-rajoitukset
-  for (const [ip, limit] of ipLimits.entries()) {
-    // Poista yli 2 tuntia vanhat tiedot
-    if (now - limit.timestamp > 2 * 60 * 60 * 1000) {
-      ipLimits.delete(ip);
-    }
-  }
-}, 30 * 60 * 1000); // Tarkista 30 minuutin välein
-
-// Lisää tietoturvaotsikot
-app.use((req, res, next) => {
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "DENY");
-  res.setHeader("X-XSS-Protection", "1; mode=block");
-  res.setHeader(
-    "Strict-Transport-Security",
-    "max-age=31536000; includeSubDomains"
-  );
-  next();
-});
-
-// Lisää yksinkertainen lokitus
-app.use((req, res, next) => {
-  const start = Date.now();
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    console.log(
-      `${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms - ${req.ip}`
-    );
-  });
-  next();
+  rateLimitMiddleware(req, res, next);
 });
 
 //4. FONTTIEN REKISTERÖINTI JA HALLINTA
@@ -376,7 +347,7 @@ app.get("/api/check-signatures", (req, res) => {
 });
 
 // Allekirjoitusten luonti
-app.post("/api/create-signatures", rateLimitMiddleware, async (req, res) => {
+app.post("/api/create-signatures", async (req, res) => {
   const { name, color } = req.body;
   console.log(`Creating signatures: name=${name}, color=${color}`);
 
@@ -775,7 +746,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
 });
 
 // Muuta sähköpostin lähetys käyttämään Gmail-palvelinta ja ZIP-tiedostoa
-app.post("/api/send-email", rateLimitMiddleware, async (req, res) => {
+app.post("/api/send-email", async (req, res) => {
   try {
     const { email, sessionId, signatures: clientSignatures } = req.body;
 
@@ -919,14 +890,6 @@ This email was sent from Signature Generator.`,
       details: error.message,
     });
   }
-});
-
-// Lisää tämä middleware kaikkiin API-reitteihin
-app.use("/api/*", (req, res, next) => {
-  if (req.path === "/api/webhook") {
-    return next();
-  }
-  rateLimitMiddleware(req, res, next);
 });
 
 export default app;
