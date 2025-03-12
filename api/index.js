@@ -376,7 +376,7 @@ app.get("/api/check-signatures", (req, res) => {
 });
 
 // Allekirjoitusten luonti
-app.post("/api/create-signatures", (req, res) => {
+app.post("/api/create-signatures", rateLimitMiddleware, async (req, res) => {
   const { name, color } = req.body;
   console.log(`Creating signatures: name=${name}, color=${color}`);
 
@@ -919,6 +919,14 @@ This email was sent from Signature Generator.`,
       details: error.message,
     });
   }
+});
+
+// Lisää tämä middleware kaikkiin API-reitteihin
+app.use("/api/*", (req, res, next) => {
+  if (req.path === "/api/webhook") {
+    return next();
+  }
+  rateLimitMiddleware(req, res, next);
 });
 
 export default app;
