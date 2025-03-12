@@ -795,7 +795,8 @@ This email was sent from Signature Generator.`,
 });
 
 // Lisää käyttörajoitukset API-pyyntöihin
-const requestLimits = new Map(); // IP-osoite -> {count: pyyntöjen määrä, timestamp: viimeisin pyyntö}
+const requestLimits = new Map(); // Session ID -> {count: pyyntöjen määrä, timestamp: viimeisin pyyntö}
+const ipLimits = new Map(); // IP-osoite -> {count: pyyntöjen määrä, timestamp: viimeisin pyyntö}
 
 // Middleware käyttörajoitusten tarkistamiseen
 app.use((req, res, next) => {
@@ -805,33 +806,60 @@ app.use((req, res, next) => {
   }
 
   const sessionId = req.body.sessionId || req.query.sessionId || "unknown";
+  const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
   const now = Date.now();
 
-  // Alusta rajoitustiedot, jos niitä ei ole
+  // Tarkista IP-rajoitukset
+  if (!ipLimits.has(ip)) {
+    ipLimits.set(ip, { count: 0, timestamp: now });
+  }
+
+  const userIpLimit = ipLimits.get(ip);
+
+  // Nollaa IP-laskuri, jos viimeisestä pyynnöstä on kulunut yli tunti
+  if (now - userIpLimit.timestamp > 60 * 60 * 1000) {
+    userIpLimit.count = 0;
+  }
+
+  // Päivitä IP-aikaleima
+  userIpLimit.timestamp = now;
+
+  // Tarkista IP-rajoitus (5 pyyntöä tunnissa)
+  if (userIpLimit.count >= 5) {
+    return res.status(429).json({
+      error: "Too many requests from this IP. Please try again later.",
+      retryAfter: 60, // minuuttia
+    });
+  }
+
+  // Kasvata IP-laskuria
+  userIpLimit.count++;
+
+  // Tarkista session-rajoitukset (alkuperäinen koodi)
   if (!requestLimits.has(sessionId)) {
     requestLimits.set(sessionId, { count: 0, timestamp: now });
   }
 
-  const userLimit = requestLimits.get(sessionId);
+  const userSessionLimit = requestLimits.get(sessionId);
 
-  // Nollaa laskuri, jos viimeisestä pyynnöstä on kulunut yli tunti
-  if (now - userLimit.timestamp > 60 * 60 * 1000) {
-    userLimit.count = 0;
+  // Nollaa session-laskuri, jos viimeisestä pyynnöstä on kulunut yli tunti
+  if (now - userSessionLimit.timestamp > 60 * 60 * 1000) {
+    userSessionLimit.count = 0;
   }
 
-  // Päivitä aikaleima
-  userLimit.timestamp = now;
+  // Päivitä session-aikaleima
+  userSessionLimit.timestamp = now;
 
-  // Tarkista rajoitus (esim. 50 pyyntöä tunnissa)
-  if (userLimit.count >= 5) {
+  // Tarkista session-rajoitus (5 pyyntöä tunnissa)
+  if (userSessionLimit.count >= 5) {
     return res.status(429).json({
       error: "Too many requests. Please try again later.",
       retryAfter: 60, // minuuttia
     });
   }
 
-  // Kasvata laskuria
-  userLimit.count++;
+  // Kasvata session-laskuria
+  userSessionLimit.count++;
 
   next();
 });
@@ -839,10 +867,20 @@ app.use((req, res, next) => {
 // Puhdista vanhat rajoitustiedot säännöllisesti
 setInterval(() => {
   const now = Date.now();
+
+  // Puhdista session-rajoitukset
   for (const [sessionId, limit] of requestLimits.entries()) {
     // Poista yli 2 tuntia vanhat tiedot
     if (now - limit.timestamp > 2 * 60 * 60 * 1000) {
       requestLimits.delete(sessionId);
+    }
+  }
+
+  // Puhdista IP-rajoitukset
+  for (const [ip, limit] of ipLimits.entries()) {
+    // Poista yli 2 tuntia vanhat tiedot
+    if (now - limit.timestamp > 2 * 60 * 60 * 1000) {
+      ipLimits.delete(ip);
     }
   }
 }, 30 * 60 * 1000); // Tarkista 30 minuutin välein
