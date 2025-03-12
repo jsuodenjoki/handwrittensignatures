@@ -40,104 +40,6 @@ app.use(cors());
 app.use("/api/webhook", express.raw({ type: "application/json" }));
 app.use(express.json());
 
-// Lisää käyttörajoitukset API-pyyntöihin
-const requestLimits = new Map(); // Session ID -> {count: pyyntöjen määrä, timestamp: viimeisin pyyntö}
-const ipLimits = new Map(); // IP-osoite -> {count: pyyntöjen määrä, timestamp: viimeisin pyyntö}
-
-// Middleware käyttörajoitusten tarkistamiseen
-const rateLimitMiddleware = (req, res, next) => {
-  // Ohita webhook-pyynnöt
-  if (req.path === "/api/webhook") {
-    return next();
-  }
-
-  const sessionId = req.body.sessionId || req.query.sessionId || "unknown";
-
-  // Korjattu IP-osoitteen tunnistus
-  const forwardedFor = req.headers["x-forwarded-for"];
-  const ip = forwardedFor
-    ? forwardedFor.split(",")[0].trim()
-    : req.ip || "unknown";
-
-  const now = Date.now();
-
-  console.log(
-    `Rate limit check - Real IP: ${ip}, SessionID: ${sessionId}, Path: ${
-      req.path
-    }, Headers: ${JSON.stringify(req.headers)}`
-  );
-
-  // Tarkista IP-rajoitukset
-  if (!ipLimits.has(ip)) {
-    ipLimits.set(ip, { count: 0, timestamp: now });
-  }
-
-  const userIpLimit = ipLimits.get(ip);
-
-  // Nollaa IP-laskuri, jos viimeisestä pyynnöstä on kulunut yli tunti
-  if (now - userIpLimit.timestamp > 60 * 60 * 1000) {
-    userIpLimit.count = 0;
-  }
-
-  // Päivitä IP-aikaleima
-  userIpLimit.timestamp = now;
-
-  // Tarkista IP-rajoitus (5 pyyntöä tunnissa)
-  if (userIpLimit.count >= 5) {
-    console.log(`IP limit exceeded for ${ip}: ${userIpLimit.count} requests`);
-    return res.status(429).json({
-      error: "Too many requests from this IP. Please try again later.",
-      retryAfter: 60, // minuuttia
-    });
-  }
-
-  // Kasvata IP-laskuria
-  userIpLimit.count++;
-  console.log(`Incremented IP count for ${ip} to ${userIpLimit.count}`);
-
-  // Tarkista session-rajoitukset
-  if (!requestLimits.has(sessionId)) {
-    requestLimits.set(sessionId, { count: 0, timestamp: now });
-  }
-
-  const userSessionLimit = requestLimits.get(sessionId);
-
-  // Nollaa session-laskuri, jos viimeisestä pyynnöstä on kulunut yli tunti
-  if (now - userSessionLimit.timestamp > 60 * 60 * 1000) {
-    userSessionLimit.count = 0;
-  }
-
-  // Päivitä session-aikaleima
-  userSessionLimit.timestamp = now;
-
-  // Tarkista session-rajoitus (5 pyyntöä tunnissa)
-  if (userSessionLimit.count >= 5) {
-    console.log(
-      `Session limit exceeded for ${sessionId}: ${userSessionLimit.count} requests`
-    );
-    return res.status(429).json({
-      error: "Too many requests. Please try again later.",
-      retryAfter: 60, // minuuttia
-    });
-  }
-
-  // Kasvata session-laskuria
-  userSessionLimit.count++;
-  console.log(
-    `Incremented session count for ${sessionId} to ${userSessionLimit.count}`
-  );
-
-  next();
-};
-
-// TÄRKEÄÄ: Lisää globaali middleware ENNEN reittejä
-app.use("/api/*", (req, res, next) => {
-  if (req.path === "/api/webhook") {
-    return next();
-  }
-  rateLimitMiddleware(req, res, next);
-});
-
 //4. FONTTIEN REKISTERÖINTI JA HALLINTA
 registerFont(path.join(__dirname, "../public/fonts2/poppins.ttf"), {
   family: "Poppins",
@@ -347,7 +249,7 @@ app.get("/api/check-signatures", (req, res) => {
 });
 
 // Allekirjoitusten luonti
-app.post("/api/create-signatures", async (req, res) => {
+app.post("/api/create-signatures", (req, res) => {
   const { name, color } = req.body;
   console.log(`Creating signatures: name=${name}, color=${color}`);
 
@@ -891,5 +793,4 @@ This email was sent from Signature Generator.`,
     });
   }
 });
-
 export default app;
