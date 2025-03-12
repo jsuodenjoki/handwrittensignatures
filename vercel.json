@@ -21,6 +21,8 @@
       "dest": "/public/signatures/handwritten_signature_generator_example_$1.png"
     },
     { "src": "/fonts/(.*)", "dest": "/public/fonts/$1" },
+    { "src": "/sitemap.xml", "dest": "/public/sitemap.xml" },
+    { "src": "/robots.txt", "dest": "/public/robots.txt" },
     { "src": "/api/(.*)", "dest": "/api/index.js" },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
