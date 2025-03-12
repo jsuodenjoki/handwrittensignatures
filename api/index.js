@@ -44,10 +44,10 @@ app.use(express.json());
 const requestLimits = new Map(); // Session ID -> {count: pyyntöjen määrä, timestamp: viimeisin pyyntö}
 const ipLimits = new Map(); // IP-osoite -> {count: pyyntöjen määrä, timestamp: viimeisin pyyntö}
 
-// Middleware käyttörajoitusten tarkistamiseen - SIIRRETTY TÄHÄN ENNEN REITTEJÄ
-app.use((req, res, next) => {
-  // Ohita webhook-pyynnöt ja staattiset tiedostot
-  if (req.path === "/api/webhook" || !req.path.startsWith("/api/")) {
+// Middleware käyttörajoitusten tarkistamiseen - TÄRKEÄ: Tämä on ennen reittien määrittelyä
+const rateLimitMiddleware = (req, res, next) => {
+  // Ohita webhook-pyynnöt
+  if (req.path === "/api/webhook") {
     return next();
   }
 
@@ -56,7 +56,7 @@ app.use((req, res, next) => {
   const now = Date.now();
 
   console.log(
-    `Request from IP: ${ip}, SessionID: ${sessionId}, Path: ${req.path}`
+    `Rate limit check - IP: ${ip}, SessionID: ${sessionId}, Path: ${req.path}`
   );
 
   // Tarkista IP-rajoitukset
@@ -83,14 +83,9 @@ app.use((req, res, next) => {
     });
   }
 
-  // Kasvata IP-laskuria vain tietyille pyynnöille
-  if (
-    req.path === "/api/generate-signatures" ||
-    req.path === "/api/send-email"
-  ) {
-    userIpLimit.count++;
-    console.log(`Incremented IP count for ${ip} to ${userIpLimit.count}`);
-  }
+  // Kasvata IP-laskuria
+  userIpLimit.count++;
+  console.log(`Incremented IP count for ${ip} to ${userIpLimit.count}`);
 
   // Tarkista session-rajoitukset
   if (!requestLimits.has(sessionId)) {
@@ -118,19 +113,35 @@ app.use((req, res, next) => {
     });
   }
 
-  // Kasvata session-laskuria vain tietyille pyynnöille
-  if (
-    req.path === "/api/generate-signatures" ||
-    req.path === "/api/send-email"
-  ) {
-    userSessionLimit.count++;
-    console.log(
-      `Incremented session count for ${sessionId} to ${userSessionLimit.count}`
-    );
-  }
+  // Kasvata session-laskuria
+  userSessionLimit.count++;
+  console.log(
+    `Incremented session count for ${sessionId} to ${userSessionLimit.count}`
+  );
 
   next();
-});
+};
+
+// Puhdista vanhat rajoitustiedot säännöllisesti
+setInterval(() => {
+  const now = Date.now();
+
+  // Puhdista session-rajoitukset
+  for (const [sessionId, limit] of requestLimits.entries()) {
+    // Poista yli 2 tuntia vanhat tiedot
+    if (now - limit.timestamp > 2 * 60 * 60 * 1000) {
+      requestLimits.delete(sessionId);
+    }
+  }
+
+  // Puhdista IP-rajoitukset
+  for (const [ip, limit] of ipLimits.entries()) {
+    // Poista yli 2 tuntia vanhat tiedot
+    if (now - limit.timestamp > 2 * 60 * 60 * 1000) {
+      ipLimits.delete(ip);
+    }
+  }
+}, 30 * 60 * 1000); // Tarkista 30 minuutin välein
 
 // Lisää tietoturvaotsikot
 app.use((req, res, next) => {
@@ -764,7 +775,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
 });
 
 // Muuta sähköpostin lähetys käyttämään Gmail-palvelinta ja ZIP-tiedostoa
-app.post("/api/send-email", async (req, res) => {
+app.post("/api/send-email", rateLimitMiddleware, async (req, res) => {
   try {
     const { email, sessionId, signatures: clientSignatures } = req.body;
 
