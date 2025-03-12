@@ -67,7 +67,7 @@ const rateLimitMiddleware = (req, res, next) => {
   const userIpLimit = ipLimits.get(ip);
 
   // Nollaa IP-laskuri, jos viimeisestä pyynnöstä on kulunut yli tunti
-  if (now - userIpLimit.timestamp > 60 * 60 * 1000) {
+  if (now - userIpLimit.timestamp > 60 * 1 * 1000) {
     userIpLimit.count = 0;
   }
 
@@ -79,7 +79,7 @@ const rateLimitMiddleware = (req, res, next) => {
     console.log(`IP limit exceeded for ${ip}: ${userIpLimit.count} requests`);
     return res.status(429).json({
       error: "Too many requests from this IP. Please try again later.",
-      retryAfter: 60, // minuuttia
+      retryAfter: 1, // minuuttia
     });
   }
 
@@ -95,7 +95,7 @@ const rateLimitMiddleware = (req, res, next) => {
   const userSessionLimit = requestLimits.get(sessionId);
 
   // Nollaa session-laskuri, jos viimeisestä pyynnöstä on kulunut yli tunti
-  if (now - userSessionLimit.timestamp > 60 * 60 * 1000) {
+  if (now - userSessionLimit.timestamp > 60 * 1 * 1000) {
     userSessionLimit.count = 0;
   }
 
@@ -109,7 +109,7 @@ const rateLimitMiddleware = (req, res, next) => {
     );
     return res.status(429).json({
       error: "Too many requests. Please try again later.",
-      retryAfter: 60, // minuuttia
+      retryAfter: 1, // minuuttia
     });
   }
 
@@ -129,7 +129,7 @@ setInterval(() => {
   // Puhdista session-rajoitukset
   for (const [sessionId, limit] of requestLimits.entries()) {
     // Poista yli 2 tuntia vanhat tiedot
-    if (now - limit.timestamp > 2 * 60 * 60 * 1000) {
+    if (now - limit.timestamp > 2 * 60 * 1 * 1000) {
       requestLimits.delete(sessionId);
     }
   }
@@ -137,11 +137,11 @@ setInterval(() => {
   // Puhdista IP-rajoitukset
   for (const [ip, limit] of ipLimits.entries()) {
     // Poista yli 2 tuntia vanhat tiedot
-    if (now - limit.timestamp > 2 * 60 * 60 * 1000) {
+    if (now - limit.timestamp > 2 * 60 * 1 * 1000) {
       ipLimits.delete(ip);
     }
   }
-}, 30 * 60 * 1000); // Tarkista 30 minuutin välein
+}, 1 * 60 * 1000); // Tarkista 30 minuutin välein
 
 // Lisää tietoturvaotsikot
 app.use((req, res, next) => {
