@@ -111,7 +111,8 @@ function createSignatureWithoutWatermark(name, fontStyle, color = "black") {
 
   // Aseta alustava fontti
   ctx.font = fontStyle.font;
-  ctx.fillStyle = color;
+  // Käytä täysin peittävää sinistä, jos väri on sininen
+  ctx.fillStyle = color === "blue" ? "rgba(2, 2, 255, 1.0)" : color;
   ctx.textAlign = "center";
 
   // Mittaa tekstin leveys
@@ -142,9 +143,9 @@ function createSignatureWithoutWatermark(name, fontStyle, color = "black") {
       textMetrics.actualBoundingBoxDescent) /
       2;
 
-  // Lisää nämä rivit ennen fillText-kutsua
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = color;
+  // Säädä viivan paksuutta ohuemmaksi
+  ctx.lineWidth = 0.5; // Ohuempi viiva
+  ctx.strokeStyle = color === "blue" ? "rgba(2, 2, 255, 1.0)" : color; // Sama väri kuin täyttö
 
   // Piirrä teksti
   ctx.fillText(name, canvas.width / 2, centerY);
@@ -192,7 +193,8 @@ function createSignature(name, fontStyle, color = "black") {
 
   // Aseta alustava fontti
   ctx.font = fontStyle.font;
-  ctx.fillStyle = color;
+  // Käytä täysin peittävää sinistä, jos väri on sininen
+  ctx.fillStyle = color === "blue" ? "rgba(2, 2, 255, 1.0)" : color;
   ctx.textAlign = "center";
 
   // Mittaa tekstin leveys
@@ -223,8 +225,13 @@ function createSignature(name, fontStyle, color = "black") {
       textMetrics.actualBoundingBoxDescent) /
       2;
 
+  // Säädä viivan paksuutta ohuemmaksi
+  ctx.lineWidth = 0.5; // Ohuempi viiva
+  ctx.strokeStyle = color === "blue" ? "rgba(2, 2, 255, 1.0)" : color; // Sama väri kuin täyttö
+
   // Piirrä teksti
   ctx.fillText(name, canvas.width / 2, centerY);
+  ctx.strokeText(name, canvas.width / 2, centerY); // Lisää ääriviiva
 
   return canvas.toDataURL("image/png");
 }
