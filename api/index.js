@@ -142,8 +142,13 @@ function createSignatureWithoutWatermark(name, fontStyle, color = "black") {
       textMetrics.actualBoundingBoxDescent) /
       2;
 
+  // Lisää nämä rivit ennen fillText-kutsua
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = color;
+
   // Piirrä teksti
   ctx.fillText(name, canvas.width / 2, centerY);
+  ctx.strokeText(name, canvas.width / 2, centerY); // Lisää ääriviiva
 
   // Palauta PNG läpinäkyvällä taustalla
   return canvas.toDataURL("image/png");

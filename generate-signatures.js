@@ -5,6 +5,7 @@ const { createCanvas, registerFont } = require("canvas");
 // Rekisteröi fontit
 registerFont(path.join(__dirname, "public/fonts/omafontti3.ttf"), {
   family: "OmaFontti3",
+  weight: "bold",
 });
 
 // Esimerkkinimet
@@ -54,7 +55,7 @@ function createSignature(name, fontFamily, color) {
 
   // Käytä samaa fonttikokoa kuin API-reitissä
   ctx.font = `110px ${fontFamily}`; // Suurempi fonttikoko
-  ctx.fillStyle = color;
+  ctx.fillStyle = "rgba(2, 2, 255, 1.0)"; // Täysin peittävä sininen
   ctx.textAlign = "center";
 
   const textMetrics = ctx.measureText(name);
@@ -67,7 +68,13 @@ function createSignature(name, fontFamily, color) {
       textMetrics.actualBoundingBoxDescent) /
       2;
 
+  // Säädä viivan paksuutta ohuemmaksi
+  ctx.lineWidth = 0.5; // Ohuempi viiva (oli 1.5)
+  ctx.strokeStyle = color; // Sama väri kuin täyttö
+
+  // Piirrä teksti - voit myös poistaa strokeText-kutsun kokonaan, jos haluat vain täytön
   ctx.fillText(name, canvas.width / 2, centerY);
+  ctx.strokeText(name, canvas.width / 2, centerY); // Lisää ääriviiva
 
   return canvas.toBuffer("image/png");
 }
@@ -82,7 +89,7 @@ process.on("uncaughtException", (err) => {
 exampleNames.forEach((name, index) => {
   try {
     console.log(`Luodaan allekirjoitus nimelle: ${name}`);
-    const buffer = createSignature(name, "OmaFontti3", "#6e8efb");
+    const buffer = createSignature(name, "OmaFontti3", "#0000CC");
     const filename = `handwritten_signature_generator_example_${index + 1}.png`;
     fs.writeFileSync(path.join(signatureDir, filename), buffer);
     console.log(`Luotu allekirjoitus: ${filename}`);
