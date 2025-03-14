@@ -505,7 +505,7 @@
       }
 
       .color-circle.blue {
-        background-color: blue;
+        background-color: #0202ff;
       }
 
       .color-options input[type="radio"] {
@@ -513,7 +513,7 @@
       }
 
       .color-options input[type="radio"]:checked + .color-circle {
-        border: 2px solid #6e8efb;
+        border: 2px solid #0202ff;
       }
 
       /* Allekirjoituskontti */
@@ -1252,7 +1252,11 @@
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ name, color }),
+            body: JSON.stringify({
+              name,
+              sessionId: await getSessionId(),
+              color: color === "blue" ? "#0202ff" : color,
+            }),
           });
 
           const data = await response.json();
