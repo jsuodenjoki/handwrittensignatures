@@ -105,6 +105,13 @@
         margin-top: 80px;
       }
 
+      .product-hunt-badge {
+        margin-top: 20px;
+        margin-bottom: 20px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
       .gradient-bg {
         position: absolute;
         top: -30%;
@@ -668,6 +675,45 @@
       </button>
     </div>
 
+    <div id="email-container" class="email-container">
+      <h2>Do you want to receive the signatures to your email?</h2>
+      <input type="email" id="emailInput" placeholder="Your email address" />
+      <button id="sendEmailButton">Send signatures to email</button>
+      <div id="emailTimer" class="hidden"></div>
+    </div>
+
+    <div
+      id="download-again-container"
+      class="email-container"
+      style="display: none"
+    >
+      <button id="downloadAgainButton" class="button primary-button">
+        Download signatures again
+      </button>
+    </div>
+
+    <div id="reset-container" class="email-container" style="display: none">
+      <div id="reset-timer" class="status-message">
+        Data will be automatically deleted in 3:00 minutes
+      </div>
+      <button id="resetButton" class="button primary-button">
+        Create more signatures
+      </button>
+    </div>
+
+    <div class="product-hunt-badge">
+      <a
+        href="https://www.producthunt.com/posts/handwritten-signature-generator-2?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-handwritten&#0045;signature&#0045;generator&#0045;2"
+        target="_blank"
+        ><img
+          src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=942191&theme=neutral&t=1741987165908"
+          alt="Handwritten&#0032;Signature&#0032;Generator - Create&#0032;Realistic&#0032;Handwritten&#0032;Signatures&#0032;in&#0032;Seconds&#0033; | Product Hunt"
+          style="width: 250px; height: 54px"
+          width="250"
+          height="54"
+      /></a>
+    </div>
+
     <div class="all-steps">
       <h2 class="features-title">
         Why Use Our Handwritten Signature Generator?
@@ -716,32 +762,6 @@
           </p>
         </div>
       </div>
-    </div>
-
-    <div id="email-container" class="email-container">
-      <h2>Do you want to receive the signatures to your email?</h2>
-      <input type="email" id="emailInput" placeholder="Your email address" />
-      <button id="sendEmailButton">Send signatures to email</button>
-      <div id="emailTimer" class="hidden"></div>
-    </div>
-
-    <div
-      id="download-again-container"
-      class="email-container"
-      style="display: none"
-    >
-      <button id="downloadAgainButton" class="button primary-button">
-        Download signatures again
-      </button>
-    </div>
-
-    <div id="reset-container" class="email-container" style="display: none">
-      <div id="reset-timer" class="status-message">
-        Data will be automatically deleted in 3:00 minutes
-      </div>
-      <button id="resetButton" class="button primary-button">
-        Create more signatures
-      </button>
     </div>
     <div class="all-steps">
       <h2 class="features-title">How Handwritten Signature Generator Works?</h2>
