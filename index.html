@@ -1248,7 +1248,7 @@
         return expired;
       }
 
-      // Muokkaa createSignatures-funktiota asettamaan vanhenemisaika
+      // Muokataan createSignatures-funktiota näyttämään puhtaat allekirjoitukset ilman vesileimaa
       async function createSignatures() {
         const name = nameInput.value.trim();
         const color = document.querySelector(
@@ -1265,18 +1265,21 @@
         statusMessage.style.color = "#6e8efb"; // Sininen väri
 
         try {
-          // Luo allekirjoitukset
-          const response = await fetch(`${API_URL}/api/create-signatures`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              name,
-              sessionId: await getSessionId(),
-              color: color === "blue" ? "#0000CC" : color,
-            }),
-          });
+          // Luo puhtaat allekirjoitukset ilman vesileimaa
+          const response = await fetch(
+            `${API_URL}/api/create-clean-signatures`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                name,
+                sessionId: await getSessionId(),
+                color: color === "blue" ? "#0000CC" : color,
+              }),
+            }
+          );
 
           const data = await response.json();
 
@@ -1314,18 +1317,15 @@
             // Näytä latausnappi
             downloadAgainContainer.style.display = "block";
 
-            // Näytä sähköpostikenttä
-            emailContainer.style.display = "block";
+            // Piilota sähköpostikenttä
+            emailContainer.style.display = "none";
 
             // Näytä viesti
             statusMessage.textContent =
               "Signatures created successfully! Ready for download.";
             statusMessage.style.color = "#4CAF50"; // Vihreä väri
 
-            // Automaattinen lataus pienen viiveen jälkeen
-            setTimeout(() => {
-              downloadSignatures();
-            }, 1500);
+            // Ei enää automaattista latausta
           }
         } catch (error) {
           console.error("Error creating signatures:", error);
@@ -1334,7 +1334,7 @@
         }
       }
 
-      // Tarkista tila
+      // Muokataan checkStatus-funktiota piilottamaan sähköpostikenttä
       async function checkStatus(forceCheck = false) {
         // Tarkista onko allekirjoitukset vanhentuneet
         if (isSignatureExpired()) {
@@ -1373,8 +1373,8 @@
           // Näytä "Lataa" -nappi
           downloadAgainContainer.style.display = "block";
 
-          // Näytä sähköpostikenttä
-          emailContainer.style.display = "block";
+          // Piilota sähköpostikenttä
+          emailContainer.style.display = "none";
 
           // Näytä reset-container ja käynnistä ajastin
           resetContainer.style.display = "block";
@@ -1386,18 +1386,7 @@
             resetTimerInterval = setInterval(updateResetTimer, 1000);
           }
 
-          // Tarkista onko automaattinen lataus jo suoritettu
-          const hasAutoDownloaded = localStorage.getItem("hasAutoDownloaded");
-
-          if (forceCheck && !hasAutoDownloaded) {
-            // Merkitse automaattinen lataus suoritetuksi
-            localStorage.setItem("hasAutoDownloaded", "true");
-
-            // Viive ennen latausta, jotta käyttäjä näkee viestin
-            setTimeout(() => {
-              downloadSignatures();
-            }, 1000);
-          }
+          // Ei enää automaattista latausta
         } else {
           // Ei allekirjoituksia, piilota ostonappi
           buyButton.style.display = "none";
