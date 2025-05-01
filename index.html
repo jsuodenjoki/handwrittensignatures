@@ -1308,12 +1308,24 @@
             // Aseta 10 minuutin vanhenemisaika
             setSignatureExpiry();
 
-            // Näytä ostonappi
-            buyButton.style.display = "inline-block";
+            // Piilota ostonappi
+            buyButton.style.display = "none";
+
+            // Näytä latausnappi
+            downloadAgainContainer.style.display = "block";
+
+            // Näytä sähköpostikenttä
+            emailContainer.style.display = "block";
 
             // Näytä viesti
-            statusMessage.textContent = "Signatures created successfully!";
+            statusMessage.textContent =
+              "Signatures created successfully! Ready for download.";
             statusMessage.style.color = "#4CAF50"; // Vihreä väri
+
+            // Automaattinen lataus pienen viiveen jälkeen
+            setTimeout(() => {
+              downloadSignatures();
+            }, 1500);
           }
         } catch (error) {
           console.error("Error creating signatures:", error);
@@ -1331,16 +1343,11 @@
           return;
         }
 
-        // Tarkista onko maksu vanhentunut
-        if (isPaymentExpired()) {
-          console.log("Maksu vanhentunut, tyhjennetään tiedot...");
-          await resetAllData();
-          return;
-        }
-
         // Tarkista localStoragesta
         const signatures = getSignaturesFromLocal();
-        const hasPaid = getPaymentStatus();
+
+        // Aseta hasPaid aina trueksi (ohitetaan maksutarkistus)
+        const hasPaid = true;
 
         console.log("Checking status from localStorage:");
         console.log("- Signatures:", !!signatures);
@@ -1349,64 +1356,47 @@
         const data = {
           hasSignatures: !!signatures,
           hasPaid: hasPaid,
-          canDownload: !!signatures && hasPaid,
+          canDownload: !!signatures, // Vain allekirjoitukset tarvitaan lataamiseen
         };
 
         console.log("Status updated:", data);
 
         if (data.hasSignatures) {
-          if (data.hasPaid && data.canDownload) {
-            console.log("Payment confirmed, signatures available for download");
-            statusMessage.textContent =
-              "Payment successful! Signatures available for download.";
-            statusMessage.style.color = "#4CAF50"; // Vihreä väri
-            buyButton.style.display = "none";
+          // Käyttäjä voi aina ladata allekirjoitukset
+          console.log("Signatures available for download");
+          statusMessage.textContent = "Signatures created! Ready for download.";
+          statusMessage.style.color = "#4CAF50"; // Vihreä väri
 
-            // Näytä "Lataa uudelleen" -nappi
-            downloadAgainContainer.style.display = "block";
+          // Piilota ostonappi
+          buyButton.style.display = "none";
 
-            // Näytä sähköpostikenttä
-            emailContainer.style.display = "block";
+          // Näytä "Lataa" -nappi
+          downloadAgainContainer.style.display = "block";
 
-            // Näytä reset-container ja käynnistä ajastin
-            resetContainer.style.display = "block";
+          // Näytä sähköpostikenttä
+          emailContainer.style.display = "block";
 
-            // Käynnistä ajastin vain jos sitä ei ole jo käynnistetty
-            if (!resetTimerInterval) {
-              resetTimeLeft = 180; // 3 minuuttia
-              updateResetTimer(); // Päivitä heti kerran
-              resetTimerInterval = setInterval(updateResetTimer, 1000);
-            }
+          // Näytä reset-container ja käynnistä ajastin
+          resetContainer.style.display = "block";
 
-            // Tarkista onko automaattinen lataus jo suoritettu
-            const hasAutoDownloaded = localStorage.getItem("hasAutoDownloaded");
+          // Käynnistä ajastin vain jos sitä ei ole jo käynnistetty
+          if (!resetTimerInterval) {
+            resetTimeLeft = 180; // 3 minuuttia
+            updateResetTimer(); // Päivitä heti kerran
+            resetTimerInterval = setInterval(updateResetTimer, 1000);
+          }
 
-            if (forceCheck && !hasAutoDownloaded) {
-              // Merkitse automaattinen lataus suoritetuksi
-              localStorage.setItem("hasAutoDownloaded", "true");
+          // Tarkista onko automaattinen lataus jo suoritettu
+          const hasAutoDownloaded = localStorage.getItem("hasAutoDownloaded");
 
-              // Viive ennen latausta, jotta käyttäjä näkee viestin
-              setTimeout(() => {
-                downloadSignatures();
-              }, 1000);
-            }
-          } else {
-            // Näytä viesti vain jos käyttäjä on luonut allekirjoitukset
-            if (signaturesContainer.innerHTML.trim() !== "") {
-              statusMessage.textContent = "Signatures created!";
-              statusMessage.style.color = "#6e8efb"; // Sininen väri
-              buyButton.style.display = "inline-block";
+          if (forceCheck && !hasAutoDownloaded) {
+            // Merkitse automaattinen lataus suoritetuksi
+            localStorage.setItem("hasAutoDownloaded", "true");
 
-              // Piilota "Lataa uudelleen" -nappi ja reset-container
-              downloadAgainContainer.style.display = "none";
-              resetContainer.style.display = "none";
-
-              // Pysäytä ajastin
-              if (resetTimerInterval) {
-                clearInterval(resetTimerInterval);
-                resetTimerInterval = null;
-              }
-            }
+            // Viive ennen latausta, jotta käyttäjä näkee viestin
+            setTimeout(() => {
+              downloadSignatures();
+            }, 1000);
           }
         } else {
           // Ei allekirjoituksia, piilota ostonappi
