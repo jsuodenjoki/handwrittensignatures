@@ -1217,10 +1217,10 @@
 
       // Lisää tämä funktio allekirjoitusten vanhenemisajan asettamiseksi
       function setSignatureExpiry() {
-        const expiryTime = Date.now() + 10 * 60 * 1000; // Nykyinen aika + 1 minuuttia
+        const expiryTime = Date.now() + 3 * 60 * 1000; // 3 minuuttia millisekunteina
         localStorage.setItem("signatureExpiry", expiryTime.toString());
         console.log(
-          "Signature expiry time set:",
+          "Allekirjoitusten vanhenemisaika asetettu:",
           new Date(expiryTime).toLocaleTimeString()
         );
       }
@@ -1334,7 +1334,7 @@
         }
       }
 
-      // Muokataan checkStatus-funktiota piilottamaan sähköpostikenttä
+      // Muokataan checkStatus-funktiota käynnistämään ajastin oikein
       async function checkStatus(forceCheck = false) {
         // Tarkista onko allekirjoitukset vanhentuneet
         if (isSignatureExpired()) {
@@ -1379,14 +1379,15 @@
           // Näytä reset-container ja käynnistä ajastin
           resetContainer.style.display = "block";
 
-          // Käynnistä ajastin vain jos sitä ei ole jo käynnistetty
-          if (!resetTimerInterval) {
-            resetTimeLeft = 180; // 3 minuuttia
-            updateResetTimer(); // Päivitä heti kerran
-            resetTimerInterval = setInterval(updateResetTimer, 1000);
+          // Pysäytä vanha ajastin jos sellainen on
+          if (resetTimerInterval) {
+            clearInterval(resetTimerInterval);
+            resetTimerInterval = null;
           }
 
-          // Ei enää automaattista latausta
+          // Käynnistä uusi ajastin
+          updateResetTimer(); // Päivitä heti kerran
+          resetTimerInterval = setInterval(updateResetTimer, 1000); // Päivitä sekunnin välein
         } else {
           // Ei allekirjoituksia, piilota ostonappi
           buyButton.style.display = "none";
@@ -1800,16 +1801,24 @@
       let resetTimerInterval;
       let resetTimeLeft = 180; // 3 minuuttia sekunteina
 
-      // Funktio ajastimen päivittämiseen
+      // Korjataan ajastimen päivitysfunktio
       function updateResetTimer() {
         // Hae jäljellä oleva aika localStoragesta
-        const expiryTime = localStorage.getItem("paymentExpiry");
+        const expiryTime = localStorage.getItem("signatureExpiry");
+
         if (!expiryTime) {
-          resetTimer.textContent =
-            "Data will be automatically deleted in 3:00 minutes";
+          // Jos vanhenemisaikaa ei ole asetettu, käytä oletusaikaa (3 minuuttia)
+          const defaultTime = 3 * 60; // 3 minuuttia sekunteina
+          const minutes = Math.floor(defaultTime / 60);
+          const seconds = defaultTime % 60;
+
+          resetTimer.textContent = `Data will be automatically deleted in ${minutes}:${
+            seconds < 10 ? "0" : ""
+          }${seconds} minutes`;
           return;
         }
 
+        // Laske jäljellä oleva aika
         const now = Date.now();
         const timeLeft = Math.max(0, parseInt(expiryTime) - now);
 
@@ -1817,10 +1826,12 @@
         const minutes = Math.floor(timeLeft / 60000);
         const seconds = Math.floor((timeLeft % 60000) / 1000);
 
+        // Päivitä ajastimen teksti
         resetTimer.textContent = `Data will be automatically deleted in ${minutes}:${
           seconds < 10 ? "0" : ""
         }${seconds} minutes`;
 
+        // Jos aika on loppunut, resetoi tiedot
         if (timeLeft <= 0) {
           clearInterval(resetTimerInterval);
           resetAllData();
