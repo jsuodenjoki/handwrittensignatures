@@ -24,6 +24,13 @@
     { "src": "/sitemap.xml", "dest": "/public/sitemap.xml" },
     { "src": "/robots.txt", "dest": "/public/robots.txt" },
     { "src": "/api/(.*)", "dest": "/api/index.js" },
+    {
+      "src": "/blog/(.*)",
+      "dest": "https://blog.handwrittensignaturegenerator.com/$1",
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
