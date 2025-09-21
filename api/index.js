@@ -40,6 +40,31 @@ app.use(cors());
 app.use("/api/webhook", express.raw({ type: "application/json" }));
 app.use(express.json());
 
+// Blog proxy middleware
+app.use("/blog", async (req, res) => {
+  const { httpProxy } = await import("http-proxy-middleware");
+
+  const proxy = httpProxy.createProxyMiddleware({
+    target: "https://blog.handwrittensignaturegenerator.com",
+    changeOrigin: true,
+    pathRewrite: {
+      "^/blog": "", // Poista /blog polusta
+    },
+    onProxyReq: (proxyReq, req, res) => {
+      // Lisää oikeat headerit
+      proxyReq.setHeader("host", "blog.handwrittensignaturegenerator.com");
+    },
+    onProxyRes: (proxyRes, req, res) => {
+      // Poista cache-headereitä admin-sivuille
+      if (req.path.includes("wp-admin") || req.path.includes("wp-login")) {
+        proxyRes.headers["cache-control"] = "no-store";
+      }
+    },
+  });
+
+  proxy(req, res);
+});
+
 //4. FONTTIEN REKISTERÖINTI JA HALLINTA
 registerFont(path.join(__dirname, "../public/fonts2/poppins.ttf"), {
   family: "Poppins",
