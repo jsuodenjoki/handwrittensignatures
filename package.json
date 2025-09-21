@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "nodemon server.js",
     "build": "node generate-signatures.js"
   },
   "dependencies": {
@@ -17,5 +17,8 @@
     "resend": "^4.1.2",
     "sharp": "^0.33.5",
     "stripe": "^12.18.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
   }
 }
