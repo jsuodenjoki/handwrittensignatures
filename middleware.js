@@ -22,9 +22,9 @@ export function middleware(req) {
     );
   }
 
-  // Kaikki muu blogisisältö -> reverse proxy WordPress-sivustolle
+  // Kaikki muu blogisisältö -> reverse proxy WordPress subdomainiin
   return NextResponse.rewrite(
-    "https://handwrittensignaturegenerator.com/blog" + subpath
+    "https://blog.handwrittensignaturegenerator.com" + subpath
   );
 }
 
