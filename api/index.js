@@ -91,12 +91,13 @@ try {
             fontName.toLowerCase() === "omafontti1"
               ? `155px '${fontFamily}'` // omafontti1 saa koon 155px
               : fontName.toLowerCase() === "omafontti2"
-              ? `130px '${fontFamily}'` // omafontti2 saa koon 130px
-              : fontName.toLowerCase() === "omafontti3" ||
-                fontName.toLowerCase() === "omafontti5"
-              ? `100px '${fontFamily}'` // omafontti3 ja omafontti5 saavat koon 100px
+              ? `155px '${fontFamily}'` // omafontti2 saa koon 130px
+              : fontName.toLowerCase() === "omafontti3"
+              ? `120px '${fontFamily}'` // omafontti3 saa koon 120px
+              : fontName.toLowerCase() === "omafontti5"
+              ? `100px '${fontFamily}'` // omafontti5 saa koon 100px
               : fontName.toLowerCase() === "omafontti4"
-              ? `60px '${fontFamily}'` // omafontti4 saa koon 80px
+              ? `60px '${fontFamily}'` // omafontti4 saa koon 60px
               : `40px '${fontFamily}'`, // kaikki muut saavat koon 40px
         });
       }
