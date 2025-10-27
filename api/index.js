@@ -96,7 +96,7 @@ try {
                 fontName.toLowerCase() === "omafontti5"
               ? `100px '${fontFamily}'` // omafontti3 ja omafontti5 saavat koon 100px
               : fontName.toLowerCase() === "omafontti4"
-              ? `80px '${fontFamily}'` // omafontti4 saa koon 80px
+              ? `60px '${fontFamily}'` // omafontti4 saa koon 80px
               : `40px '${fontFamily}'`, // kaikki muut saavat koon 40px
         });
       }
