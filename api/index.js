@@ -121,8 +121,16 @@ try {
 
 //6. ALLEKIRJOITUSTEN LUONTIFUNKTIOT
 function createSignatureWithoutWatermark(name, fontStyle, color = "black") {
-  const canvas = createCanvas(600, 200);
+  // Käytä 4x isompaa canvas-kokoa korkealaatuisempia allekirjoituksia varten
+  const scaleFactor = 4;
+  const canvas = createCanvas(600 * scaleFactor, 200 * scaleFactor);
   const ctx = canvas.getContext("2d");
+
+  // Paranna tekstin renderöintiä
+  ctx.textBaseline = "alphabetic";
+  ctx.textAlign = "center";
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
 
   // Tyhjennä canvas läpinäkyväksi (ei valkoista taustaa)
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -130,15 +138,14 @@ function createSignatureWithoutWatermark(name, fontStyle, color = "black") {
   // Määritä maksimileveys (90% canvaksen leveydestä)
   const maxWidth = canvas.width * 0.9;
 
-  // Hae alkuperäinen fonttikoko
+  // Hae alkuperäinen fonttikoko ja skaalaa se
   const originalFontSize = parseInt(fontStyle.font.match(/\d+/)[0]);
-  let fontSize = originalFontSize;
+  let fontSize = originalFontSize * scaleFactor;
 
   // Aseta alustava fontti
-  ctx.font = fontStyle.font;
+  ctx.font = fontStyle.font.replace(/\d+px/, `${fontSize}px`);
   // Käytä täysin peittävää sinistä, jos väri on sininen
   ctx.fillStyle = color === "blue" ? "rgba(2, 2, 255, 1.0)" : color;
-  ctx.textAlign = "center";
 
   // Mittaa tekstin leveys
   let textWidth = ctx.measureText(name).width;
@@ -146,7 +153,9 @@ function createSignatureWithoutWatermark(name, fontStyle, color = "black") {
   // Jos teksti on liian leveä, pienennä fonttikokoa kunnes se mahtuu
   if (textWidth > maxWidth) {
     // Laske sopiva fonttikoko
-    fontSize = Math.floor(originalFontSize * (maxWidth / textWidth));
+    fontSize = Math.floor(
+      originalFontSize * scaleFactor * (maxWidth / textWidth)
+    );
 
     // Päivitä fontti uudella koolla
     const newFont = fontStyle.font.replace(/\d+px/, `${fontSize}px`);
@@ -168,15 +177,15 @@ function createSignatureWithoutWatermark(name, fontStyle, color = "black") {
       textMetrics.actualBoundingBoxDescent) /
       2;
 
-  // Säädä viivan paksuutta ohuemmaksi
-  ctx.lineWidth = 0.5; // Ohuempi viiva
+  // Säädä viivan paksuutta skaalautuvaksi mutta ohuemmaksi
+  ctx.lineWidth = 1.5; // Heikerpi viiva
   ctx.strokeStyle = color === "blue" ? "rgba(2, 2, 255, 1.0)" : color; // Sama väri kuin täyttö
 
   // Piirrä teksti
   ctx.fillText(name, canvas.width / 2, centerY);
   ctx.strokeText(name, canvas.width / 2, centerY); // Lisää ääriviiva
 
-  // Palauta PNG läpinäkyvällä taustalla
+  // Palauta PNG läpinäkyvällä taustalla korkealla laadulla
   return canvas.toDataURL("image/png");
 }
 
