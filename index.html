@@ -481,10 +481,38 @@
         }
       }
 
-      /* Lisää oma fontti @font-face-säännöllä */
+      /* Lisää oma fontit @font-face-säännöllä */
       @font-face {
         font-family: "OmaFontti1";
         src: url("/fonts/omafontti1.ttf") format("truetype");
+        font-weight: normal;
+        font-style: normal;
+      }
+
+      @font-face {
+        font-family: "OmaFontti2";
+        src: url("/fonts/omafontti2.ttf") format("truetype");
+        font-weight: normal;
+        font-style: normal;
+      }
+
+      @font-face {
+        font-family: "OmaFontti3";
+        src: url("/fonts/omafontti3.ttf") format("truetype");
+        font-weight: normal;
+        font-style: normal;
+      }
+
+      @font-face {
+        font-family: "OmaFontti4";
+        src: url("/fonts/omafontti4.ttf") format("truetype");
+        font-weight: normal;
+        font-style: normal;
+      }
+
+      @font-face {
+        font-family: "OmaFontti5";
+        src: url("/fonts/omafontti5.ttf") format("truetype");
         font-weight: normal;
         font-style: normal;
       }
@@ -1703,32 +1731,73 @@
         }
       });
 
-      // Lataa oma fontti dynaamisesti ja alusta karuselli vasta kun fontti on ladattu
+      // Lataa oma fontit dynaamisesti ja alusta karuselli vasta kun fontit on ladattu
       async function loadFontsAndInitialize() {
         try {
           // Tyhjennä fonttilistaus ensin
           signatureFonts.length = 0;
 
-          // Lataa vain oma fontti
-          try {
-            const fontFace = new FontFace(
-              "OmaFontti1",
-              `url(/fonts/omafontti1.ttf)`
-            );
+          // Määritä ladattavat fontit
+          const fontsToLoad = [
+            {
+              name: "OmaFontti1",
+              url: "/fonts/omafontti1.ttf",
+              displayName: "Oma Fontti 1",
+              fontSize: "155px",
+            },
+            {
+              name: "OmaFontti2",
+              url: "/fonts/omafontti2.ttf",
+              displayName: "Oma Fontti 2",
+              fontSize: "100px",
+            },
+            {
+              name: "OmaFontti3",
+              url: "/fonts/omafontti3.ttf",
+              displayName: "Oma Fontti 3",
+              fontSize: "100px",
+            },
+            {
+              name: "OmaFontti4",
+              url: "/fonts/omafontti4.ttf",
+              displayName: "Oma Fontti 4",
+              fontSize: "100px",
+            },
+            {
+              name: "OmaFontti5",
+              url: "/fonts/omafontti5.ttf",
+              displayName: "Oma Fontti 5",
+              fontSize: "100px",
+            },
+          ];
 
-            const loadedFace = await fontFace.load();
-            document.fonts.add(loadedFace);
+          // Lataa kaikki fontit
+          for (const fontConfig of fontsToLoad) {
+            try {
+              const fontFace = new FontFace(
+                fontConfig.name,
+                `url(${fontConfig.url})`
+              );
+              const loadedFace = await fontFace.load();
+              document.fonts.add(loadedFace);
 
-            // Lisää oma fontti fonttilistaan suuremmalla fonttikoolla
-            signatureFonts.push({
-              name: "Oma Fontti",
-              font: "100px 'OmaFontti1', cursive",
-            });
+              // Lisää fontti fonttilistaan
+              signatureFonts.push({
+                name: fontConfig.displayName,
+                font: `${fontConfig.fontSize} '${fontConfig.name}', cursive`,
+              });
 
-            console.log("Own font loaded successfully!");
-          } catch (fontError) {
-            console.error("Error loading own font:", fontError);
-            // Jos oman fontin lataus epäonnistuu, käytä järjestelmäfonttia
+              console.log(`Font ${fontConfig.name} loaded successfully!`);
+            } catch (fontError) {
+              console.error(
+                `Error loading font ${fontConfig.name}:`,
+                fontError
+              );
+            }
+          }
+
+          // Jos ei saatu yhtään fonttia, käytä järjestelmäfonttia
+          if (signatureFonts.length === 0) {
             signatureFonts.push({
               name: "Järjestelmäfontti",
               font: "60px Arial, sans-serif",
