@@ -679,6 +679,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
         enabled: true, // Käytä automaattista verolaskentaa
       },
       mode: "payment",
+      allow_promotion_codes: true,
       success_url: `${req.headers.origin}?success=true`,
       cancel_url: `${req.headers.origin}?canceled=true`,
       metadata: {
