@@ -1937,8 +1937,16 @@
       }
 
       // Lisää tapahtumankäsittelijä ostonapille
+      // TEMPORARY: payment disabled, redeem instantly instead of going through Stripe
       buyButton.addEventListener("click", async () => {
-        await createCheckoutSession();
+        if (!getPaymentStatus()) {
+          savePaymentStatus(true);
+          if (!localStorage.getItem("paymentExpiry")) {
+            savePaymentTimestamp();
+          }
+          localStorage.removeItem("hasAutoDownloaded");
+        }
+        await checkStatus(true);
       });
 
       // Varmista, että tarkistus suoritetaan säännöllisesti
